@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>agimus_controller</name>
+  <version>0.0.0</version>
+  <description>The agimus_controller package</description>
+
+  <maintainer email="gsaurel@laas.fr">Guilhem Saurel</maintainer>
+  <author email="maximilien.naveau@toward.fr">Maximilien Naveau</author>
+
+  <license>BSD-2</license>
+  <url type="website">https://github.com/TheoMF/croco_hpp_connection</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>cmake</buildtool_depend>
+
+  <exec_depend>jrl-cmakemodules</exec_depend>
+  <!-- The following tags are recommended by REP-136 -->
+  <exec_depend condition="$ROS_VERSION == 1">catkin</exec_depend>
+  <exec_depend condition="$ROS_VERSION == 2">ament_cmake</exec_depend>
+
+  <!-- ROS dependencies. -->
+  <depend>linear_feedback_controller_msgs</depend>
+  <depend>rospy</depend>
+
+  <!-- Python dpendencies. -->
+  <exec_depend>python-matplotlib</exec_depend>
+  <exec_depend>python-numpy</exec_depend>
+
+  <!-- LAAS dependencies. -->
+  <exec_depend>pinocchio</exec_depend>
+  <exec_depend>croccodyl</exec_depend>
+  <exec_depend>example-robot-data</exec_depend>
+
+  <!-- MiM dependencies. -->
+  <exec_depend>mim_solvers</exec_depend>
+  
+  <!-- HPP dependencies. -->
+  <exec_depend>hpp-corbaservers</exec_depend>
+
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+    <!-- Other tools can request additional information be placed here -->
+
+  </export>
+</package>
