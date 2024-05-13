@@ -1,9 +1,6 @@
 # default version in Ubuntu20.04
 cmake_minimum_required(VERSION 3.16.3)
 
-# Quite some warnings:
-cmake_policy(SET CMP0053 NEW)
-
 # Set up project properties
 set(PROJECT_NAMESPACE agimus)
 set(PROJECT_NAME agimus_controller)
