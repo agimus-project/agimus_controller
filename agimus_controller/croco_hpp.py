@@ -1,4 +1,4 @@
-from problem import *
+from .problem import *
 import matplotlib.pyplot as plt
 
 

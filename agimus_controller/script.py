@@ -248,30 +248,31 @@ if args.N != 0:
         print(f"Average number nodes per success: {totalNumberNodes/success}")
 
 ##### start croco script
-from hpp.corbaserver import wrap_delete
-from croco_hpp import *
+if __name__ == "__main__":
+    from hpp.corbaserver import wrap_delete
+    from .croco_hpp import *
 
 
-# new_p = wrap_delete(p.pathAtRank(0))
-##TODO trouver les indexs pour split le path en plusieurs parties
-def split_paths_idx(p):
-    splitted_paths_idxs = {}
-    for idx in range(p.numberPaths()):
-        sub_path = p.pathAtRank(idx)
-        if sub_path.initial()[6:] != sub_path.end()[6:]:
-            splitted_paths_idxs[f"path_{idx}"] = idx
-    return splitted_paths_idxs
+    # new_p = wrap_delete(p.pathAtRank(0))
+    ##TODO trouver les indexs pour split le path en plusieurs parties
+    def split_paths_idx(p):
+        splitted_paths_idxs = {}
+        for idx in range(p.numberPaths()):
+            sub_path = p.pathAtRank(idx)
+            if sub_path.initial()[6:] != sub_path.end()[6:]:
+                splitted_paths_idxs[f"path_{idx}"] = idx
+        return splitted_paths_idxs
 
 
-ball_init_pose = [-0.2, 0, 0.02, 0, 0, 0, 1]
-chc = CrocoHppConnection(ps, "ur5", vf, ball_init_pose)
-start = time.time()
-chc.search_best_costs(1, use_mim=True)
-end = time.time()
-print("search duration ", end - start)
-with open("datas.npy", "wb") as f:
-    np.save(f, chc.prob.hpp_paths[0].x_plan)
-    np.save(f, chc.prob.hpp_paths[1].x_plan)
+    ball_init_pose = [-0.2, 0, 0.02, 0, 0, 0, 1]
+    chc = CrocoHppConnection(ps, "ur5", vf, ball_init_pose)
+    start = time.time()
+    chc.search_best_costs(1, use_mim=True)
+    end = time.time()
+    print("search duration ", end - start)
+    with open("datas.npy", "wb") as f:
+        np.save(f, chc.prob.hpp_paths[0].x_plan)
+        np.save(f, chc.prob.hpp_paths[1].x_plan)
 
 """
 from hpp.gepetto import PathPlayer

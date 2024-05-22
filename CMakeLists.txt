@@ -46,6 +46,9 @@ if(NOT INSTALL_ROS_INTERFACE_ONLY)
     endforeach()
     install(FILES package.xml DESTINATION share/${PROJECT_NAME})
 endif()
+install(DIRECTORY ${PROJECT_NAME}/resources DESTINATION ${PYTHON_SITELIB}/${PROJECT_NAME})
+
+
 if(BUILD_ROS_INTERFACE)
     # Build with ros1 catkin specific configuration
     set(MY_CATKIN_DEPENDENCIES

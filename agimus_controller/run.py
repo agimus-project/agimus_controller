@@ -1,6 +1,8 @@
-from croco_hpp import *
+from pathlib import Path
+from .croco_hpp import *
 
-with open("datas.npy", "rb") as f:
+
+with open(Path(__file__).parent / "resources" / "datas.npy", "rb") as f:
     x_plan_0 = np.load(f)
     x_plan_1 = np.load(f)
 
