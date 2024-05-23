@@ -34,8 +34,6 @@ add_project_dependency(
     example-robot-data 4.1.0 REQUIRED PKG_CONFIG_REQUIRES "example-robot-data >= 4.1.0")
 add_project_dependency(
     mim_solvers 0.0.4 REQUIRED PKG_CONFIG_REQUIRES "mim_solvers >= 0.0.4")
-# add_project_dependency(
-#     mim_solvers 0.0.4 REQUIRED PKG_CONFIG_REQUIRES "mim_solvers >= 0.0.4")
 
 if(NOT INSTALL_ROS_INTERFACE_ONLY)
     # Install the python package.
@@ -62,21 +60,4 @@ if(BUILD_ROS_INTERFACE)
         CATKIN_DEPENDS ${MY_CATKIN_DEPENDENCIES}
         DEPENDS ${MY_PYTHON_DEPENDENCIES}
     )
-
-    ## Mark executable scripts (Python etc.) for installation
-    ## in contrast to setup.py, you can choose the destination
-    # catkin_install_python(PROGRAMS
-    #   scripts/my_python_script
-    #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    # )
-
-    ## Mark other files for installation (e.g. launch and bag files, etc.)
-    # install(FILES
-    #   # myfile1
-    #   # myfile2
-    #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-    # )
-
-    ## Add folders to be run by python nosetests
-    # catkin_add_nosetests(test)
 endif()
