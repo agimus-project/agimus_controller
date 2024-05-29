@@ -28,8 +28,6 @@ import numpy as np
 import pinocchio as pin
 import hppfcl
 
-# from wrapper_meshcat import RED
-
 # This class is for unwrapping an URDF and converting it to a model. It is also possible to add objects in the model,
 # such as a ball at a specific position.
 
@@ -40,21 +38,22 @@ class PandaWrapper:
         self,
         auto_col=False,
         capsule=False,
-        obstacles=None,
     ):
-        """Initialize the wrapper with a scaling number of the target and the name of the robot wanted to get unwrapped."""
+        """Create a wrapper for the robot panda.
+
+        Args:
+            auto_col (bool, optional): Include the auto collision in the collision model. Defaults to False.
+            capsule (bool, optional): Transform the spheres and cylinder of the robot into capsules. Defaults to False.
+        """
 
         # Importing the model
-        pinocchio_model_dir = join(dirname((dirname(dirname(str(abspath(__file__)))))), "agimus_controller")
+        pinocchio_model_dir = dirname(dirname(((str(abspath(__file__))))))
         model_path = join(pinocchio_model_dir, "robot_description")
-        mesh_dir = join(pinocchio_model_dir, "meshes")
+        self._mesh_dir = join(model_path, "meshes")
         urdf_filename = "franka2.urdf"
-        urdf_model_path = join(join(model_path, "urdf"), urdf_filename)
         srdf_filename = "demo.srdf"
-        srdf_model_path =  join(join(model_path, "srdf"), srdf_filename)
-        self._urdf_model_path = urdf_model_path
-        self._mesh_dir = mesh_dir
-        self._srdf_model_path = srdf_model_path
+        self._urdf_model_path = join(join(model_path, "urdf"), urdf_filename)
+        self._srdf_model_path = join(join(model_path, "srdf"), srdf_filename)
 
         # Color of the robot
         self._color = np.array([249, 136, 126, 255]) / 255
@@ -65,9 +64,6 @@ class PandaWrapper:
         # Transforming the robot from cylinders/spheres to capsules
         self._capsule = capsule
 
-        # Dict describing the obstacles andd their positions in the world's frame
-        self._obstacles = obstacles
-
     def __call__(self):
         """Create a robot.
 
@@ -75,26 +71,27 @@ class PandaWrapper:
         -------
         _rmodel
             Model of the robot
-        _gmodel
-            Geometrical model of the robot
-        _gmodel
+        _cmodel
+            Collision model of the robot
+        _vmodel
             Visual model of the robot
 
 
         """
         (
             self._rmodel,
-            self._collision_model,
-            self._visual_model,
+            self._cmodel,
+            self._vmodel,
         ) = pin.buildModelsFromUrdf(
             self._urdf_model_path, self._mesh_dir, pin.JointModelFreeFlyer()
         )
 
         q0 = pin.neutral(self._rmodel)
 
+        # Locking the gripper
         jointsToLockIDs = [1, 9, 10]
 
-        geom_models = [self._visual_model, self._collision_model]
+        geom_models = [self._vmodel, self._cmodel]
         self._model_reduced, geometric_models_reduced = pin.buildReducedModel(
             self._rmodel,
             list_of_geom_models=geom_models,
@@ -102,156 +99,86 @@ class PandaWrapper:
             reference_configuration=q0,
         )
 
-        self._visual_model_reduced, self._collision_model_reduced = (
+        self._vmodel_reduced, self._cmodel_reduced = (
             geometric_models_reduced[0],
             geometric_models_reduced[1],
         )
+        
+        # Modifying the collision model to transform the spheres/cylinders into capsules 
+        if self._capsule:
+            self.transform_model_into_capsules()
 
-        # Modifying the collision model to add the capsules
+        # Adding the auto-collisions in the collision model if required
+        if self._auto_col:
+            self._cmodel_reduced.addAllCollisionPairs()
+            pin.removeCollisionPairs(
+                self._model_reduced, self._cmodel_reduced, self._srdf_model_path
+            )
+        
+        
         rdata = self._model_reduced.createData()
-        cdata = self._collision_model_reduced.createData()
+        cdata = self._cmodel_reduced.createData()
         q0 = pin.neutral(self._model_reduced)
 
         # Updating the models
         pin.framesForwardKinematics(self._model_reduced, rdata, q0)
         pin.updateGeometryPlacements(
-            self._model_reduced, rdata, self._collision_model_reduced, cdata, q0
+            self._model_reduced, rdata, self._cmodel_reduced, cdata, q0
         )
-
-        # Adding the capsules to the collision model
-
-        collision_model_reduced_copy = self._collision_model_reduced.copy()
-
-        # # Replacing the cylinders by capsules
-        if self._capsule:
-            list_names_capsules = []
-            for i, geometry_object in enumerate(
-                collision_model_reduced_copy.geometryObjects
-            ):
-                if isinstance(geometry_object.geometry, hppfcl.Sphere):
-                    self._collision_model_reduced.removeGeometryObject(
-                        geometry_object.name
-                    )
-                # Only selecting the cylinders
-                if isinstance(geometry_object.geometry, hppfcl.Cylinder):
-                    if (geometry_object.name[:-4] + "capsule") in list_names_capsules:
-                        capsule = pin.GeometryObject(
-                            geometry_object.name[:-4] + "capsule" + "1",
-                            geometry_object.parentJoint,
-                            geometry_object.parentFrame,
-                            hppfcl.Capsule(
-                                geometry_object.geometry.radius,
-                                geometry_object.geometry.halfLength,
-                            ),
-                            geometry_object.placement,
-                        )
-                        capsule.meshColor = RED
-                        capsule.meshPath = "CAPSULE"
-                        self._collision_model_reduced.addGeometryObject(capsule)
-                        self._collision_model_reduced.removeGeometryObject(
-                            geometry_object.name
-                        )
-                        list_names_capsules.append(
-                            geometry_object.name[:-4] + "capsule" + "1"
-                        )
-                    else:
-                        capsule = pin.GeometryObject(
-                            geometry_object.name[:-4] + "capsule",
-                            geometry_object.parentJoint,
-                            geometry_object.parentFrame,
-                            hppfcl.Capsule(
-                                geometry_object.geometry.radius,
-                                geometry_object.geometry.halfLength,
-                            ),
-                            geometry_object.placement,
-                        )
-                        capsule.meshPath = "CAPSULE"
-                        capsule.meshColor = RED
-                        self._collision_model_reduced.addGeometryObject(capsule)
-                        self._collision_model_reduced.removeGeometryObject(
-                            geometry_object.name
-                        )
-                        list_names_capsules.append(
-                            geometry_object.name[:-4] + "capsule"
-                        )
-
-            # Removing the geometry objects that aren't Capsule / Box and disabling the collisions for the finger and the camera
-            for geometry_object in self._collision_model_reduced.geometryObjects:
-                # Disabling the collisions for the fingers
-                # weird utf-8 encoding shit
-                try:
-                    if (
-                        "finger" in geometry_object.name
-                        or "camera" in geometry_object.name
-                        or "support" in geometry_object.name
-                    ):
-                        geometry_object.disableCollision = True
-                except:
-                    pass
-                # Getting rid of the cylinders in cmodel
-                if isinstance(geometry_object.geometry, hppfcl.Cylinder):
-                    self._collision_model_reduced.removeGeometryObject(
-                        geometry_object.name
-                    )
-
-            if self._obstacles is not None:
-                for name, obstacle_info in self._obstacles.items():
-                    shape = obstacle_info[0]
-                    pose = obstacle_info[1]
-
-                    obstacle = pin.GeometryObject(name, 0, 0, shape, pose)
-                    obstacle.meshColor = RED
-                    self._collision_model_reduced.addGeometryObject(obstacle)
-
-        if self._auto_col:
-            # self._collision_model_reduced.addAllCollisionPairs()
-            # self._collision_model_reduced.addCollisionPair(pin.CollisionPair(self._collision_model_reduced.getGeometryId("panda2_link2_capsule37"),self._collision_model_reduced.getGeometryId("panda2_link6_capsule22") ))
-            # self._collision_model_reduced.addCollisionPair(pin.CollisionPair(self._collision_model_reduced.getGeometryId("panda2_link4_capsule31"),self._collision_model_reduced.getGeometryId("panda2_link6_capsule22") ))
-            # self._collision_model_reduced.addCollisionPair(pin.CollisionPair(self._collision_model_reduced.getGeometryId("panda2_link4_capsule31"),self._collision_model_reduced.getGeometryId("panda2_link5_capsule28") ))
-            # self._collision_model_reduced.addCollisionPair(pin.CollisionPair(self._collision_model_reduced.getGeometryId("panda2_link4_capsule31"),self._collision_model_reduced.getGeometryId("panda2_link5_capsule25") ))
-            # self._collision_model_reduced.addCollisionPair(pin.CollisionPair(self._collision_model_reduced.getGeometryId("panda2_link4_capsule31"),self._collision_model_reduced.getGeometryId("panda2_link3_capsule34") ))
-            self._collision_model_reduced.addCollisionPair(
-                pin.CollisionPair(
-                    self._collision_model_reduced.getGeometryId("panda2_leftfinger_0"),
-                    self._collision_model_reduced.getGeometryId(
-                        "panda2_link6_capsule22"
-                    ),
-                )
-            )
-            self._collision_model_reduced.addCollisionPair(
-                pin.CollisionPair(
-                    self._collision_model_reduced.getGeometryId("panda2_leftfinger_0"),
-                    self._collision_model_reduced.getGeometryId(
-                        "panda2_link6_capsule22"
-                    ),
-                )
-            )
-            # self._collision_model_reduced.addCollisionPair(pin.CollisionPair(self._collision_model_reduced.getGeometryId("panda2_leftfinger_0"),self._collision_model_reduced.getGeometryId("support_link_0") ))
-
-        pin.removeCollisionPairs(
-            self._model_reduced, self._collision_model_reduced, self._srdf_model_path
-        )
-
+                
         return (
             self._model_reduced,
-            self._collision_model_reduced,
-            self._visual_model_reduced,
+            self._cmodel_reduced,
+            self._vmodel_reduced,
         )
+        
+    def transform_model_into_capsules(self):
+        """ Modifying the collision model to transform the spheres/cylinders into capsules which makes it easier to have a fully constrained robot. 
+        """
+        collision_model_reduced_copy = self._cmodel_reduced.copy()
+        list_names_capsules = []
+
+        # Going through all the goemetry objects in the collision model
+        for geom_object in collision_model_reduced_copy.geometryObjects:
+            if isinstance(geom_object.geometry, hppfcl.Cylinder):
+                # Sometimes for one joint there are two cylinders, which need to be defined by two capsules for the same link.
+                # Hence the name convention here.
+                if (geom_object.name[:-4] + "capsule_0") in list_names_capsules:
+                    name = geom_object.name[:-4] + "capsule_" + "1"
+                else:
+                    name  = geom_object.name[:-4] + "capsule_" + "0"
+                list_names_capsules.append(name)
+                placement = geom_object.placement
+                parentJoint = geom_object.parentJoint
+                parentFrame = geom_object.parentFrame
+                geometry =  geom_object.geometry
+                geom = pin.GeometryObject(
+                    name,
+                    parentFrame,
+                    parentJoint,
+                    hppfcl.Capsule(geometry.radius, geometry.halfLength),
+                    placement,
+                )
+                geom.meshColor = RED
+                self._cmodel_reduced.addGeometryObject(geom)
+                self._cmodel_reduced.removeGeometryObject(geom_object.name)
+            elif isinstance(geom_object.geometry, hppfcl.Sphere) and "link" in geom_object.name:
+                self._cmodel_reduced.removeGeometryObject(geom_object.name)
+
 
 
 if __name__ == "__main__":
     from wrapper_meshcat import MeshcatWrapper
 
     # Creating the robot
-    obstacles = {"obstacle1": (hppfcl.Sphere(1e-3), pin.SE3.Identity())}
-    robot_wrapper = PandaWrapper(capsule=False, obstacles=None)
+    robot_wrapper = PandaWrapper(capsule=True, auto_col=True)
     rmodel, cmodel, vmodel = robot_wrapper()
     rdata = rmodel.createData()
     cdata = cmodel.createData()
     # Generating the meshcat visualizer
     MeshcatVis = MeshcatWrapper()
     vis = MeshcatVis.visualize(
-        robot_model=rmodel, robot_visual_model=vmodel, robot_collision_model=cmodel
+        robot_model=rmodel, robot_visual_model=cmodel, robot_collision_model=cmodel
     )
     # vis[0].display(pin.randomConfiguration(rmodel))
     vis[0].display(np.array([0.5] * 7))
@@ -262,9 +189,11 @@ if __name__ == "__main__":
         cp = cmodel.collisionPairs[k]
         print(
             "collision pair:",
-            cp.first,
+            cmodel.geometryObjects[cp.first].name,
             ",",
-            cp.second,
+            cmodel.geometryObjects[cp.second].name,
             "- collision:",
             "Yes" if cr.isCollision() else "No",
         )
+    q = pin.randomConfiguration(rmodel)
+    vis[0].display(pin.randomConfiguration(rmodel))

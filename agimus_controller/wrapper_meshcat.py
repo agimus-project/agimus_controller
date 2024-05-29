@@ -144,25 +144,6 @@ class MeshcatWrapper:
         # Applying the transformation to the object
         self.viewer[e_name].set_transform(T)
 
-    def _renderBox(self, e_name: str, dim: np.array, pose: pin.SE3, color=YELLOW):
-        """Displaying a sphere in a meshcat server.
-
-        Parameters
-        ----------
-        e_name : str
-            name of the object displayed
-        color : np.ndarray, optional
-            array describing the color of the target, by default np.array([1., 1., 1., 1.]) (ie white)
-        """
-        # Setting the object in the viewer
-        self.viewer[e_name].set_object(g.Box(dim), self._meshcat_material(*color))
-
-        # Obtaining its position in the right format
-        T = get_transform(pose)
-
-        # Applying the transformation to the object
-        self.viewer[e_name].set_transform(T)
-
     def _meshcat_material(self, r, g, b, a):
         """Converting RGBA color to meshcat material.
 
@@ -187,31 +168,11 @@ class MeshcatWrapper:
         material.opacity = a
         return material
 
-    def applyConfiguration(self, name, placement):
-        if isinstance(placement, list) or isinstance(placement, tuple):
-            placement = np.array(placement)
-        if isinstance(placement, pin.SE3):
-            R, p = placement.rotation, placement.translation
-            T = np.r_[np.c_[R, p], [[0, 0, 0, 1]]]
-        elif isinstance(placement, np.ndarray):
-            if placement.shape == (7,):  # XYZ-quat
-                R = pin.Quaternion(np.reshape(placement[3:], [4, 1])).matrix()
-                p = placement[:3]
-                T = np.r_[np.c_[R, p], [[0, 0, 0, 1]]]
-            else:
-                print("Error, np.shape of placement is not accepted")
-                return False
-        else:
-            print("Error format of placement is not accepted")
-            return False
-        self.viewer[name].set_transform(T)
-
-
 if __name__ == "__main__":
     from wrapper_panda import PandaWrapper
 
     # Creating the robot
-    robot_wrapper = PandaWrapper()
+    robot_wrapper = PandaWrapper(capsule=True)
     rmodel, cmodel, vmodel = robot_wrapper()
     rdata = rmodel.createData()
     cdata = cmodel.createData()
@@ -220,4 +181,5 @@ if __name__ == "__main__":
     vis = MeshcatVis.visualize(
         robot_model=rmodel, robot_visual_model=vmodel, robot_collision_model=cmodel
     )
-    vis[0].display(pin.neutral(rmodel))
+    vis[0].display(pin.randomConfiguration(rmodel))
+    
