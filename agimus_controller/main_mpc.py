@@ -85,10 +85,12 @@ TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.0, 1.5]))
 OBSTACLE_POSE = robot_simulator.pin_robot.collision_model.geometryObjects[
     robot_simulator.pin_robot.collision_model.getGeometryId("obstacle1")
 ].placement
-OBSTACLE_RADIUS = 1.0e-1
+OBSTACLE_RADIUS = robot_simulator.pin_robot.collision_model.geometryObjects[
+    robot_simulator.pin_robot.collision_model.getGeometryId("obstacle1")
+].geometry.radius
 
 dt = 2e-2
-T = 10
+T = 5
 
 max_iter = 4  # Maximum iterations of the solver
 max_qp_iters = (
@@ -133,10 +135,6 @@ ddp = problem()
 
 xs_init = [x0 for i in range(T + 1)]
 us_init = ddp.problem.quasiStatic(xs_init[:-1])
-
-ddp.solve(xs_init, us_init, maxiter=100)
-xs_init = ddp.xs
-us_init = ddp.us
 
 # # # # # # # # # # # #
 ###  MPC SIMULATION ###
@@ -191,23 +189,9 @@ for i in range(sim_data["N_sim"]):
         else:
             TARGET_POSE = TARGET_POSE1
 
-        problem = OCPPandaReachingColWithMultipleCol(
-            robot_simulator.pin_robot.model,
-            robot_simulator.pin_robot.collision_model,
-            TARGET_POSE,
-            T,
-            dt,
-            sim_data["state_mea_SIM_RATE"][i, :],
-            WEIGHT_GRIPPER_POSE=WEIGHT_GRIPPER_POSE,
-            WEIGHT_GRIPPER_POSE_TERM=WEIGHT_GRIPPER_POSE_TERM,
-            WEIGHT_xREG=WEIGHT_xREG,
-            WEIGHT_xREG_TERM=WEIGHT_xREG_TERM,
-            WEIGHT_uREG=WEIGHT_uREG,
-            max_qp_iters=max_qp_iters,
-            SAFETY_THRESHOLD=safety_threshhold,
-            callbacks=callbacks,
-        )
-        ddp = problem()
+        for k in range(T):
+            ddp.problem.runningModels[k].differential.costs.costs['gripperPoseRM'].cost.residual.reference  = TARGET_POSE.translation
+        ddp.problem.terminalModel.differential.costs.costs['gripperPose'].cost.residual.reference  = TARGET_POSE.translation
 
     if i % log_rate == 0:
         print("\n SIMU step " + str(i) + "/" + str(sim_data["N_sim"]) + "\n")
