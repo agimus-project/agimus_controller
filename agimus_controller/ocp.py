@@ -26,22 +26,28 @@ class OCPPandaReachingColWithMultipleCol:
         WEIGHT_GRIPPER_POSE=10,
         WEIGHT_LIMIT = 1e-1,
         SAFETY_THRESHOLD=1e-2,
+        MAX_QP_ITERS = 100,
+        callbacks = False
     ) -> None:
-        """Creating the class for optimal control problem of a panda robot reaching for a target while taking a collision between a given previously given shape of the robot and an obstacle into consideration.
+        """Creating the class for optimal control problem of a panda robot reaching for a target while 
+        taking a collision between a given previously given shape of the robot and an obstacle into consideration.
 
         Args:
-            rmodel (pin.Model): pinocchio Model of the robot
-            cmodel (pin.GeometryModel): Collision model of the robot
-            TARGET_POSE (pin.SE3): Pose of the target in WOLRD ref
-            OBSTACLE_POSE (pin.SE3): Pose of the obstacle in the universe ref
-            OBSTACLE_RADIUS (float): Radius of the obstacle
-            T (int): Number of nodes in the trajectory
-            dt (float): Time step between each node
-            x0 (np.ndarray): Initial state of the problem
+            rmodel (pin.Model): pinocchio Model of the robot.
+            cmodel (pin.GeometryModel): Collision model of the robot.
+            TARGET_POSE (pin.SE3): Pose of the target in WOLRD ref.
+            T (int): Number of nodes in the trajectory.
+            dt (float): Time step between each node.
+            x0 (np.ndarray): Initial state of the problem.
             WEIGHT_xREG (float, optional): State regulation weight. Defaults to 1e-1.
             WEIGHT_uREG (float, optional): Command regulation weight. Defaults to 1e-4.
             WEIGHT_GRIPPER_POSE (float, optional): End effector pose weight. Defaults to 10.
+            WEIGHT_LIMIT (float, optional): Limits imposed on the joints. Defaults to 1e-1.
             SAFETY_THRESHOLD (float, optional): Safety threshold of collision avoidance. Defaults to 1e-2.
+            MAX_QP_ITERS (int): Number of maximum iterations for each QP solved in CSQP.
+            callbacks (bool): Determines whether one wants the callbacks. Defaults to False.
+
+
         """
         # Models of the robot
         self._rmodel = rmodel
@@ -56,6 +62,10 @@ class OCPPandaReachingColWithMultipleCol:
         self._dt = dt
         self._x0 = x0
 
+        # Solver's params
+        self._MAX_QP_ITERS = MAX_QP_ITERS
+        self._callbacks = callbacks
+        
         # Weights
         self._WEIGHT_xREG = WEIGHT_xREG
         self._WEIGHT_uREG = WEIGHT_uREG
@@ -199,12 +209,8 @@ class OCPPandaReachingColWithMultipleCol:
         problem = crocoddyl.ShootingProblem(
             self._x0, [self._runningModel] * self._T, self._terminalModel
         )
-        # Create solver + callbacks
-        # ddp = crocoddyl.SolverSQP(problem)
-
-        # ddp.setCallbacks([crocoddyl.CallbackLogger(), crocoddyl.CallbackVerbose()])
-
-        # Define mim solver with inequalities constraints
+        
+        # Create solver + callback
         ddp = mim_solvers.SolverCSQP(problem)
 
         # Merit function
@@ -212,10 +218,10 @@ class OCPPandaReachingColWithMultipleCol:
 
         # Parameters of the solver
         ddp.termination_tolerance = 1e-3
-        ddp.max_qp_iters = 500
+        ddp.max_qp_iters = self._MAX_QP_ITERS
         ddp.eps_abs = 1e-6
         ddp.eps_rel = 0
 
-        ddp.with_callbacks = True
+        ddp.with_callbacks = self._callbacks
 
         return ddp

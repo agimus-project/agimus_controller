@@ -28,6 +28,9 @@ import numpy as np
 import pinocchio as pin
 import hppfcl
 
+import pybullet
+from mim_robots.pybullet.wrapper import PinBulletWrapper
+from pinocchio.robot_wrapper import RobotWrapper
 # This class is for unwrapping an URDF and converting it to a model. It is also possible to add objects in the model,
 # such as a ball at a specific position.
 
@@ -159,6 +162,97 @@ class PandaWrapper:
             elif isinstance(geom_object.geometry, hppfcl.Sphere) and "link" in geom_object.name:
                 self._cmodel_reduced.removeGeometryObject(geom_object.name)
 
+
+
+class PandaRobot(PinBulletWrapper):
+    """
+    Pinocchio-PyBullet wrapper class for the KUKA LWR iiwa
+    """
+
+    def __init__(self, capsule = True ,qref=np.zeros(7), pos=None, orn=None):
+        # Load the robot
+        if pos is None:
+            pos = [0.0, 0, 0.0]
+        if orn is None:
+            orn = pybullet.getQuaternionFromEuler([0, 0, 0])
+
+        pinocchio_model_dir = dirname(dirname(((str(abspath(__file__))))))
+        model_path = join(pinocchio_model_dir, "robot_description")
+        urdf_filename = "franka2.urdf"
+        self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
+        
+        self.robotId = pybullet.loadURDF(
+            self._urdf_path,
+            pos,
+            orn,
+            # flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
+            useFixedBase=True,
+        )
+        pybullet.getBasePositionAndOrientation(self.robotId)
+
+        # Create the robot wrapper in pinocchio.
+        robot_wrapper = PandaWrapper(capsule=True, auto_col=True)
+        rmodel, cmodel, vmodel = robot_wrapper()
+
+        robot_full = RobotWrapper(rmodel, cmodel, vmodel)
+
+        # Query all the joints.
+        num_joints = pybullet.getNumJoints(self.robotId)
+
+        for ji in range(num_joints):
+            pybullet.changeDynamics(
+                self.robotId,
+                ji,
+                linearDamping=0.04,
+                angularDamping=0.04,
+                restitution=0.0,
+                lateralFriction=0.5,
+            )
+
+        self.pin_robot = robot_full
+        controlled_joints_names = [
+            "panda2_joint1",
+            "panda2_joint2",
+            "panda2_joint3",
+            "panda2_joint4",
+            "panda2_joint5",
+            "panda2_joint6",
+            "panda2_joint7",
+        ]
+
+        self.base_link_name = "support_joint"
+        self.end_eff_ids = []
+        self.end_eff_ids.append(self.pin_robot.model.getFrameId("panda2_rightfinger"))
+        self.nb_ee = len(self.end_eff_ids)
+        self.joint_names = controlled_joints_names
+
+        # Creates the wrapper by calling the super.__init__.
+        super().__init__(
+            self.robotId,
+            self.pin_robot,
+            controlled_joints_names,
+            ["panda2_finger_joint1"],
+            useFixedBase=True,
+        )
+        self.nb_dof = self.nv
+
+    def forward_robot(self, q=None, dq=None):
+        if q is None:
+            q, dq = self.get_state()
+        elif dq is None:
+            raise ValueError("Need to provide q and dq or non of them.")
+
+        self.pin_robot.forwardKinematics(q, dq)
+        self.pin_robot.computeJointJacobians(q)
+        self.pin_robot.framesForwardKinematics(q)
+        self.pin_robot.centroidalMomentum(q, dq)
+
+    def start_recording(self, file_name):
+        self.file_name = file_name
+        pybullet.startStateLogging(pybullet.STATE_LOGGING_VIDEO_MP4, self.file_name)
+
+    def stop_recording(self):
+        pybullet.stopStateLogging(pybullet.STATE_LOGGING_VIDEO_MP4, self.file_name)
 
 
 if __name__ == "__main__":
