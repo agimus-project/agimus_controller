@@ -52,12 +52,9 @@ class MeshcatWrapper:
     def __init__(self, grid=False, axes=False):
         """Wrapper displaying a robot and a target in a meshcat server.
 
-        Parameters
-        ----------
-        grid : bool, optional
-            Boolean describing whether the grid will be displayed or not, by default False
-        axes : bool, optional
-            Boolean describing whether the axes will be displayed or not, by default False
+        Args:
+            grid (bool, optional): Boolean describing whether the grid will be displayed or not. Defaults to False.
+            axes (bool, optional): Boolean describing whether the axes will be displayed or not. Defaults to False.
         """
 
         self._grid = grid
@@ -70,23 +67,17 @@ class MeshcatWrapper:
         robot_collision_model=None,
         robot_visual_model=None,
     ):
-        """Returns the visualiser, displaying the robot and the target if they are in input.
+        """ Returns the visualiser, displaying the robot and the target if they are in input.
 
-        Parameters
-        ----------
-        TARGET : pin.SE3
-            pin.SE3 describing the position of the target
-        RADII_TARGET : float, optional
-            radii of the target which is a ball, by default 5e-2
-        robot : robot, optional
-            robot from example robot data for instance, by default None
+        Args:
+            TARGET (pin.SE3, optional): pin.SE3 describing the position of the target. Defaults to None.
+            robot_model (pin.Model, optional): pinocchio model of the robot. Defaults to None.
+            robot_collision_model (pin.GeometryModel, optional): pinocchio collision model of the robot. Defaults to None.
+            robot_visual_model (pin.GeometryModel, optional): pinocchio visual model of the robot. Defaults to None.
 
-        Returns
-        -------
-        vis : MeshcatVisualizer
-            visualizer from Meshcat
+        Returns:
+            tuple: viewer pinocchio and viewer meshcat. 
         """
-
         # Creation of the visualizer,
         self.viewer = self.create_visualizer()
 
@@ -147,21 +138,14 @@ class MeshcatWrapper:
     def _meshcat_material(self, r, g, b, a):
         """Converting RGBA color to meshcat material.
 
-        Parameters
-        ----------
-        r : _type_
-            _description_
-        g : _type_
-            _description_
-        b : _type_
-            _description_
-        a : _type_
-            _description_
+        Args:
+            r (int): color red
+            g (int): color green
+            b (int): color blue
+            a (int): opacity
 
-        Returns
-        -------
-        material : meshcat.geometry.MeshPhongMaterial()
-            material for meshcat
+        Returns:
+            material : meshcat.geometry.MeshPhongMaterial(). Material for meshcat
         """
         material = meshcat.geometry.MeshPhongMaterial()
         material.color = int(r * 255) * 256**2 + int(g * 255) * 256 + int(b * 255)

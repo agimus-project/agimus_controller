@@ -66,17 +66,11 @@ class PandaWrapper:
 
     def __call__(self):
         """Create a robot.
-
-        Returns
-        -------
-        _rmodel
-            Model of the robot
-        _cmodel
-            Collision model of the robot
-        _vmodel
-            Visual model of the robot
-
-
+        
+        Returns:
+            rmodel (pin.Model): Model of the robot
+            cmodel (pin.GeometryModel): Collision model of the robot
+            vmodel (pin.GeometryModel): Visual model of the robot
         """
         (
             self._rmodel,
