@@ -128,11 +128,11 @@ class Scene:
                 "obstacle4",
             ]
             shapes_avoiding_collision = [
-                "panda2_link7_sc_4",
-                "panda2_link7_sc_1",
-                "panda2_link6_sc_2",
-                "panda2_link5_sc_3",
-                "panda2_link5_sc_4",
+                "panda2_link7_capsule_0",
+                "panda2_link7_capsule_1",
+                "panda2_link6_capsule_0",
+                "panda2_link5_capsule_1",
+                "panda2_link5_capsule_0",
                 "panda2_rightfinger_0",
                 "panda2_leftfinger_0",
             ]
@@ -142,7 +142,9 @@ class Scene:
                 "support_link_0",
                 "panda2_leftfinger_0",
                 "panda2_rightfinger_0",
-                "panda2_link5_sc_4",
+                "panda2_link6_capsule_0",
+                "panda2_link5_capsule_0",
+                "panda2_link5_capsule_1",
             ]
         elif self._name_scene == "wall":
             obstacles = [
@@ -150,11 +152,11 @@ class Scene:
                 "obstacle1",
             ]
             shapes_avoiding_collision = [
-                "panda2_link7_sc_4",
-                "panda2_link7_sc_1",
-                "panda2_link6_sc_2",
-                "panda2_link5_sc_3",
-                "panda2_link5_sc_4",
+                "panda2_link7_capsule_0",
+                "panda2_link7_capsule_1",
+                "panda2_link6_capsule_0",
+                "panda2_link5_capsule_1",
+                "panda2_link5_capsule_0",
                 "panda2_rightfinger_0",
                 "panda2_leftfinger_0",
             ]
@@ -175,7 +177,7 @@ if __name__ == "__main__":
     from wrapper_panda import PandaWrapper
 
     # Creating the robot
-    robot_wrapper = PandaWrapper(capsule=False, obstacles=None)
+    robot_wrapper = PandaWrapper(capsule=False)
     rmodel, cmodel, vmodel = robot_wrapper()
 
     scene = Scene()
