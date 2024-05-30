@@ -1,13 +1,15 @@
 import time
-
-import matplotlib.pyplot as plt
-import mpc_utils
 import numpy as np
-import pin_utils
-import pinocchio as pin
+import matplotlib.pyplot as plt
+
 import pybullet
+
+import pinocchio as pin
+
 from mim_robots.pybullet.env import BulletEnvWithGround
-from wrapper_meshcat import MeshcatWrapper
+
+import mpc_utils
+import pin_utils
 from ocp import OCPPandaReachingColWithMultipleCol
 from wrapper_panda import PandaRobot
 from scenes import Scene
@@ -17,7 +19,7 @@ np.set_printoptions(precision=4, linewidth=180)
 
 class MPC:
     def __init__(
-        self, robot_simulator, OCP, max_iter, env, TARGET_POSE_1, TARGET_POSE_2
+        self, robot_simulator, OCP, max_iter, env, TARGET_POSE_1, TARGET_POSE_2, scene
     ) -> None:
 
         self._robot_simulator = robot_simulator
@@ -38,6 +40,8 @@ class MPC:
         self._TARGET_POSE_1 = TARGET_POSE_1
         self._TARGET_POSE_2 = TARGET_POSE_2
 
+        self._scene = scene
+
         self._ocp_params = {}
         self._ocp_params["N_h"] = self._T
         self._ocp_params["dt"] = self._dt
@@ -54,7 +58,7 @@ class MPC:
         self._sim_params = {}
         self._sim_params["sim_freq"] = int(1.0 / env.dt)
         self._sim_params["mpc_freq"] = 1000
-        self._sim_params["T_sim"] = 1.0
+        self._sim_params["T_sim"] = 0.05
         self._log_rate = 100
 
         OBSTACLE_POSE = robot_simulator.pin_robot.collision_model.geometryObjects[
@@ -81,6 +85,8 @@ class MPC:
             RADIUS=OBSTACLE_RADIUS,
             COLOR=[1.0, 1.0, 0.0, 0.6],
         )
+
+        self._SOLVE = False
 
     def solve(self):
 
@@ -190,11 +196,68 @@ class MPC:
                 # Update pinocchio model
                 self._robot_simulator.forward_robot(q_mea_SIM_RATE, v_mea_SIM_RATE)
                 # Record data
-                x_mea_SIM_RATE = np.concatenate(
-                    [q_mea_SIM_RATE, v_mea_SIM_RATE]
-                ).T
+                x_mea_SIM_RATE = np.concatenate([q_mea_SIM_RATE, v_mea_SIM_RATE]).T
                 self._sim_data["state_mea_SIM_RATE"][i + 1, :] = x_mea_SIM_RATE
                 u_list.append(u_curr.tolist())
+
+        self._SOLVE = True
+
+    def plot_collision_distances(self):
+
+        if not self._SOLVE:
+            raise NotSolvedError()
+
+        self._shapes_in_collision_with_obstacle = self._scene.shapes_avoiding_collision
+        self._obstacles = self._scene.obstacles
+
+        self._distances = {}
+
+        # Creating the dictionnary regrouping the distances
+        for obstacle in self._obstacles:
+            self._distances[obstacle] = {}
+            for shapes in self._shapes_in_collision_with_obstacle:
+                self._distances[obstacle][shapes] = []
+
+        # Going through all the trajectory
+        for q in self._sim_data["state_mea_SIM_RATE"]:
+            # Going through the obstacles
+            for obstacle, shape in self._distances.items():
+                for shape_name, distance_between_shape_and_obstacle in shape.items():
+                    id_shape = robot_simulator.pin_robot.collision_model.getGeometryId(
+                        shape_name
+                    )
+                    id_obstacle = robot_simulator.pin_robot.collision_model.getGeometryId(
+                        obstacle
+                    )
+                    dist = pin_utils.compute_distance_between_shapes(
+                        robot_simulator.pin_robot.model,
+                        robot_simulator.pin_robot.collision_model,
+                        id_shape,
+                        id_obstacle,
+                        q[:7],
+                    )
+                    distance_between_shape_and_obstacle.append(dist)
+
+        if len(self._obstacles) == 1:
+            ncols = 1
+        fig, axes = plt.subplots(len(self._obstacles), ncols, figsize=(10, 5 * len(self._obstacles)))
+        
+        for ax, (obstacle, shapes) in zip(axes, self._distances.items()):
+            for shape, values in shapes.items():
+                ax.plot(values, label=shape)
+            ax.set_title(obstacle)
+            ax.legend()
+
+        plt.tight_layout()
+        plt.show()
+        
+        
+class NotSolvedError(Exception):
+    """Exception raised when plot is called before solve for the MPC class."""
+
+    def __init__(self, message="Solve method must be called before plot."):
+        self.message = message
+        super().__init__(self.message)
 
 
 if __name__ == "__main__":
@@ -213,7 +276,7 @@ if __name__ == "__main__":
     robot_simulator.pin_robot.collision_model, TARGET_POSE2, q0 = scene.create_scene(
         robot_simulator.pin_robot.model,
         robot_simulator.pin_robot.collision_model,
-        "ball",
+        "box",
     )
 
     env.add_robot(robot_simulator)
@@ -243,7 +306,7 @@ if __name__ == "__main__":
     ].geometry.radius
 
     dt = 2e-2
-    T = 5
+    T = 2
 
     max_iter = 4  # Maximum iterations of the solver
     max_qp_iters = 25  # Maximum iterations for solving each qp solved in one iteration of the solver
@@ -281,5 +344,7 @@ if __name__ == "__main__":
         env=env,
         TARGET_POSE_1=TARGET_POSE1,
         TARGET_POSE_2=TARGET_POSE2,
+        scene=scene
     )
     mpc.solve()
+    mpc.plot_collision_distances()

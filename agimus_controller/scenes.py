@@ -120,14 +120,14 @@ class Scene:
     def _add_collision_pairs(self):
         """Add the collision pairs in the collision model w.r.t to the chosen scene."""
         if self._name_scene == "box":
-            obstacles = [
+            self.obstacles = [
                 "support_link_0",
                 "obstacle1",
                 "obstacle2",
                 "obstacle3",
                 "obstacle4",
             ]
-            shapes_avoiding_collision = [
+            self.shapes_avoiding_collision = [
                 "panda2_link7_capsule_0",
                 "panda2_link7_capsule_1",
                 "panda2_link6_capsule_0",
@@ -137,8 +137,8 @@ class Scene:
                 "panda2_leftfinger_0",
             ]
         elif self._name_scene == "ball":
-            obstacles = ["obstacle1"]
-            shapes_avoiding_collision = [
+            self.obstacles = ["obstacle1"]
+            self.shapes_avoiding_collision = [
                 "support_link_0",
                 "panda2_leftfinger_0",
                 "panda2_rightfinger_0",
@@ -147,11 +147,11 @@ class Scene:
                 "panda2_link5_capsule_1",
             ]
         elif self._name_scene == "wall":
-            obstacles = [
+            self.obstacles = [
                 "support_link_0",
                 "obstacle1",
             ]
-            shapes_avoiding_collision = [
+            self.shapes_avoiding_collision = [
                 "panda2_link7_capsule_0",
                 "panda2_link7_capsule_1",
                 "panda2_link6_capsule_0",
@@ -160,10 +160,10 @@ class Scene:
                 "panda2_rightfinger_0",
                 "panda2_leftfinger_0",
             ]
-        for shape in shapes_avoiding_collision:
+        for shape in self.shapes_avoiding_collision:
             # Highlight the shapes of the robot that are supposed to avoid collision
             self._cmodel.geometryObjects[self._cmodel.getGeometryId(shape)].meshColor = YELLOW_FULL
-            for obstacle in obstacles:
+            for obstacle in self.obstacles:
                 self._cmodel.addCollisionPair(
                     pin.CollisionPair(
                         self._cmodel.getGeometryId(shape),
