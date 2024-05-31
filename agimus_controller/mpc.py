@@ -256,11 +256,11 @@ if __name__ == "__main__":
     # Simulation environment
     env = BulletEnvWithGround(server=pybullet.GUI, dt=1e-3)
     # Robot simulator
-    robot_simulator = PandaRobot()
+    robot_simulator = PandaRobot(capsule=True)
 
     # Creating the scene
     scene = Scene()
-    robot_simulator.pin_robot.collision_model, TARGET_POSE2, q0 = scene.create_scene(
+    robot_simulator.pin_robot.collision_model, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
         robot_simulator.pin_robot.model,
         robot_simulator.pin_robot.collision_model,
         "box",

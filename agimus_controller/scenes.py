@@ -6,7 +6,7 @@ import pinocchio as pin
 
 import hppfcl
 
-from wrapper_meshcat import YELLOW_FULL
+YELLOW_FULL = np.array([1, 1, 0, 1.0])
 
 
 class Scene:

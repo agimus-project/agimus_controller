@@ -31,10 +31,14 @@ import hppfcl
 import pybullet
 from mim_robots.pybullet.wrapper import PinBulletWrapper
 from pinocchio.robot_wrapper import RobotWrapper
+
+from scenes import Scene
+
 # This class is for unwrapping an URDF and converting it to a model. It is also possible to add objects in the model,
 # such as a ball at a specific position.
 
 RED = np.array([249, 136, 126, 125]) / 255
+
 
 class PandaWrapper:
     def __init__(
@@ -69,7 +73,7 @@ class PandaWrapper:
 
     def __call__(self):
         """Create a robot.
-        
+
         Returns:
             rmodel (pin.Model): Model of the robot
             cmodel (pin.GeometryModel): Collision model of the robot
@@ -100,8 +104,8 @@ class PandaWrapper:
             geometric_models_reduced[0],
             geometric_models_reduced[1],
         )
-        
-        # Modifying the collision model to transform the spheres/cylinders into capsules 
+
+        # Modifying the collision model to transform the spheres/cylinders into capsules
         if self._capsule:
             self.transform_model_into_capsules()
 
@@ -111,8 +115,7 @@ class PandaWrapper:
             pin.removeCollisionPairs(
                 self._model_reduced, self._cmodel_reduced, self._srdf_model_path
             )
-        
-        
+
         rdata = self._model_reduced.createData()
         cdata = self._cmodel_reduced.createData()
         q0 = pin.neutral(self._model_reduced)
@@ -122,16 +125,15 @@ class PandaWrapper:
         pin.updateGeometryPlacements(
             self._model_reduced, rdata, self._cmodel_reduced, cdata, q0
         )
-                
+
         return (
             self._model_reduced,
             self._cmodel_reduced,
             self._vmodel_reduced,
         )
-        
+
     def transform_model_into_capsules(self):
-        """ Modifying the collision model to transform the spheres/cylinders into capsules which makes it easier to have a fully constrained robot. 
-        """
+        """Modifying the collision model to transform the spheres/cylinders into capsules which makes it easier to have a fully constrained robot."""
         collision_model_reduced_copy = self._cmodel_reduced.copy()
         list_names_capsules = []
 
@@ -143,12 +145,12 @@ class PandaWrapper:
                 if (geom_object.name[:-4] + "capsule_0") in list_names_capsules:
                     name = geom_object.name[:-4] + "capsule_" + "1"
                 else:
-                    name  = geom_object.name[:-4] + "capsule_" + "0"
+                    name = geom_object.name[:-4] + "capsule_" + "0"
                 list_names_capsules.append(name)
                 placement = geom_object.placement
                 parentJoint = geom_object.parentJoint
                 parentFrame = geom_object.parentFrame
-                geometry =  geom_object.geometry
+                geometry = geom_object.geometry
                 geom = pin.GeometryObject(
                     name,
                     parentFrame,
@@ -159,9 +161,11 @@ class PandaWrapper:
                 geom.meshColor = RED
                 self._cmodel_reduced.addGeometryObject(geom)
                 self._cmodel_reduced.removeGeometryObject(geom_object.name)
-            elif isinstance(geom_object.geometry, hppfcl.Sphere) and "link" in geom_object.name:
+            elif (
+                isinstance(geom_object.geometry, hppfcl.Sphere)
+                and "link" in geom_object.name
+            ):
                 self._cmodel_reduced.removeGeometryObject(geom_object.name)
-
 
 
 class PandaRobot(PinBulletWrapper):
@@ -169,42 +173,60 @@ class PandaRobot(PinBulletWrapper):
     Pinocchio-PyBullet wrapper class for the KUKA LWR iiwa
     """
 
-    def __init__(self, capsule = True ,qref=np.zeros(7), pos=None, orn=None):
+    def __init__(
+        self,
+        capsule=True,
+        auto_col=False,
+        qref=np.zeros(7),
+        pos_robot=None,
+        orn_robot=None,
+        pos_obs=None,
+        orn_obs=None,
+        urdf_filename_obs=None,
+        name_scene="box",
+    ):
         # Load the robot
-        if pos is None:
-            pos = [0.0, 0, 0.0]
-        if orn is None:
-            orn = pybullet.getQuaternionFromEuler([0, 0, 0])
+        if pos_robot is None:
+            pos_robot = [0.0, 0, 0.0]
+        if orn_robot is None:
+            orn_robot = pybullet.getQuaternionFromEuler([0, 0, 0])
 
         pinocchio_model_dir = dirname(dirname(((str(abspath(__file__))))))
         model_path = join(pinocchio_model_dir, "robot_description")
         urdf_filename = "franka2.urdf"
         self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
 
-        urdf_filename_obs = "big_box.urdf"
-        self._urdf_path_obs = join(join(model_path, "urdf/obstacles"), urdf_filename_obs)
-        
-        
-        self.obstacleId = pybullet.loadURDF(
-            self._urdf_path_obs,
-            [0,0,0.8],
-            orn,
-            # flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
-            useFixedBase=True,
-        )
-        
+        if urdf_filename_obs is not None:
+            self._urdf_path_obs = join(
+                join(model_path, "urdf/obstacles"), urdf_filename_obs
+            )
+
+            self.obstacleId = pybullet.loadURDF(
+                self._urdf_path_obs,
+                pos_obs,
+                orn_obs,
+                useFixedBase=True,
+            )
+
         self.robotId = pybullet.loadURDF(
             self._urdf_path,
-            pos,
-            orn,
+            pos_robot,
+            orn_robot,
             # flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
             useFixedBase=True,
         )
         pybullet.getBasePositionAndOrientation(self.robotId)
 
         # Create the robot wrapper in pinocchio.
-        robot_wrapper = PandaWrapper(capsule=True, auto_col=True)
+        robot_wrapper = PandaWrapper(capsule=capsule, auto_col=auto_col)
         rmodel, cmodel, vmodel = robot_wrapper()
+
+        scene = Scene()
+        cmodel, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
+            rmodel,
+            cmodel,
+            name_scene,
+        )
 
         robot_full = RobotWrapper(rmodel, cmodel, vmodel)
 
