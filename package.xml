@@ -7,8 +7,8 @@
   <maintainer email="gsaurel@laas.fr">Guilhem Saurel</maintainer>
   <author email="maximilien.naveau@toward.fr">Maximilien Naveau</author>
 
-  <license>BSD-2</license>
-  <url type="website">https://github.com/TheoMF/croco_hpp_connection</url>
+  <license>BSD-3-clause</license>
+  <url type="website">https://github.com/agimus-project/agimus_controller</url>
 
   <buildtool_depend>catkin</buildtool_depend>
   <buildtool_depend>cmake</buildtool_depend>
@@ -26,8 +26,6 @@
   <exec_depend>python-matplotlib</exec_depend>
   <exec_depend>python-numpy</exec_depend>
 
-
-
   <!-- LAAS dependencies. -->
   <exec_depend>pinocchio</exec_depend>
   <exec_depend>croccodyl</exec_depend>
@@ -38,7 +36,8 @@
   <exec_depend>mim_solvers</exec_depend>
   
   <!-- HPP dependencies. -->
-  <exec_depend>hpp-corbaservers</exec_depend>
+  <exec_depend>hpp-corbaserver</exec_depend>
+  <exec_depend>hpp-manipulation-corba</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

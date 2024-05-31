@@ -1,13 +1,47 @@
-from .problem import *
+from .mpc import *
 import matplotlib.pyplot as plt
+from .ocp_analyzer import *
+
+
+class TrajectoryBuffer:
+    def __init__(self, model):
+        self.model = model
+        self.x_plan = []
+        self.a_plan = []
+
+    def add_trajectory_point(self, q, v, a=None):
+        if len(q) != self.model.nq:
+            raise Exception(
+                f"configuration vector size : {len(q)} doesn't match model's nq : {self.model.nq}"
+            )
+        if len(v) != self.model.nv:
+            raise Exception(
+                f"velocity vector size : {len(v)} doesn't match model's nv : {self.model.nv}"
+            )
+        x = np.concatenate([np.array(q), np.array(v)])
+        self.x_plan.append(x)
+        if a is not None:
+            if len(a) != self.model.nv:
+                raise Exception(
+                    f"acceleration vector size : {len(a)} doesn't match model's nv : {self.model.nv}"
+                )
+            self.a_plan.append(np.array(a))
+
+    def get_joint_state_horizon(self):
+        """Return the state reference for the horizon, state is composed of joints positions and velocities"""
+        return self.x_plan
+
+    def get_joint_acceleration_horizon(self):
+        """Return the acceleration reference for the horizon, state is composed of joints positions and velocities"""
+        return self.a_plan
 
 
 class CrocoHppConnection:
-    def __init__(self, ps, robot_name, vf, ball_init_pose):
+    def __init__(self, x_plans, a_plans, robot_name, vf, ball_init_pose):
         self.ball_init_pose = ball_init_pose
         if vf is not None:
             self.v = vf.createViewer()
-        self.prob = Problem(ps, robot_name)
+        self.prob = Problem(x_plans, a_plans, robot_name)
         self.robot = self.prob.robot
         self.nq = self.robot.nq
         self.DT = self.prob.DT
@@ -19,13 +53,12 @@ class CrocoHppConnection:
         self.results["max_us"] = []
         self.results["max_increase_us"] = []
         self.results["combination"] = []
-        self.hpp_paths = self.prob.hpp_paths
+        self.path_length = self.prob.whole_traj_T * self.DT
 
-    def plot_traj(self, terminal_idx):
+    def plot_traj(self):
         """Plot both trajectories of hpp and crocoddyl for the gripper pose."""
-        pose_croco, pose_hpp = self.get_cartesian_trajectory(terminal_idx)
-        path_time = self.get_path_length(terminal_idx)
-        t = np.linspace(0, path_time, self.croco_xs.shape[0])
+        pose_croco, pose_hpp = self.get_cartesian_trajectory()
+        t = np.linspace(0, self.path_length, self.croco_xs.shape[0])
         axis_string = ["x", "y", "z"]
         for idx in range(3):
             plt.subplot(2, 2, idx + 1)
@@ -36,12 +69,11 @@ class CrocoHppConnection:
             plt.legend(["crocoddyl", "hpp"], loc="best")
         plt.show()
 
-    def plot_traj_configuration(self, terminal_idx):
+    def plot_traj_configuration(self):
         """Plot both trajectories of hpp and crocoddyl in configuration space."""
         q_crocos = self.croco_xs[:, : self.nq]
         q_hpp = self.prob.x_plan[:, : self.nq]
-        path_time = self.get_path_length(terminal_idx)
-        t = np.linspace(0, path_time, self.croco_xs.shape[0])
+        t = np.linspace(0, self.path_length, self.croco_xs.shape[0])
         for idx in range(self.nq):
             plt.subplot(self.nq, 1, idx + 1)
             plt.plot(t, q_crocos[:, idx])
@@ -51,12 +83,11 @@ class CrocoHppConnection:
             plt.legend(["crocoddyl", "hpp"], loc="best")
         plt.show()
 
-    def plot_traj_velocity(self, terminal_idx):
+    def plot_traj_velocity(self):
         """Plot both velocities of hpp and crocoddyl."""
         v_crocos = self.croco_xs[:, self.nq :]
         v_hpp = self.prob.x_plan[:, self.nq :]
-        path_time = self.get_path_length(terminal_idx)
-        t = np.linspace(0, path_time, self.croco_xs.shape[0])
+        t = np.linspace(0, self.path_length, self.croco_xs.shape[0])
         for idx in range(self.nq):
             plt.subplot(self.robot.nq, 1, idx + 1)
             plt.plot(t, v_crocos[:, idx])
@@ -66,7 +97,7 @@ class CrocoHppConnection:
             plt.legend(["crocoddyl", "hpp"], loc="best")
         plt.show()
 
-    def plot_integrated_configuration(self, terminal_idx):
+    def plot_integrated_configuration(self):
         """Plot both trajectories of hpp and crocoddyl in configuration space by integrating velocities."""
         v_crocos = self.croco_xs[:, self.nq :]
         v_hpp = self.prob.x_plan[:, self.nq :]
@@ -75,7 +106,7 @@ class CrocoHppConnection:
 
         # add initial configuration
         x0_croco = self.croco_xs[0]
-        x0_hpp = self.hpp_paths[0].x_plan[0]
+        x0_hpp = self.prob.x_plan[0]
         for idx in range(self.nq):
             q_crocos[idx].append(x0_croco[idx])
             q_hpps[idx].append(x0_hpp[idx])
@@ -88,8 +119,7 @@ class CrocoHppConnection:
                 q_hpp = q_hpps[joint_idx][-1] + v_hpp[joint_idx][idx] * self.DT
                 q_hpps[joint_idx].append(q_hpp)
 
-        path_time = self.get_path_length(terminal_idx)
-        t = np.linspace(0, path_time, self.croco_xs.shape[0] + 1)
+        t = np.linspace(0, self.path_length, self.croco_xs.shape[0] + 1)
         for idx in range(self.nq):
             plt.subplot(3, 2, idx + 1)
             plt.plot(t, q_crocos[idx])
@@ -99,10 +129,19 @@ class CrocoHppConnection:
             plt.legend(["crocoddyl", "hpp"], loc="best")
         plt.show()
 
-    def plot_control(self, terminal_idx):
+    def plot_a_plan(self):
+        a_plan = self.prob.a_plan
+        t = np.linspace(0, self.path_length, a_plan.shape[0])
+        for idx in range(self.nq):
+            plt.subplot(self.nq, 1, idx + 1)
+            plt.plot(t, a_plan[:, idx])
+            plt.xlabel("time (s)")
+            plt.ylabel(f"a{idx} (m/s²)")
+        plt.show()
+
+    def plot_control(self):
         """Plot control for each joint."""
-        path_time = self.get_path_length(terminal_idx)
-        t = np.linspace(0, path_time, self.croco_us.shape[0])
+        t = np.linspace(0, self.path_length, self.croco_us.shape[0])
         for idx in range(self.nq):
             plt.subplot(self.nq, 1, idx + 1)
             plt.plot(t, self.croco_us[:, idx])
@@ -112,17 +151,15 @@ class CrocoHppConnection:
             plt.legend(["crocoddyl", "hpp"], loc="best")
         plt.show()
 
-    def display_path(self, terminal_idx):
+    def display_path(self):
         """Display in Gepetto Viewer the trajectory found with crocoddyl."""
-        path_time = self.get_path_length(terminal_idx)
-        DT = path_time / self.croco_xs.shape[0]
         for x in self.croco_xs:
             self.v(list(x)[: self.nq] + self.ball_init_pose)  # + self.ball_init_pose
-            time.sleep(DT)
+            time.sleep(self.DT)
 
-    def print_final_placement(self, terminal_idx):
+    def print_final_placement(self):
         """Print final gripper position for both hpp and crocoddyl trajectories."""
-        q_final_hpp = self.hpp_paths[terminal_idx].x_plan[-1][: self.nq]
+        q_final_hpp = self.prob.x_plan[-1][: self.nq]
         hpp_placement = self.robot.placement(q_final_hpp, self.nq)
         print("Last node placement ")
         print(
@@ -140,19 +177,13 @@ class CrocoHppConnection:
             croco_placement.translation,
         )
 
-    def get_path_length(self, terminal_idx):
-        length = 0
-        for idx in range(terminal_idx + 1):
-            length += self.prob.hpp_paths[idx].path.length()
-        return length
-
-    def get_trajectory_difference(self, terminal_idx, configuration_traj=True):
+    def get_trajectory_difference(self, configuration_traj=True):
         """Compute at each node the absolute difference in position either in cartesian or configuration space and sum it."""
         if configuration_traj:
             traj_croco = self.croco_xs[:, : self.nq]
             traj_hpp = self.prob.x_plan[:, : self.nq]
         else:
-            traj_croco, traj_hpp = self.get_cartesian_trajectory(terminal_idx)
+            traj_croco, traj_hpp = self.get_cartesian_trajectory()
         diffs = []
         for idx in range(len(traj_croco)):
             array_diff = np.abs(np.array(traj_croco[idx]) - np.array(traj_hpp[idx]))
@@ -171,7 +202,7 @@ class CrocoHppConnection:
             np.argmax(np.abs(increases), axis=None), increases.shape
         )
 
-    def get_cartesian_trajectory(self, terminal_idx):
+    def get_cartesian_trajectory(self):
         """Return the vector of gripper pose for both trajectories found by hpp and crocoddyl."""
         pose_croco = [[] for _ in range(3)]
         pose_hpp = [[] for _ in range(3)]
@@ -180,12 +211,11 @@ class CrocoHppConnection:
             pose = self.robot.placement(q, self.nq).translation
             for idx in range(3):
                 pose_croco[idx].append(pose[idx])
-        for path_idx in range(terminal_idx + 1):
-            for idx in range(self.hpp_paths[path_idx].x_plan.shape[0]):
-                q = self.hpp_paths[path_idx].x_plan[idx, : self.nq]
-                pose = self.robot.placement(q, self.nq).translation
-                for idx in range(3):
-                    pose_hpp[idx].append(pose[idx])
+        for idx in range(self.prob.x_plan.shape[0]):
+            q = self.prob.x_plan[idx, : self.nq]
+            pose = self.robot.placement(q, self.nq).translation
+            for idx in range(3):
+                pose_hpp[idx].append(pose[idx])
         return pose_croco, pose_hpp
 
     def search_best_costs(
@@ -313,13 +343,13 @@ class CrocoHppConnection:
         m.calc(d, x, self.prob.solver.us[0])
         return d.xnext.copy()
 
-    def do_mpc(self, path_terminal_idx, T, node_idx_breakpoint=None):
-        self.prob.set_models([path_terminal_idx])
+    def do_mpc(self, T, node_idx_breakpoint=None):
+        self.prob.set_models()
         self.prob.create_whole_problem()
-        self.prob.set_xplan_and_uref(0, path_terminal_idx)
+        # self.prob.set_xplan_and_uref(0, path_terminal_idx)
 
         problem = self.prob.create_problem(T)
-        problem.x0 = self.hpp_paths[0].x_plan[0]
+        problem.x0 = self.prob.x_plan[0]
         self.prob.run_solver(
             problem, list(self.prob.x_plan[:T]), list(self.prob.u_ref[: T - 1]), 1000
         )
@@ -330,7 +360,6 @@ class CrocoHppConnection:
         us[0, :] = self.prob.solver.us[0]
         x = self.compute_next_step(problem.x0, problem)
         xs[1, :] = x
-        breakpoint()
         for idx in range(1, len(self.prob.whole_problem.runningModels)):
             self.prob.reset_ocp(x, next_node_idx)
             xs_init = list(self.prob.solver.xs[1:]) + [self.prob.solver.xs[-1]]
@@ -347,3 +376,23 @@ class CrocoHppConnection:
                 breakpoint()
         self.croco_xs = xs
         self.croco_us = us
+
+    def plot_xs_us(self, solver):
+        xs = np.array(solver.xs)
+        us = np.array(solver.us)
+        dt = solver.problem.runningModels[0].dt
+        poses = np.zeros([len(xs), 3])
+        for idx in range(xs.shape[0]):
+            pose = self.robot.placement(xs[idx, : self.nq])
+            poses[idx, :] = pose.translation
+        t_xs = np.linspace(0, (len(xs) - 1) * dt, int(1 / dt))
+        for idx in range(3):
+            plt.subplot(3, 1, idx)
+            plt.plot(t_xs, poses[:, idx])
+        for idx in range(self.nq):
+            plt.subplot(self.nq, 1, idx)
+            plt.plot(t_xs, xs[:, idx])
+        for idx in range(self.nq):
+            plt.subplot(self.nq, 1, idx)
+            plt.plot(t_xs[:-1], us[:, idx])
+        plt.show()

@@ -247,24 +247,72 @@ if args.N != 0:
         print(f"Average time per success: {totalTime.total_seconds()/success}")
         print(f"Average number nodes per success: {totalNumberNodes/success}")
 
+
+def get_hpp_plan(ps, DT, nq):
+    p = ps.client.basic.problem.getPath(ps.numberPaths() - 1)
+    path = p.pathAtRank(0)
+    T = int(np.round(path.length() / DT))
+    x_plans, a_plans = get_xplan_aplan(T, path, nq)
+    whole_traj_T = 0
+    for path_idx in range(1, p.numberPaths()):
+        path = p.pathAtRank(path_idx)
+        T = int(np.round(path.length() / DT))
+        if T == 0:
+            continue
+        x_plan, a_plan = get_xplan_aplan(T, path, nq)
+        x_plans = np.concatenate([x_plans, x_plan], axis=0)
+        a_plans = np.concatenate([a_plans, a_plan], axis=0)
+        whole_traj_T += T
+    return x_plans, a_plans
+
+
+def get_xplan_aplan(T, path, nq):
+    """Return x_plan the state and a_plan the acceleration of hpp's trajectory."""
+    x_plan = np.zeros([T, 2 * nq])
+    a_plan = np.zeros([T, nq])
+    if T == 0:
+        return x_plan, a_plan
+    elif T == 1:
+        time = path.length()
+        q_t = np.array(path.call(time)[0][:nq])
+        v_t = np.array(path.derivative(time, 1)[:nq])
+        x_plan[0, :] = np.concatenate([q_t, v_t])
+        a_t = np.array(path.derivative(time, 2)[:nq])
+        a_plan[0, :] = a_t
+        return x_plan, a_plan
+    total_time = path.length()
+    for iter in range(T):
+        iter_time = total_time * iter / (T - 1)  # iter * DT
+        q_t = np.array(path.call(iter_time)[0][:nq])
+        v_t = np.array(path.derivative(iter_time, 1)[:nq])
+        x_plan[iter, :] = np.concatenate([q_t, v_t])
+        a_t = np.array(path.derivative(iter_time, 2)[:nq])
+        a_plan[iter, :] = a_t
+    return x_plan, a_plan
+
+
 ##### start croco script
 if __name__ == "__main__":
     from hpp.corbaserver import wrap_delete
     from .croco_hpp import *
 
     ball_init_pose = [-0.2, 0, 0.02, 0, 0, 0, 1]
-    chc = CrocoHppConnection(ps, "ur5", vf, ball_init_pose)
+    x_plans, a_plans = get_hpp_plan(ps, 1e-2, 6)
+    chc = CrocoHppConnection(x_plans, a_plans, "ur5", vf, ball_init_pose)
     start = time.time()
-    chc.prob.set_costs(10**4.5, 100, 10**-3.5, 0, 0)
-    chc.search_best_costs(chc.prob.nb_paths - 1, False, False, True)
-    # chc.do_mpc(chc.prob.nb_paths - 1, 100)
+    chc.prob.set_costs(10**4, 1, 10**-3, 0, 0)
+    # chc.search_best_costs(chc.prob.nb_paths - 1, False, False, True)
+    chc.do_mpc(100)
     end = time.time()
     print("search duration ", end - start)
+    """
     with open("datas.npy", "wb") as f:
         np.save(f, chc.prob.hpp_paths[0].x_plan)
-        np.save(f, chc.prob.hpp_paths[1].x_plan)
+        np.save(f, chc.prob.hpp_paths[1].x_plan)"""
 
 """
 from hpp.gepetto import PathPlayer
 v =vf.createViewer()
 pp = PathPlayer (v)"""
+# plot_costs_from_dic(return_cost_vectors(chc.prob.solver,weighted=True))
+# plot_costs_from_dic(return_cost_vectors(self.prob.solver,weighted=True))

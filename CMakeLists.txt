@@ -37,8 +37,13 @@ add_project_dependency(
 
 if(NOT INSTALL_ROS_INTERFACE_ONLY)
     # Install the python package.
-    file(GLOB project_python_source_files
-         RELATIVE ${PROJECT_SOURCE_DIR}/${PROJECT_NAME} "${PROJECT_NAME}/*.py")
+    set(project_python_source_files
+        __init__.py
+        croco_hpp.py
+        mpc.py
+        run.py
+        script.py
+    )
     foreach(file ${project_python_source_files})
         python_install_on_site(${PROJECT_NAME} ${file})
     endforeach()
