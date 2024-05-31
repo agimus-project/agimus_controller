@@ -180,6 +180,18 @@ class PandaRobot(PinBulletWrapper):
         model_path = join(pinocchio_model_dir, "robot_description")
         urdf_filename = "franka2.urdf"
         self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
+
+        urdf_filename_obs = "big_box.urdf"
+        self._urdf_path_obs = join(join(model_path, "urdf/obstacles"), urdf_filename_obs)
+        
+        
+        self.obstacleId = pybullet.loadURDF(
+            self._urdf_path_obs,
+            [0,0,0.8],
+            orn,
+            # flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
+            useFixedBase=True,
+        )
         
         self.robotId = pybullet.loadURDF(
             self._urdf_path,

@@ -61,13 +61,6 @@ class MPC:
         self._sim_params["T_sim"] = 0.05
         self._log_rate = 100
 
-        OBSTACLE_POSE = robot_simulator.pin_robot.collision_model.geometryObjects[
-            robot_simulator.pin_robot.collision_model.getGeometryId("obstacle1")
-        ].placement
-        OBSTACLE_RADIUS = robot_simulator.pin_robot.collision_model.geometryObjects[
-            robot_simulator.pin_robot.collision_model.getGeometryId("obstacle1")
-        ].geometry.radius
-
         # Initialize simulation data
         self._sim_data = mpc_utils.init_sim_data(
             self._sim_params, self._ocp_params, self._x0
@@ -78,12 +71,6 @@ class MPC:
         )
         mpc_utils.display_ball(
             self._TARGET_POSE_2.translation, RADIUS=0.5e-1, COLOR=[1.0, 0.0, 0.0, 0.6]
-        )
-
-        mpc_utils.display_ball(
-            OBSTACLE_POSE.translation,
-            RADIUS=OBSTACLE_RADIUS,
-            COLOR=[1.0, 1.0, 0.0, 0.6],
         )
 
         self._SOLVE = False
@@ -296,15 +283,7 @@ if __name__ == "__main__":
 
     TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5]))
     TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.0, 1.5]))
-
-    # OBSTACLE_POSE = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.2, 1.5]))
-    OBSTACLE_POSE = robot_simulator.pin_robot.collision_model.geometryObjects[
-        robot_simulator.pin_robot.collision_model.getGeometryId("obstacle1")
-    ].placement
-    OBSTACLE_RADIUS = robot_simulator.pin_robot.collision_model.geometryObjects[
-        robot_simulator.pin_robot.collision_model.getGeometryId("obstacle1")
-    ].geometry.radius
-
+    
     dt = 2e-2
     T = 2
 
