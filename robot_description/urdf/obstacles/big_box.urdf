@@ -2,7 +2,7 @@
   <material name="grey">
     <color rgba=".5 .5 .5 1"/>
   </material>
-  <link name="base_link">
+  <link name="obstacle">
     <inertial>
       <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
       <mass value="0.6"/>
