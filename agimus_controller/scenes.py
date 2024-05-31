@@ -10,11 +10,30 @@ YELLOW_FULL = np.array([1, 1, 0, 1.0])
 
 
 class Scene:
-    def __init__(self) -> None:
-        pass
+    def __init__(
+        self,
+        name_scene: str,
+        obstacle_pose: pin.SE3,
+    ) -> None:
 
+        self._name_scene = name_scene
+        self.obstacle_pose = obstacle_pose
+        self._target = pin.SE3.Identity()
+        if self._name_scene == "box":
+            self.urdf_filename = "big_box.urdf"
+            self._target = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0.0, 0.2, 0.8])
+            )
+            self._q0 = np.array(
+                [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
+            )
+        else:
+            raise NotImplementedError(f"The input {self._name_scene} is not implemented.")
+        
     def create_scene_from_urdf(
-        self, rmodel: pin.Model, cmodel: pin.Model, name_scene: str
+        self,
+        rmodel: pin.Model,
+        cmodel: pin.Model,
     ):
         """Create a scene amond the ones : "box"
 
@@ -22,36 +41,22 @@ class Scene:
             rmodel (pin.Model): robot model
             cmodel (pin.Model): collision model of the robot
             name_scene (str): name of the scene
+            obstacle_pose (pin.SE3): pose in the world frame of the obstacle as a whole.
+
         """
 
-        self._name_scene = name_scene
-
-        self._target = pin.SE3.Identity()
         if self._name_scene == "box":
-            urdf_filename = "big_box.urdf"
-            self._target = pin.SE3(
-                pin.utils.rotate("x", np.pi), np.array([0.0, 0.2, 0.8])
-            )
-            self._q0 = np.array(
-                [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
-            )
-            
-            obstacle_pose = pin.SE3.Identity()
-            obstacle_pose.translation = np.array([0,0,0.75])
             model, collision_model, visual_model = self.load_obstacle_urdf(
-                urdf_filename
+                self.urdf_filename
             )
-
             self._rmodel, self._cmodel = pin.appendModel(
                 rmodel,
                 model,
                 cmodel,
                 collision_model,
                 0,
-                obstacle_pose,
+                self.obstacle_pose,
             )
-        else:
-            raise NotImplementedError(f"The input {name_scene} is not implemented.")
 
         self._add_collision_pairs_urdf()
         return self._cmodel, self._target, self._q0

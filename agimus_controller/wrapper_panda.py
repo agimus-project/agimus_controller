@@ -179,16 +179,25 @@ class PandaRobot(PinBulletWrapper):
         auto_col=False,
         qref=np.zeros(7),
         pos_robot=None,
-        orn_robot=None,
         pos_obs=None,
-        orn_obs=None,
-        urdf_filename_obs=None,
         name_scene="box",
     ):
         # Load the robot
+
+        # Create the robot wrapper in pinocchio.
+        robot_wrapper = PandaWrapper(capsule=capsule, auto_col=auto_col)
+        rmodel, cmodel, vmodel = robot_wrapper()
+
+        scene = Scene(name_scene, obstacle_pose=pos_obs)
+        cmodel, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
+            rmodel,
+            cmodel,
+        )
+
+        robot_full = RobotWrapper(rmodel, cmodel, vmodel)
+
         if pos_robot is None:
             pos_robot = [0.0, 0, 0.0]
-        if orn_robot is None:
             orn_robot = pybullet.getQuaternionFromEuler([0, 0, 0])
 
         pinocchio_model_dir = dirname(dirname(((str(abspath(__file__))))))
@@ -196,15 +205,16 @@ class PandaRobot(PinBulletWrapper):
         urdf_filename = "franka2.urdf"
         self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
 
-        if urdf_filename_obs is not None:
+        if scene.urdf_filename is not None:
             self._urdf_path_obs = join(
-                join(model_path, "urdf/obstacles"), urdf_filename_obs
+                join(model_path, "urdf/obstacles"), scene.urdf_filename
             )
 
+            pos_obs_quat = pin.se3ToXYZQUATtuple(pos_obs)
             self.obstacleId = pybullet.loadURDF(
                 self._urdf_path_obs,
-                pos_obs,
-                orn_obs,
+                pos_obs_quat[:3],
+                pos_obs_quat[3:],
                 useFixedBase=True,
             )
 
@@ -212,23 +222,9 @@ class PandaRobot(PinBulletWrapper):
             self._urdf_path,
             pos_robot,
             orn_robot,
-            # flags=pybullet.URDF_USE_INERTIA_FROM_FILE,
             useFixedBase=True,
         )
         pybullet.getBasePositionAndOrientation(self.robotId)
-
-        # Create the robot wrapper in pinocchio.
-        robot_wrapper = PandaWrapper(capsule=capsule, auto_col=auto_col)
-        rmodel, cmodel, vmodel = robot_wrapper()
-
-        scene = Scene()
-        cmodel, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
-            rmodel,
-            cmodel,
-            name_scene,
-        )
-
-        robot_full = RobotWrapper(rmodel, cmodel, vmodel)
 
         # Query all the joints.
         num_joints = pybullet.getNumJoints(self.robotId)

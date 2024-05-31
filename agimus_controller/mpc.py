@@ -213,8 +213,10 @@ class MPC:
                     id_shape = robot_simulator.pin_robot.collision_model.getGeometryId(
                         shape_name
                     )
-                    id_obstacle = robot_simulator.pin_robot.collision_model.getGeometryId(
-                        obstacle
+                    id_obstacle = (
+                        robot_simulator.pin_robot.collision_model.getGeometryId(
+                            obstacle
+                        )
                     )
                     dist = pin_utils.compute_distance_between_shapes(
                         robot_simulator.pin_robot.model,
@@ -227,8 +229,10 @@ class MPC:
 
         if len(self._obstacles) == 1:
             ncols = 1
-        fig, axes = plt.subplots(len(self._obstacles), ncols, figsize=(10, 5 * len(self._obstacles)))
-        
+        fig, axes = plt.subplots(
+            len(self._obstacles), ncols, figsize=(10, 5 * len(self._obstacles))
+        )
+
         for ax, (obstacle, shapes) in zip(axes, self._distances.items()):
             for shape, values in shapes.items():
                 ax.plot(values, label=shape)
@@ -237,8 +241,8 @@ class MPC:
 
         plt.tight_layout()
         plt.show()
-        
-        
+
+
 class NotSolvedError(Exception):
     """Exception raised when plot is called before solve for the MPC class."""
 
@@ -253,17 +257,27 @@ if __name__ == "__main__":
     ### LOAD ROBOT MODEL and SIMU ENV ###
     # # # # # # # # # # # # # # # # # # #
 
+    # Name of the scene 
+    name_scene = "box"
+    
+    # Pose of the obstacle
+    obstacle_pose = pin.SE3.Identity()
+    obstacle_pose.translation = np.array([0,0,0.75])
+    
+    # Creation of the scene    
+    scene = Scene(name_scene=name_scene, obstacle_pose=obstacle_pose)
+
     # Simulation environment
     env = BulletEnvWithGround(server=pybullet.GUI, dt=1e-3)
     # Robot simulator
-    robot_simulator = PandaRobot(capsule=True)
+    robot_simulator = PandaRobot(capsule=True, auto_col=True, pos_obs=obstacle_pose, name_scene="box" )
 
     # Creating the scene
-    scene = Scene()
-    robot_simulator.pin_robot.collision_model, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
-        robot_simulator.pin_robot.model,
-        robot_simulator.pin_robot.collision_model,
-        "box",
+    robot_simulator.pin_robot.collision_model, TARGET_POSE2, q0 = (
+        scene.create_scene_from_urdf(
+            robot_simulator.pin_robot.model,
+            robot_simulator.pin_robot.collision_model,
+        )
     )
 
     env.add_robot(robot_simulator)
@@ -283,7 +297,7 @@ if __name__ == "__main__":
 
     TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5]))
     TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.0, 1.5]))
-    
+
     dt = 2e-2
     T = 2
 
@@ -323,7 +337,7 @@ if __name__ == "__main__":
         env=env,
         TARGET_POSE_1=TARGET_POSE1,
         TARGET_POSE_2=TARGET_POSE2,
-        scene=scene
+        scene=scene,
     )
     mpc.solve()
     mpc.plot_collision_distances()
