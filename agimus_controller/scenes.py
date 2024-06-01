@@ -1,6 +1,5 @@
 from os.path import dirname, join, abspath
 
-
 import numpy as np
 import pinocchio as pin
 
@@ -32,12 +31,20 @@ class Scene:
             self.urdf_filename = "ball.urdf"
             self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([ 0.475 , -0.1655,  1.6476]))
             self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5]))
+            self._q0 = np.zeros(7)
+            if self.obstacle_pose is None:
+                self.obstacle_pose =  pin.SE3.Identity()
+                self.obstacle_pose.translation = np.array([0.25, -0.4, 1.5])
+        elif self._name_scene == "wall":
+            self.urdf_filename = "wall.urdf"
+            self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85]))
+            self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85]))
             self._q0 = np.array(
                 [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
             )
             if self.obstacle_pose is None:
                 self.obstacle_pose =  pin.SE3.Identity()
-                self.obstacle_pose.translation = np.array([0.25, -0.4, 1.5])
+                self.obstacle_pose.translation = np.array([0, -0.1, 1.0])
         else:
             raise NotImplementedError(f"The input {self._name_scene} is not implemented.")
         
@@ -252,6 +259,16 @@ class Scene:
                 "panda2_link6_capsule_0",
                 "panda2_link5_capsule_0",
                 "panda2_link5_capsule_1",
+            ]
+        elif self._name_scene == "wall":
+            self.shapes_avoiding_collision = [
+                "panda2_link7_capsule_0",
+                "panda2_link7_capsule_1",
+                "panda2_link6_capsule_0",
+                "panda2_link5_capsule_1",
+                "panda2_link5_capsule_0",
+                "panda2_rightfinger_0",
+                "panda2_leftfinger_0",
             ]
         else:
             raise NotImplementedError(f"The input {self._name_scene} is not implemented.")

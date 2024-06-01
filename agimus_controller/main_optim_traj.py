@@ -18,7 +18,7 @@ robot_wrapper = PandaWrapper(auto_col=True,capsule=True)
 rmodel, cmodel, vmodel = robot_wrapper()
 
 # Creating the scene
-scene = Scene("box")
+scene = Scene("wall")
 rmodel1, cmodel1, TARGET1, TARGET2, q0 = scene.create_scene_from_urdf(rmodel, cmodel)
 # Generating the meshcat visualizer
 MeshcatVis = MeshcatWrapper()

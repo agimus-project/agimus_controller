@@ -3,9 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import pybullet
-
-import pinocchio as pin
-
 from mim_robots.pybullet.env import BulletEnvWithGround
 
 import mpc_utils
@@ -258,10 +255,9 @@ if __name__ == "__main__":
     # # # # # # # # # # # # # # # # # # #
 
     # Name of the scene
-    name_scene = "ball"
+    name_scene = "wall"
 
     # Pose of the obstacle
-
 
     # Creation of the scene
     scene = Scene(name_scene=name_scene)
@@ -272,7 +268,11 @@ if __name__ == "__main__":
     robot_simulator = PandaRobot(
         capsule=True, auto_col=True, pos_obs=scene.obstacle_pose, name_scene=name_scene
     )
-    TARGET_POSE1, TARGET_POSE2, q0 = robot_simulator.TARGET_POSE1, robot_simulator.TARGET_POSE2, robot_simulator.q0
+    TARGET_POSE1, TARGET_POSE2, q0 = (
+        robot_simulator.TARGET_POSE1,
+        robot_simulator.TARGET_POSE2,
+        robot_simulator.q0,
+    )
     # Creating the scene
 
     env.add_robot(robot_simulator)
@@ -289,8 +289,6 @@ if __name__ == "__main__":
     robot_simulator.reset_state(q0, v0)
     robot_simulator.forward_robot(q0, v0)
     print("[PyBullet] Created robot (id = " + str(robot_simulator.robotId) + ")")
-
-
 
     dt = 2e-2
     T = 2
