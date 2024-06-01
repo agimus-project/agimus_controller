@@ -1,4 +1,4 @@
-# croco_hpp_connection
+# agimus_controller
 
 ## Getting started
 

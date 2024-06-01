@@ -37,11 +37,11 @@ class TrajectoryBuffer:
 
 
 class CrocoHppConnection:
-    def __init__(self, x_plans, a_plans, robot_name, vf, ball_init_pose):
+    def __init__(self, x_plan, a_plan, robot_name, vf, ball_init_pose):
         self.ball_init_pose = ball_init_pose
         if vf is not None:
             self.v = vf.createViewer()
-        self.prob = Problem(x_plans, a_plans, robot_name)
+        self.prob = Problem(x_plan, a_plan, robot_name)
         self.robot = self.prob.robot
         self.nq = self.robot.nq
         self.DT = self.prob.DT

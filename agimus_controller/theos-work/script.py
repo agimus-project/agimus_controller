@@ -252,18 +252,18 @@ def get_hpp_plan(ps, DT, nq):
     p = ps.client.basic.problem.getPath(ps.numberPaths() - 1)
     path = p.pathAtRank(0)
     T = int(np.round(path.length() / DT))
-    x_plans, a_plans = get_xplan_aplan(T, path, nq)
+    x_plan, a_plan = get_xplan_aplan(T, path, nq)
     whole_traj_T = 0
     for path_idx in range(1, p.numberPaths()):
         path = p.pathAtRank(path_idx)
         T = int(np.round(path.length() / DT))
         if T == 0:
             continue
-        x_plan, a_plan = get_xplan_aplan(T, path, nq)
-        x_plans = np.concatenate([x_plans, x_plan], axis=0)
-        a_plans = np.concatenate([a_plans, a_plan], axis=0)
+        subpath_x_plan, subpath_a_plan = get_xplan_aplan(T, path, nq)
+        x_plan = np.concatenate([x_plan, subpath_x_plan], axis=0)
+        a_plan = np.concatenate([a_plan, subpath_a_plan], axis=0)
         whole_traj_T += T
-    return x_plans, a_plans
+    return x_plan, a_plan
 
 
 def get_xplan_aplan(T, path, nq):
@@ -293,12 +293,11 @@ def get_xplan_aplan(T, path, nq):
 
 ##### start croco script
 if __name__ == "__main__":
-    from hpp.corbaserver import wrap_delete
     from .croco_hpp import *
 
     ball_init_pose = [-0.2, 0, 0.02, 0, 0, 0, 1]
-    x_plans, a_plans = get_hpp_plan(ps, 1e-2, 6)
-    chc = CrocoHppConnection(x_plans, a_plans, "ur5", vf, ball_init_pose)
+    x_plan, a_plan = get_hpp_plan(ps, 1e-2, 6)
+    chc = CrocoHppConnection(x_plan, a_plan, "ur5", vf, ball_init_pose)
     start = time.time()
     chc.prob.set_costs(10**4, 1, 10**-3, 0, 0)
     # chc.search_best_costs(chc.prob.nb_paths - 1, False, False, True)
