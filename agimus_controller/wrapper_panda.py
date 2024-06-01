@@ -170,7 +170,7 @@ class PandaWrapper:
 
 class PandaRobot(PinBulletWrapper):
     """
-    Pinocchio-PyBullet wrapper class for the KUKA LWR iiwa
+    Pinocchio-PyBullet wrapper class for the Panda
     """
 
     def __init__(
@@ -182,6 +182,16 @@ class PandaRobot(PinBulletWrapper):
         pos_obs=None,
         name_scene="box",
     ):
+        """ Pinocchio-PyBullet wrapper class for the Panda
+
+        Args:
+            capsule (bool, optional): Transform the spheres and cylinder of the robot into capsules. Defaults to True.
+            auto_col (bool, optional): Include the auto collision in the collision model. Defaults to False.
+            qref (_type_, optional): Initial configuration. Defaults to np.zeros(7).
+            pos_robot (_type_, optional): Position of the URDF describing the robot in the world frame of pybullet. Defaults to None.
+            pos_obs (_type_, optional): Position of the URDF describing the obstacles in the world frame of pybullet. Defaults to None.
+            name_scene (str, optional): Name of the scene describing the obstacles. Defaults to "box".
+        """
         # Load the robot
 
         # Create the robot wrapper in pinocchio.

@@ -14,6 +14,15 @@ class Scene:
         name_scene: str,
         obstacle_pose = None,
     ) -> None:
+        """Create the scene that encapsulates the obstacles.
+
+        Args:
+            name_scene (str): Name of the scene, amond "box", "ball" and "wall".
+            obstacle_pose (pin.SE3, optional): Pose of the obstacles. The default one is adapted for each scene. Defaults to None.
+
+        Raises:
+            NotImplementedError: No scene of the given name.
+        """
 
         self._name_scene = name_scene
         self.obstacle_pose = obstacle_pose
