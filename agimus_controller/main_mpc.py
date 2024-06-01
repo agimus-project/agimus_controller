@@ -12,7 +12,7 @@ from mpc import MPC
 ### LOAD ROBOT MODEL and SIMU ENV ###
 # # # # # # # # # # # # # # # # # # #
 
-# Name of the scene
+# Name of the scene (can be changed by "ball" and "wall")
 name_scene = "box"
 
 # Pose of the obstacle
