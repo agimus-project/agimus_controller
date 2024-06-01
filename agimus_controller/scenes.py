@@ -18,12 +18,10 @@ class Scene:
 
         self._name_scene = name_scene
         self.obstacle_pose = obstacle_pose
-        self._target = pin.SE3.Identity()
         if self._name_scene == "box":
             self.urdf_filename = "big_box.urdf"
-            self._target = pin.SE3(
-                pin.utils.rotate("x", np.pi), np.array([0.0, 0.2, 0.8])
-            )
+            self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85]))
+            self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85]))
             self._q0 = np.array(
                 [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
             )
@@ -59,7 +57,7 @@ class Scene:
             )
 
         self._add_collision_pairs_urdf()
-        return self._cmodel, self._target, self._q0
+        return self._cmodel, self._TARGET_POSE1, self._TARGET_POSE2, self._q0
 
     def create_scene(self, rmodel: pin.Model, cmodel: pin.Model, name_scene: str):
         """Create a scene amond the ones : "box", "wall", "ball".

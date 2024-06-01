@@ -257,23 +257,25 @@ if __name__ == "__main__":
     ### LOAD ROBOT MODEL and SIMU ENV ###
     # # # # # # # # # # # # # # # # # # #
 
-    # Name of the scene 
+    # Name of the scene
     name_scene = "box"
-    
+
     # Pose of the obstacle
     obstacle_pose = pin.SE3.Identity()
-    obstacle_pose.translation = np.array([0,0,0.75])
-    
-    # Creation of the scene    
+    obstacle_pose.translation = np.array([0, 0.15, 0.75])
+
+    # Creation of the scene
     scene = Scene(name_scene=name_scene, obstacle_pose=obstacle_pose)
 
     # Simulation environment
     env = BulletEnvWithGround(server=pybullet.GUI, dt=1e-3)
     # Robot simulator
-    robot_simulator = PandaRobot(capsule=True, auto_col=True, pos_obs=obstacle_pose, name_scene="box" )
+    robot_simulator = PandaRobot(
+        capsule=True, auto_col=True, pos_obs=obstacle_pose, name_scene="box"
+    )
 
     # Creating the scene
-    robot_simulator.pin_robot.collision_model, TARGET_POSE2, q0 = (
+    robot_simulator.pin_robot.collision_model, TARGET_POSE1 ,TARGET_POSE2, q0 = (
         scene.create_scene_from_urdf(
             robot_simulator.pin_robot.model,
             robot_simulator.pin_robot.collision_model,
@@ -295,8 +297,7 @@ if __name__ == "__main__":
     robot_simulator.forward_robot(q0, v0)
     print("[PyBullet] Created robot (id = " + str(robot_simulator.robotId) + ")")
 
-    TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5]))
-    TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.0, 1.5]))
+
 
     dt = 2e-2
     T = 2

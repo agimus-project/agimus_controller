@@ -189,7 +189,7 @@ class PandaRobot(PinBulletWrapper):
         rmodel, cmodel, vmodel = robot_wrapper()
 
         scene = Scene(name_scene, obstacle_pose=pos_obs)
-        cmodel, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
+        cmodel, TARGET_POSE1, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
             rmodel,
             cmodel,
         )
@@ -210,7 +210,7 @@ class PandaRobot(PinBulletWrapper):
                 join(model_path, "urdf/obstacles"), scene.urdf_filename
             )
 
-            pos_obs_quat = pin.se3ToXYZQUATtuple(pos_obs)
+            pos_obs_quat = pin.SE3ToXYZQUATtuple(pos_obs)
             self.obstacleId = pybullet.loadURDF(
                 self._urdf_path_obs,
                 pos_obs_quat[:3],
