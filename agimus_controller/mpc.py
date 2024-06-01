@@ -58,7 +58,7 @@ class MPC:
         self._sim_params = {}
         self._sim_params["sim_freq"] = int(1.0 / env.dt)
         self._sim_params["mpc_freq"] = 1000
-        self._sim_params["T_sim"] = 0.05
+        self._sim_params["T_sim"] = 1.0
         self._log_rate = 100
 
         # Initialize simulation data
@@ -272,14 +272,8 @@ if __name__ == "__main__":
     robot_simulator = PandaRobot(
         capsule=True, auto_col=True, pos_obs=scene.obstacle_pose, name_scene=name_scene
     )
-
+    TARGET_POSE1, TARGET_POSE2, q0 = robot_simulator.TARGET_POSE1, robot_simulator.TARGET_POSE2, robot_simulator.q0
     # Creating the scene
-    robot_simulator.pin_robot.collision_model, TARGET_POSE1 ,TARGET_POSE2, q0 = (
-        scene.create_scene_from_urdf(
-            robot_simulator.pin_robot.model,
-            robot_simulator.pin_robot.collision_model,
-        )
-    )
 
     env.add_robot(robot_simulator)
 

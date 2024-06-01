@@ -65,7 +65,7 @@ class Scene:
             self.obstacle_pose,
         )
         self._add_collision_pairs_urdf()
-        return self._cmodel, self._TARGET_POSE1, self._TARGET_POSE2, self._q0
+        return self._rmodel, self._cmodel, self._TARGET_POSE1, self._TARGET_POSE2, self._q0
 
     def create_scene(self, rmodel: pin.Model, cmodel: pin.Model, name_scene: str):
         """Create a scene amond the ones : "box", "wall", "ball".
@@ -287,7 +287,7 @@ class Scene:
         # changing the names of the frames because there is conflict between frames names of both models.
         for frame in model.frames:
             frame.name = frame.name + "_obstacle"
-
+            print(frame.name)
         self._obstacles_name = []
         for obstacle in collision_model.geometryObjects:
             self._obstacles_name.append(obstacle.name)
@@ -300,11 +300,11 @@ if __name__ == "__main__":
     from wrapper_panda import PandaWrapper
 
     # Creating the robot
-    robot_wrapper = PandaWrapper(capsule=False)
+    robot_wrapper = PandaWrapper(capsule=True)
     rmodel, cmodel, vmodel = robot_wrapper()
 
-    scene = Scene()
-    cmodel, target, q0 = scene.create_scene(rmodel, cmodel, "wall")
+    scene = Scene("ball")
+    rmodel, cmodel, target, target2, q0 = scene.create_scene_from_urdf(rmodel, cmodel)
 
     rdata = rmodel.createData()
     cdata = cmodel.createData()

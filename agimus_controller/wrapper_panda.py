@@ -189,7 +189,7 @@ class PandaRobot(PinBulletWrapper):
         rmodel, cmodel, vmodel = robot_wrapper()
 
         scene = Scene(name_scene, obstacle_pose=pos_obs)
-        cmodel, TARGET_POSE1, TARGET_POSE2, q0 = scene.create_scene_from_urdf(
+        rmodel, cmodel, self.TARGET_POSE1, self.TARGET_POSE2, self.q0 = scene.create_scene_from_urdf(
             rmodel,
             cmodel,
         )
