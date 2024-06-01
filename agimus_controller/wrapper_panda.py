@@ -182,7 +182,7 @@ class PandaRobot(PinBulletWrapper):
         pos_obs=None,
         name_scene="box",
     ):
-        """ Pinocchio-PyBullet wrapper class for the Panda
+        """Pinocchio-PyBullet wrapper class for the Panda
 
         Args:
             capsule (bool, optional): Transform the spheres and cylinder of the robot into capsules. Defaults to True.
@@ -194,32 +194,42 @@ class PandaRobot(PinBulletWrapper):
         """
         # Load the robot
 
-        # Create the robot wrapper in pinocchio.
+        # Create the robot and the scene surrounding the robot.
         robot_wrapper = PandaWrapper(capsule=capsule, auto_col=auto_col)
         rmodel, cmodel, vmodel = robot_wrapper()
-
         self.scene = Scene(name_scene, obstacle_pose=pos_obs)
-        rmodel, cmodel, self.TARGET_POSE1, self.TARGET_POSE2, self.q0 = self.scene.create_scene_from_urdf(
-            rmodel,
-            cmodel,
+        rmodel, cmodel, self.TARGET_POSE1, self.TARGET_POSE2, self.q0 = (
+            self.scene.create_scene_from_urdf(
+                rmodel,
+                cmodel,
+            )
         )
-
         robot_full = RobotWrapper(rmodel, cmodel, vmodel)
 
+        # Loading the URDF of the robot to display it in pybullet.
+        package_model_dir = dirname(dirname(((str(abspath(__file__))))))
+        model_path = join(package_model_dir, "robot_description")
+        urdf_filename = "franka2.urdf"
+        self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
+
+        # Position of the URDF describing the robot in the world frame of pybullet.
         if pos_robot is None:
             pos_robot = [0.0, 0, 0.0]
             orn_robot = pybullet.getQuaternionFromEuler([0, 0, 0])
 
-        pinocchio_model_dir = dirname(dirname(((str(abspath(__file__))))))
-        model_path = join(pinocchio_model_dir, "robot_description")
-        urdf_filename = "franka2.urdf"
-        self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
+        self.robotId = pybullet.loadURDF(
+            self._urdf_path,
+            pos_robot,
+            orn_robot,
+            useFixedBase=True,
+        )
 
+        # Loading the URDF of the obstacle to display it in pybullet.
         if self.scene.urdf_filename is not None:
             self._urdf_path_obs = join(
                 join(model_path, "urdf/obstacles"), self.scene.urdf_filename
             )
-
+            # Position of the URDF describing the obstacle in the world frame of pybullet.
             pos_obs_quat = pin.SE3ToXYZQUATtuple(pos_obs)
             self.obstacleId = pybullet.loadURDF(
                 self._urdf_path_obs,
@@ -228,12 +238,6 @@ class PandaRobot(PinBulletWrapper):
                 useFixedBase=True,
             )
 
-        self.robotId = pybullet.loadURDF(
-            self._urdf_path,
-            pos_robot,
-            orn_robot,
-            useFixedBase=True,
-        )
         pybullet.getBasePositionAndOrientation(self.robotId)
 
         # Query all the joints.

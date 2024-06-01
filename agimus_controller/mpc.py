@@ -16,7 +16,14 @@ np.set_printoptions(precision=4, linewidth=180)
 
 class MPC:
     def __init__(
-        self, robot_simulator:PandaRobot, OCP: OCPPandaReachingColWithMultipleCol, max_iter:int, env:BulletEnvWithGround, TARGET_POSE_1:pin.SE3, TARGET_POSE_2:pin.SE3):
+        self,
+        robot_simulator: PandaRobot,
+        OCP: OCPPandaReachingColWithMultipleCol,
+        max_iter: int,
+        env: BulletEnvWithGround,
+        TARGET_POSE_1: pin.SE3,
+        TARGET_POSE_2: pin.SE3,
+    ):
         """Create the MPC class used to solve the OCP problem.
 
         Args:
@@ -30,7 +37,7 @@ class MPC:
 
         # Robot wrapper
         self._robot_simulator = robot_simulator
-        
+
         # Environement of the robot
         self._env = env
         self._scene = self._robot_simulator.scene
@@ -40,14 +47,18 @@ class MPC:
         self._sqp = self._OCP()
 
         # OCP params needed
-        self._T = self._OCP._T # Number of nodes
-        self._dt = self._OCP._dt # Time between each node
-        self._x0 = self._OCP._x0 # Initial state of the robot
-        self._xs_init = [self._x0 for i in range(self._T + 1)] # Initial trajectory of the robot
-        self._us_init = self._sqp.problem.quasiStatic(self._xs_init[:-1]) # Initial command of the robot
-        self._max_iter = max_iter # Number max of iterations of the solver
-        self._TARGET_POSE_1 = TARGET_POSE_1 # First target of the robot
-        self._TARGET_POSE_2 = TARGET_POSE_2 # Second target of the robot
+        self._T = self._OCP._T  # Number of nodes
+        self._dt = self._OCP._dt  # Time between each node
+        self._x0 = self._OCP._x0  # Initial state of the robot
+        self._xs_init = [
+            self._x0 for i in range(self._T + 1)
+        ]  # Initial trajectory of the robot
+        self._us_init = self._sqp.problem.quasiStatic(
+            self._xs_init[:-1]
+        )  # Initial command of the robot
+        self._max_iter = max_iter  # Number max of iterations of the solver
+        self._TARGET_POSE_1 = TARGET_POSE_1  # First target of the robot
+        self._TARGET_POSE_2 = TARGET_POSE_2  # Second target of the robot
 
         # Filling the OCP dictionnary used to store all the results
         self._ocp_params = {}
@@ -62,19 +73,19 @@ class MPC:
         self._ocp_params["active_costs"] = self._sqp.problem.runningModels[
             0
         ].differential.costs.active.tolist()
-        
+
         # Filling the simu parameters dictionnary
         self._sim_params = {}
         self._sim_params["sim_freq"] = int(1.0 / env.dt)
         self._sim_params["mpc_freq"] = 1000
-        self._sim_params["T_sim"] = 0.05
+        self._sim_params["T_sim"] = 0.01
         self._log_rate = 100
 
         # Initialize simulation data
         self._sim_data = mpc_utils.init_sim_data(
             self._sim_params, self._ocp_params, self._x0
         )
-        
+
         # Display target in pybullet
         mpc_utils.display_ball(
             self._TARGET_POSE_1.translation, RADIUS=0.05, COLOR=[1.0, 0.0, 0.0, 0.6]
@@ -87,9 +98,8 @@ class MPC:
         self._SOLVE = False
 
     def solve(self):
-        """ Solve the MPC problem and display it in a pybullet GUI.
-        """
-        
+        """Solve the MPC problem and display it in a pybullet GUI."""
+
         time_calc = []
         u_list = []
         # Simulate
@@ -211,7 +221,9 @@ class MPC:
         if not self._SOLVE:
             raise NotSolvedError()
 
-        self._shapes_in_collision_with_obstacle = self._scene.get_shapes_avoiding_collision()
+        self._shapes_in_collision_with_obstacle = (
+            self._scene.get_shapes_avoiding_collision()
+        )
         self._obstacles = self._scene._obstacles_name
 
         self._distances = {}
@@ -244,20 +256,54 @@ class MPC:
                     )
                     distance_between_shape_and_obstacle.append(dist)
 
+        # Doing the plot blakc magic
         ncols = 2
-        if len(self._obstacles) == 1:
-            ncols = 1
-        fig, axes = plt.subplots(
-            len(self._obstacles), ncols, figsize=(10, 5 * len(self._obstacles))
-        )
+        nrows = (len(self._obstacles) + 1) // 2 if len(self._obstacles) > 1 else 1
+        fig, axes = plt.subplots(nrows, ncols, figsize=(10, 5 * nrows))
 
-        for ax, (obstacle, shapes) in zip(axes, self._distances.items()):
+        # Flatten axes array for consistent indexing
+        if nrows == 1 and ncols == 1:
+            axes = [[axes]]
+        elif nrows == 1 or ncols == 1:
+            axes = (
+                np.expand_dims(axes, axis=0)
+                if nrows == 1
+                else np.expand_dims(axes, axis=1)
+            )
+        else:
+            axes = axes.reshape((nrows, ncols))
+
+        # Flatten the 2D axes array for easy iteration
+        flat_axes = axes.flatten()
+
+        for ax, (obstacle, shapes) in zip(flat_axes, self._distances.items()):
             for shape, values in shapes.items():
-                ax.plot(values, label=shape)
-            ax.set_title(obstacle)
+                (handle,) = ax.plot(values, label=shape)
+            ax.plot(np.zeros(len(values)), "-", label="Collision threshold")
+            ax.set_ylabel("Distance from the obstacle")
+            ax.set_xlabel("Timestep of the simulation")
+            ax.set_title(f"Collisions with {obstacle}")
+    
+        # Create a single legend outside the plots
+        if nrows >1:
+            ax.legend(
+                loc="upper center",
+                bbox_to_anchor=(-0.15, -0.3),
+                fancybox=True,
+                shadow=True,
+                ncol=8,
+                prop={'size': 6}
+            )
+        else:
             ax.legend()
 
-        plt.tight_layout()
+        # Hide any unused subplots
+        for i in range(len(self._distances), len(flat_axes)):
+            fig.delaxes(flat_axes[i])
+
+        # Adjust the layout to make room for legend and title
+        plt.suptitle("Distance between collision shapes & obstacles")
+        fig.subplots_adjust(hspace=0.5)
         plt.show()
 
 

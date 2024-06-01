@@ -98,6 +98,13 @@ class Scene:
                         self._cmodel.getGeometryId(obstacle),
                     )
                 )
+            # Add the collision pair with the support link 0 because this is the table on which sits the robot.
+            self._cmodel.addCollisionPair(
+                    pin.CollisionPair(
+                        self._cmodel.getGeometryId(shape),
+                        self._cmodel.getGeometryId("support_link_0"),
+                    )
+                )
 
     def _load_obstacle_urdf(self, urdf_filename: str):
         """Load models for a given URDF in the obstacle directory.
@@ -122,6 +129,7 @@ class Scene:
         for obstacle in collision_model.geometryObjects:
             self._obstacles_name.append(obstacle.name)
 
+        self._obstacles_name.append("support_link_0")
         return model, collision_model, visual_model
 
     def get_shapes_avoiding_collision(self):
@@ -142,7 +150,6 @@ class Scene:
             ]
         elif self._name_scene == "ball":
             self.shapes_avoiding_collision = [
-                "support_link_0",
                 "panda2_leftfinger_0",
                 "panda2_rightfinger_0",
                 "panda2_link6_capsule_0",
