@@ -23,6 +23,7 @@ class MPC:
         env: BulletEnvWithGround,
         TARGET_POSE_1: pin.SE3,
         TARGET_POSE_2: pin.SE3,
+        T_sim: float
     ):
         """Create the MPC class used to solve the OCP problem.
 
@@ -33,6 +34,7 @@ class MPC:
             env (BulletEnvWithGround): Pybullet environement.
             TARGET_POSE_1 (pin.SE3): First target of the robot.
             TARGET_POSE_2 (pin.SE3): Second target of the robot.
+            T_sim (float): total time of the simulation.
         """
 
         # Robot wrapper
@@ -78,7 +80,7 @@ class MPC:
         self._sim_params = {}
         self._sim_params["sim_freq"] = int(1.0 / env.dt)
         self._sim_params["mpc_freq"] = 1000
-        self._sim_params["T_sim"] = 0.01
+        self._sim_params["T_sim"] = T_sim
         self._log_rate = 100
 
         # Initialize simulation data
@@ -239,17 +241,17 @@ class MPC:
             # Going through the obstacles
             for obstacle, shape in self._distances.items():
                 for shape_name, distance_between_shape_and_obstacle in shape.items():
-                    id_shape = robot_simulator.pin_robot.collision_model.getGeometryId(
+                    id_shape = self._robot_simulator.pin_robot.collision_model.getGeometryId(
                         shape_name
                     )
                     id_obstacle = (
-                        robot_simulator.pin_robot.collision_model.getGeometryId(
+                        self._robot_simulator.pin_robot.collision_model.getGeometryId(
                             obstacle
                         )
                     )
                     dist = pin_utils.compute_distance_between_shapes(
-                        robot_simulator.pin_robot.model,
-                        robot_simulator.pin_robot.collision_model,
+                        self._robot_simulator.pin_robot.model,
+                        self._robot_simulator.pin_robot.collision_model,
                         id_shape,
                         id_obstacle,
                         q[:7],
@@ -283,16 +285,16 @@ class MPC:
             ax.set_ylabel("Distance from the obstacle")
             ax.set_xlabel("Timestep of the simulation")
             ax.set_title(f"Collisions with {obstacle}")
-    
+
         # Create a single legend outside the plots
-        if nrows >1:
+        if nrows > 1:
             ax.legend(
                 loc="upper center",
                 bbox_to_anchor=(-0.15, -0.3),
                 fancybox=True,
                 shadow=True,
                 ncol=8,
-                prop={'size': 6}
+                prop={"size": 6},
             )
         else:
             ax.legend()
@@ -306,6 +308,16 @@ class MPC:
         fig.subplots_adjust(hspace=0.5)
         plt.show()
 
+    def plot_mpc_results(self):
+
+        plot_data = mpc_utils.extract_plot_data_from_sim_data(self._sim_data)
+        mpc_utils.plot_mpc_results(
+            plot_data,
+            which_plots=["all"],
+            PLOT_PREDICTIONS=True,
+            pred_plot_sampling=int(self._sim_params["mpc_freq"] / 10),
+        )
+
 
 class NotSolvedError(Exception):
     """Exception raised when plot is called before solve for the MPC class."""
@@ -314,87 +326,3 @@ class NotSolvedError(Exception):
         self.message = message
         super().__init__(self.message)
 
-
-if __name__ == "__main__":
-
-    # # # # # # # # # # # # # # # # # # #
-    ### LOAD ROBOT MODEL and SIMU ENV ###
-    # # # # # # # # # # # # # # # # # # #
-
-    # Name of the scene
-    name_scene = "box"
-
-    # Pose of the obstacle
-
-    # Creation of the scene
-    scene = Scene(name_scene=name_scene)
-
-    # Simulation environment
-    env = BulletEnvWithGround(server=pybullet.GUI, dt=1e-3)
-    # Robot simulator
-    robot_simulator = PandaRobot(
-        capsule=True, auto_col=True, pos_obs=scene.obstacle_pose, name_scene=name_scene
-    )
-    TARGET_POSE1, TARGET_POSE2, q0 = (
-        robot_simulator.TARGET_POSE1,
-        robot_simulator.TARGET_POSE2,
-        robot_simulator.q0,
-    )
-    # Creating the scene
-
-    env.add_robot(robot_simulator)
-
-    # Extract robot model
-    nq = robot_simulator.pin_robot.model.nq
-    nv = robot_simulator.pin_robot.model.nv
-    nu = nq
-    nx = nq + nv
-    v0 = np.zeros(nv)
-    x0 = np.concatenate([q0, v0])
-    # Add robot to simulation and initialize
-    robot_simulator.reset_state(q0, v0)
-    robot_simulator.forward_robot(q0, v0)
-    print("[PyBullet] Created robot (id = " + str(robot_simulator.robotId) + ")")
-
-    dt = 2e-2
-    T = 2
-
-    max_iter = 4  # Maximum iterations of the solver
-    max_qp_iters = 25  # Maximum iterations for solving each qp solved in one iteration of the solver
-
-    WEIGHT_GRIPPER_POSE = 1e2
-    WEIGHT_GRIPPER_POSE_TERM = 1e2
-    WEIGHT_xREG = 1e-2
-    WEIGHT_xREG_TERM = 1e-2
-    WEIGHT_uREG = 1e-4
-    max_qp_iters = 25
-    callbacks = False
-    safety_threshhold = 7e-2
-
-    ### CREATING THE PROBLEM WITH OBSTACLE
-
-    print("Solving the problem with collision")
-    problem = OCPPandaReachingColWithMultipleCol(
-        robot_simulator.pin_robot.model,
-        robot_simulator.pin_robot.collision_model,
-        TARGET_POSE1,
-        T,
-        dt,
-        x0,
-        WEIGHT_xREG=WEIGHT_xREG,
-        WEIGHT_uREG=WEIGHT_uREG,
-        WEIGHT_GRIPPER_POSE=WEIGHT_GRIPPER_POSE,
-        MAX_QP_ITERS=max_qp_iters,
-        SAFETY_THRESHOLD=safety_threshhold,
-    )
-
-    mpc = MPC(
-        robot_simulator,
-        OCP=problem,
-        max_iter=max_iter,
-        env=env,
-        TARGET_POSE_1=TARGET_POSE1,
-        TARGET_POSE_2=TARGET_POSE2,
-    )
-    mpc.solve()
-    mpc.plot_collision_distances()
