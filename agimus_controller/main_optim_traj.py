@@ -14,11 +14,11 @@ T = 20
 dt = 0.01
 
 # Creating the robot
-robot_wrapper = PandaWrapper(capsule=False)
+robot_wrapper = PandaWrapper(capsule=True)
 rmodel, cmodel, vmodel = robot_wrapper()
 
 # Creating the scene
-scene = Scene()
+scene = Scene("ball")
 cmodel, TARGET, q0 = scene.create_scene(rmodel, cmodel, "ball")
 
 # Generating the meshcat visualizer

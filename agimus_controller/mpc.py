@@ -258,20 +258,19 @@ if __name__ == "__main__":
     # # # # # # # # # # # # # # # # # # #
 
     # Name of the scene
-    name_scene = "box"
+    name_scene = "ball"
 
     # Pose of the obstacle
-    obstacle_pose = pin.SE3.Identity()
-    obstacle_pose.translation = np.array([0, 0.15, 0.75])
+
 
     # Creation of the scene
-    scene = Scene(name_scene=name_scene, obstacle_pose=obstacle_pose)
+    scene = Scene(name_scene=name_scene)
 
     # Simulation environment
     env = BulletEnvWithGround(server=pybullet.GUI, dt=1e-3)
     # Robot simulator
     robot_simulator = PandaRobot(
-        capsule=True, auto_col=True, pos_obs=obstacle_pose, name_scene="box"
+        capsule=True, auto_col=True, pos_obs=scene.obstacle_pose, name_scene=name_scene
     )
 
     # Creating the scene

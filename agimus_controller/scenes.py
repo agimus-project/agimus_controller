@@ -13,18 +13,31 @@ class Scene:
     def __init__(
         self,
         name_scene: str,
-        obstacle_pose: pin.SE3,
+        obstacle_pose = None,
     ) -> None:
 
         self._name_scene = name_scene
         self.obstacle_pose = obstacle_pose
         if self._name_scene == "box":
-            self.urdf_filename = "big_box.urdf"
+            self.urdf_filename = "box.urdf"
             self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85]))
             self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85]))
             self._q0 = np.array(
                 [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
             )
+            if self.obstacle_pose is None:
+                self.obstacle_pose =  pin.SE3.Identity()
+                self.obstacle_pose.translation = np.array([0, 0.15, 0.75])
+        elif self._name_scene == "ball":
+            self.urdf_filename = "ball.urdf"
+            self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([ 0.475 , -0.1655,  1.6476]))
+            self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5]))
+            self._q0 = np.array(
+                [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
+            )
+            if self.obstacle_pose is None:
+                self.obstacle_pose =  pin.SE3.Identity()
+                self.obstacle_pose.translation = np.array([0.25, -0.4, 1.5])
         else:
             raise NotImplementedError(f"The input {self._name_scene} is not implemented.")
         
@@ -33,29 +46,24 @@ class Scene:
         rmodel: pin.Model,
         cmodel: pin.Model,
     ):
-        """Create a scene amond the ones : "box"
+        """Create a scene amond the one described in the constructor of the class.
 
         Args:
             rmodel (pin.Model): robot model
             cmodel (pin.Model): collision model of the robot
-            name_scene (str): name of the scene
-            obstacle_pose (pin.SE3): pose in the world frame of the obstacle as a whole.
-
         """
 
-        if self._name_scene == "box":
-            model, collision_model, visual_model = self.load_obstacle_urdf(
-                self.urdf_filename
-            )
-            self._rmodel, self._cmodel = pin.appendModel(
-                rmodel,
-                model,
-                cmodel,
-                collision_model,
-                0,
-                self.obstacle_pose,
-            )
-
+        model, collision_model, visual_model = self.load_obstacle_urdf(
+            self.urdf_filename
+        )
+        self._rmodel, self._cmodel = pin.appendModel(
+            rmodel,
+            model,
+            cmodel,
+            collision_model,
+            0,
+            self.obstacle_pose,
+        )
         self._add_collision_pairs_urdf()
         return self._cmodel, self._TARGET_POSE1, self._TARGET_POSE2, self._q0
 
@@ -236,6 +244,18 @@ class Scene:
                 "panda2_rightfinger_0",
                 "panda2_leftfinger_0",
             ]
+        elif self._name_scene == "ball":
+            self.shapes_avoiding_collision = [
+                "support_link_0",
+                "panda2_leftfinger_0",
+                "panda2_rightfinger_0",
+                "panda2_link6_capsule_0",
+                "panda2_link5_capsule_0",
+                "panda2_link5_capsule_1",
+            ]
+        else:
+            raise NotImplementedError(f"The input {self._name_scene} is not implemented.")
+ 
         for shape in self.shapes_avoiding_collision:
             # Highlight the shapes of the robot that are supposed to avoid collision
             self._cmodel.geometryObjects[

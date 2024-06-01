@@ -1,0 +1,28 @@
+<robot name="ball">
+    <material name="grey">
+      <color rgba=".5 .5 .5 1"/>
+    </material>
+    <link name="obstacle">
+      <inertial>
+        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+        <mass value="0.6"/>
+        <inertia ixx="0.001" ixy="0.0" ixz="0.0"
+             iyy="0.001" iyz="0.0"
+             izz="0.001" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <sphere radius="0.15"/>
+        </geometry>
+        <color name="grey"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <sphere radius="0.15"/>
+        </geometry>
+      </collision>
+    </link>
+  </robot>
+  
