@@ -14,7 +14,7 @@ T = 20
 dt = 0.01
 
 # Creating the robot
-robot_wrapper = PandaWrapper(auto_col=True,capsule=True)
+robot_wrapper = PandaWrapper(auto_col=True, capsule=True)
 rmodel, cmodel, vmodel = robot_wrapper()
 
 # Creating the scene
@@ -44,12 +44,12 @@ problem = OCPPandaReachingColWithMultipleCol(
     WEIGHT_xREG=1e-2,
     WEIGHT_uREG=1e-4,
     SAFETY_THRESHOLD=2.5e-3,
-    callbacks=True
+    callbacks=True,
 )
 
 ddp = problem()
 
-XS_init = [x0] * (T+1)
+XS_init = [x0] * (T + 1)
 # US_init = [np.zeros(rmodel.nv)] * T
 US_init = ddp.problem.quasiStatic(XS_init[:-1])
 # Solving the problem

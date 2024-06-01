@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 import pybullet
 from mim_robots.pybullet.env import BulletEnvWithGround
-
+import pinocchio as pin
 import mpc_utils
 import pin_utils
 from ocp import OCPPandaReachingColWithMultipleCol
@@ -16,29 +16,40 @@ np.set_printoptions(precision=4, linewidth=180)
 
 class MPC:
     def __init__(
-        self, robot_simulator, OCP, max_iter, env, TARGET_POSE_1, TARGET_POSE_2, scene
-    ) -> None:
+        self, robot_simulator:PandaRobot, OCP: OCPPandaReachingColWithMultipleCol, max_iter:int, env:BulletEnvWithGround, TARGET_POSE_1:pin.SE3, TARGET_POSE_2:pin.SE3):
+        """Create the MPC class used to solve the OCP problem.
 
+        Args:
+            robot_simulator (PandaRobot): Wrapper of pinocchio and pybullet robot.
+            OCP (OCPPandaReachingColWithMultipleCol): OCP solved in the MPC.
+            max_iter (int): Number max of iterations of the solver.
+            env (BulletEnvWithGround): Pybullet environement.
+            TARGET_POSE_1 (pin.SE3): First target of the robot.
+            TARGET_POSE_2 (pin.SE3): Second target of the robot.
+        """
+
+        # Robot wrapper
         self._robot_simulator = robot_simulator
+        
+        # Environement of the robot
         self._env = env
-        self._OCP = OCP
+        self._scene = self._robot_simulator.scene
 
+        # Setting up the OCP to be solved
+        self._OCP = OCP
         self._sqp = self._OCP()
 
-        self._T = self._OCP._T
-        self._dt = self._OCP._dt
+        # OCP params needed
+        self._T = self._OCP._T # Number of nodes
+        self._dt = self._OCP._dt # Time between each node
+        self._x0 = self._OCP._x0 # Initial state of the robot
+        self._xs_init = [self._x0 for i in range(self._T + 1)] # Initial trajectory of the robot
+        self._us_init = self._sqp.problem.quasiStatic(self._xs_init[:-1]) # Initial command of the robot
+        self._max_iter = max_iter # Number max of iterations of the solver
+        self._TARGET_POSE_1 = TARGET_POSE_1 # First target of the robot
+        self._TARGET_POSE_2 = TARGET_POSE_2 # Second target of the robot
 
-        self._x0 = self._OCP._x0
-        self._xs_init = [self._x0 for i in range(self._T + 1)]
-        self._us_init = self._sqp.problem.quasiStatic(self._xs_init[:-1])
-
-        self._max_iter = max_iter
-
-        self._TARGET_POSE_1 = TARGET_POSE_1
-        self._TARGET_POSE_2 = TARGET_POSE_2
-
-        self._scene = scene
-
+        # Filling the OCP dictionnary used to store all the results
         self._ocp_params = {}
         self._ocp_params["N_h"] = self._T
         self._ocp_params["dt"] = self._dt
@@ -51,18 +62,20 @@ class MPC:
         self._ocp_params["active_costs"] = self._sqp.problem.runningModels[
             0
         ].differential.costs.active.tolist()
-        # Simu parameters
+        
+        # Filling the simu parameters dictionnary
         self._sim_params = {}
         self._sim_params["sim_freq"] = int(1.0 / env.dt)
         self._sim_params["mpc_freq"] = 1000
-        self._sim_params["T_sim"] = 1.0
+        self._sim_params["T_sim"] = 0.05
         self._log_rate = 100
 
         # Initialize simulation data
         self._sim_data = mpc_utils.init_sim_data(
             self._sim_params, self._ocp_params, self._x0
         )
-        # Display target
+        
+        # Display target in pybullet
         mpc_utils.display_ball(
             self._TARGET_POSE_1.translation, RADIUS=0.05, COLOR=[1.0, 0.0, 0.0, 0.6]
         )
@@ -70,10 +83,13 @@ class MPC:
             self._TARGET_POSE_2.translation, RADIUS=0.5e-1, COLOR=[1.0, 0.0, 0.0, 0.6]
         )
 
+        # Boolean describing whether the MPC has already been solved or not
         self._SOLVE = False
 
     def solve(self):
-
+        """ Solve the MPC problem and display it in a pybullet GUI.
+        """
+        
         time_calc = []
         u_list = []
         # Simulate
@@ -187,12 +203,16 @@ class MPC:
         self._SOLVE = True
 
     def plot_collision_distances(self):
+        """Plot the distances between obstacles and shapes of the robot throughout the whole trajectory.
 
+        Raises:
+            NotSolvedError: Call the solve method before the plot one.
+        """
         if not self._SOLVE:
             raise NotSolvedError()
 
-        self._shapes_in_collision_with_obstacle = self._scene.shapes_avoiding_collision
-        self._obstacles = self._scene.obstacles
+        self._shapes_in_collision_with_obstacle = self._scene.get_shapes_avoiding_collision()
+        self._obstacles = self._scene._obstacles_name
 
         self._distances = {}
 
@@ -224,6 +244,7 @@ class MPC:
                     )
                     distance_between_shape_and_obstacle.append(dist)
 
+        ncols = 2
         if len(self._obstacles) == 1:
             ncols = 1
         fig, axes = plt.subplots(
@@ -255,7 +276,7 @@ if __name__ == "__main__":
     # # # # # # # # # # # # # # # # # # #
 
     # Name of the scene
-    name_scene = "wall"
+    name_scene = "box"
 
     # Pose of the obstacle
 
@@ -282,7 +303,6 @@ if __name__ == "__main__":
     nv = robot_simulator.pin_robot.model.nv
     nu = nq
     nx = nq + nv
-    q0 = np.array([0.1, 0.7, 0.0, 0.7, -0.5, 1.5, 0.0])
     v0 = np.zeros(nv)
     x0 = np.concatenate([q0, v0])
     # Add robot to simulation and initialize
@@ -329,7 +349,6 @@ if __name__ == "__main__":
         env=env,
         TARGET_POSE_1=TARGET_POSE1,
         TARGET_POSE_2=TARGET_POSE2,
-        scene=scene,
     )
     mpc.solve()
     mpc.plot_collision_distances()

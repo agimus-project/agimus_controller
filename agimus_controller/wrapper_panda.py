@@ -188,8 +188,8 @@ class PandaRobot(PinBulletWrapper):
         robot_wrapper = PandaWrapper(capsule=capsule, auto_col=auto_col)
         rmodel, cmodel, vmodel = robot_wrapper()
 
-        scene = Scene(name_scene, obstacle_pose=pos_obs)
-        rmodel, cmodel, self.TARGET_POSE1, self.TARGET_POSE2, self.q0 = scene.create_scene_from_urdf(
+        self.scene = Scene(name_scene, obstacle_pose=pos_obs)
+        rmodel, cmodel, self.TARGET_POSE1, self.TARGET_POSE2, self.q0 = self.scene.create_scene_from_urdf(
             rmodel,
             cmodel,
         )
@@ -205,9 +205,9 @@ class PandaRobot(PinBulletWrapper):
         urdf_filename = "franka2.urdf"
         self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
 
-        if scene.urdf_filename is not None:
+        if self.scene.urdf_filename is not None:
             self._urdf_path_obs = join(
-                join(model_path, "urdf/obstacles"), scene.urdf_filename
+                join(model_path, "urdf/obstacles"), self.scene.urdf_filename
             )
 
             pos_obs_quat = pin.SE3ToXYZQUATtuple(pos_obs)
