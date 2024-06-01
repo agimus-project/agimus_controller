@@ -123,7 +123,6 @@ class Problem:
         if self.use_mim:
             last_model = self.get_last_model_with_mim()
         else:
-
             last_model = self.get_last_model_without_mim(
                 goal_placement_residual, self.x_plan[-1, :], u_ref
             )
@@ -206,7 +205,7 @@ class Problem:
             np.array([1e-3] * self.nv),
         )
         constraints.addConstraint("shoulder_lift_joint_velocity", joint_vel_constraint)
-        
+
         for joint_name in self.robot.model.names:
             joint_vel_residual = crocoddyl.ResidualModelFrameVelocity(
                 self.state,
@@ -314,9 +313,11 @@ class Problem:
         return crocoddyl.ShootingProblem(x0, models, terminal_model)
 
     def update_cost(self, model, new_model, cost_name):
-        model.differential.costs.costs[cost_name].cost.residual.reference = (
-            new_model.differential.costs.costs[cost_name].cost.residual.reference.copy()
-        )
+        model.differential.costs.costs[
+            cost_name
+        ].cost.residual.reference = new_model.differential.costs.costs[
+            cost_name
+        ].cost.residual.reference.copy()
         new_weight = new_model.differential.costs.costs[cost_name].weight
         model.differential.costs.costs[cost_name].weight = new_weight
         if new_weight == 0:
@@ -332,19 +333,22 @@ class Problem:
 
     def update_terminal_model(self, model, new_model):
         model.differential.costs.costs["xReg"].weight = 0
-        model.differential.costs.costs["gripperPose"].cost.residual.reference = (
+        model.differential.costs.costs[
+            "gripperPose"
+        ].cost.residual.reference = (
             new_model.differential.costs.costs["gripperPose"].cost.residual.reference
         )  # FIXME uniquement utile si le coût est != de 0 donc à changer je suppose
         model.differential.costs.costs["gripperPose"].weight = self.grip_cost
-        model.differential.costs.costs["vel"].weight = (
-            new_model.differential.costs.costs["vel"].weight
-        )
+        model.differential.costs.costs[
+            "vel"
+        ].weight = new_model.differential.costs.costs["vel"].weight
         if "ureg" in new_model.differential.costs.costs.todict().keys():
-            model.differential.costs.costs["uReg"].cost.residual.reference = (
-                new_model.differential.costs.costs["uReg"].cost.residual.reference
-            )
+            model.differential.costs.costs[
+                "uReg"
+            ].cost.residual.reference = new_model.differential.costs.costs[
+                "uReg"
+            ].cost.residual.reference
         elif "ureg" in model.differential.costs.costs.todict().keys():
-
             model.differential.costs.costs["uReg"].weight = 0
 
     def reset_ocp(self, x, next_node_idx):

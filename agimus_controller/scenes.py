@@ -3,7 +3,6 @@ from os.path import dirname, join, abspath
 import numpy as np
 import pinocchio as pin
 
-import hppfcl
 
 YELLOW_FULL = np.array([1, 1, 0, 1.0])
 
@@ -12,7 +11,7 @@ class Scene:
     def __init__(
         self,
         name_scene: str,
-        obstacle_pose = None,
+        obstacle_pose=None,
     ) -> None:
         """Create the scene that encapsulates the obstacles.
 
@@ -28,35 +27,49 @@ class Scene:
         self.obstacle_pose = obstacle_pose
         if self._name_scene == "box":
             self.urdf_filename = "box.urdf"
-            self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85]))
-            self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85]))
+            self._TARGET_POSE1 = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85])
+            )
+            self._TARGET_POSE2 = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85])
+            )
             self._q0 = np.array(
                 [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
             )
             if self.obstacle_pose is None:
-                self.obstacle_pose =  pin.SE3.Identity()
+                self.obstacle_pose = pin.SE3.Identity()
                 self.obstacle_pose.translation = np.array([0, 0.15, 0.75])
         elif self._name_scene == "ball":
             self.urdf_filename = "ball.urdf"
-            self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([ 0.475 , -0.1655,  1.6476]))
-            self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5]))
+            self._TARGET_POSE1 = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0.475, -0.1655, 1.6476])
+            )
+            self._TARGET_POSE2 = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0, -0.4, 1.5])
+            )
             self._q0 = np.zeros(7)
             if self.obstacle_pose is None:
-                self.obstacle_pose =  pin.SE3.Identity()
+                self.obstacle_pose = pin.SE3.Identity()
                 self.obstacle_pose.translation = np.array([0.25, -0.4, 1.5])
         elif self._name_scene == "wall":
             self.urdf_filename = "wall.urdf"
-            self._TARGET_POSE1 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85]))
-            self._TARGET_POSE2 = pin.SE3(pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85]))
+            self._TARGET_POSE1 = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0, -0.4, 0.85])
+            )
+            self._TARGET_POSE2 = pin.SE3(
+                pin.utils.rotate("x", np.pi), np.array([0, 0.15, 0.85])
+            )
             self._q0 = np.array(
                 [6.2e-01, 1.7e00, 1.5e00, 6.9e-01, -1.3e00, 1.1e00, 1.5e-01]
             )
             if self.obstacle_pose is None:
-                self.obstacle_pose =  pin.SE3.Identity()
+                self.obstacle_pose = pin.SE3.Identity()
                 self.obstacle_pose.translation = np.array([0, -0.1, 1.0])
         else:
-            raise NotImplementedError(f"The input {self._name_scene} is not implemented.")
-        
+            raise NotImplementedError(
+                f"The input {self._name_scene} is not implemented."
+            )
+
     def create_scene_from_urdf(
         self,
         rmodel: pin.Model,
@@ -81,7 +94,13 @@ class Scene:
             self.obstacle_pose,
         )
         self._add_collision_pairs_urdf()
-        return self._rmodel, self._cmodel, self._TARGET_POSE1, self._TARGET_POSE2, self._q0
+        return (
+            self._rmodel,
+            self._cmodel,
+            self._TARGET_POSE1,
+            self._TARGET_POSE2,
+            self._q0,
+        )
 
     def _add_collision_pairs_urdf(self):
         """Add the collision pairs in the collision model w.r.t to the chosen scene."""
@@ -100,11 +119,11 @@ class Scene:
                 )
             # Add the collision pair with the support link 0 because this is the table on which sits the robot.
             self._cmodel.addCollisionPair(
-                    pin.CollisionPair(
-                        self._cmodel.getGeometryId(shape),
-                        self._cmodel.getGeometryId("support_link_0"),
-                    )
+                pin.CollisionPair(
+                    self._cmodel.getGeometryId(shape),
+                    self._cmodel.getGeometryId("support_link_0"),
                 )
+            )
 
     def _load_obstacle_urdf(self, urdf_filename: str):
         """Load models for a given URDF in the obstacle directory.
@@ -113,7 +132,7 @@ class Scene:
             urdf_file_name (str): name of the URDF.
         """
 
-        model_dir = dirname(dirname(((str(abspath(__file__))))))
+        model_dir = dirname(dirname((str(abspath(__file__)))))
         model_path = join(model_dir, "robot_description")
         urdf_dir = join(model_path, "urdf")
         obstacle_dir = join(urdf_dir, "obstacles")
@@ -167,9 +186,12 @@ class Scene:
                 "panda2_leftfinger_0",
             ]
         else:
-            raise NotImplementedError(f"The input {self._name_scene} is not implemented.")
- 
+            raise NotImplementedError(
+                f"The input {self._name_scene} is not implemented."
+            )
+
         return self.shapes_avoiding_collision
+
 
 if __name__ == "__main__":
     from wrapper_meshcat import MeshcatWrapper

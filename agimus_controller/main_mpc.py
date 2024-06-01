@@ -44,7 +44,7 @@ x0 = np.concatenate([q0, v0])
 robot_simulator.reset_state(q0, v0)
 robot_simulator.forward_robot(q0, v0)
 
-# Parameters of the OCP 
+# Parameters of the OCP
 max_iter = 4  # Maximum iterations of the solver
 max_qp_iters = (
     25  # Maximum iterations for solving each qp solved in one iteration of the solver

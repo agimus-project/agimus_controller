@@ -67,7 +67,7 @@ class MeshcatWrapper:
         robot_collision_model=None,
         robot_visual_model=None,
     ):
-        """ Returns the visualiser, displaying the robot and the target if they are in input.
+        """Returns the visualiser, displaying the robot and the target if they are in input.
 
         Args:
             TARGET (pin.SE3, optional): pin.SE3 describing the position of the target. Defaults to None.
@@ -76,7 +76,7 @@ class MeshcatWrapper:
             robot_visual_model (pin.GeometryModel, optional): pinocchio visual model of the robot. Defaults to None.
 
         Returns:
-            tuple: viewer pinocchio and viewer meshcat. 
+            tuple: viewer pinocchio and viewer meshcat.
         """
         # Creation of the visualizer,
         self.viewer = self.create_visualizer()
@@ -90,9 +90,7 @@ class MeshcatWrapper:
 
         Viewer = pin.visualize.MeshcatVisualizer
 
-        self.viewer_pin = Viewer(
-            self._rmodel,self._cmodel,self._vmodel
-            )
+        self.viewer_pin = Viewer(self._rmodel, self._cmodel, self._vmodel)
         self.viewer_pin.initViewer(
             viewer=meshcat.Visualizer(zmq_url="tcp://127.0.0.1:6000")
         )
@@ -152,6 +150,7 @@ class MeshcatWrapper:
         material.opacity = a
         return material
 
+
 if __name__ == "__main__":
     from wrapper_panda import PandaWrapper
 
@@ -166,4 +165,3 @@ if __name__ == "__main__":
         robot_model=rmodel, robot_visual_model=vmodel, robot_collision_model=cmodel
     )
     vis[0].display(pin.randomConfiguration(rmodel))
-    

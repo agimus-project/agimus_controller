@@ -24,12 +24,12 @@ class OCPPandaReachingColWithMultipleCol:
         WEIGHT_xREG=1e-1,
         WEIGHT_uREG=1e-4,
         WEIGHT_GRIPPER_POSE=10,
-        WEIGHT_LIMIT = 1e-1,
+        WEIGHT_LIMIT=1e-1,
         SAFETY_THRESHOLD=1e-2,
-        MAX_QP_ITERS = 100,
-        callbacks = False
+        MAX_QP_ITERS=100,
+        callbacks=False,
     ) -> None:
-        """Creating the class for optimal control problem of a panda robot reaching for a target while 
+        """Creating the class for optimal control problem of a panda robot reaching for a target while
         taking a collision between a given previously given shape of the robot and an obstacle into consideration.
 
         Args:
@@ -65,7 +65,7 @@ class OCPPandaReachingColWithMultipleCol:
         # Solver's params
         self._MAX_QP_ITERS = MAX_QP_ITERS
         self._callbacks = callbacks
-        
+
         # Weights
         self._WEIGHT_xREG = WEIGHT_xREG
         self._WEIGHT_uREG = WEIGHT_uREG
@@ -81,7 +81,6 @@ class OCPPandaReachingColWithMultipleCol:
 
         # Making sure that the frame exists
         assert self._endeff_frame <= len(self._rmodel.frames)
-
 
     def __call__(self) -> Any:
         "Setting up croccodyl OCP"
@@ -122,13 +121,15 @@ class OCPPandaReachingColWithMultipleCol:
         self._terminalConstraintModelManager = crocoddyl.ConstraintModelManager(
             self._state, self._actuation.nu
         )
-            # Creating the residual
+        # Creating the residual
         if len(self._cmodel.collisionPairs) != 0:
             for col_idx in range(len(self._cmodel.collisionPairs)):
                 # obstacleDistanceResidual = ResidualCollision(
                 #     self._state, self._cmodel, self._cdata, col_idx
                 # )
-                obstacleDistanceResidual = ResidualDistanceCollision(self._state, 7, self._cmodel, col_idx)
+                obstacleDistanceResidual = ResidualDistanceCollision(
+                    self._state, 7, self._cmodel, col_idx
+                )
 
                 # Creating the inequality constraint
                 constraint = crocoddyl.ConstraintModelResidual(
@@ -139,12 +140,16 @@ class OCPPandaReachingColWithMultipleCol:
                 )
 
                 # Adding the constraint to the constraint manager
-                self._runningConstraintModelManager.addConstraint("col_" + str(col_idx), constraint)
-                self._terminalConstraintModelManager.addConstraint("col_term_" + str(col_idx), constraint)
+                self._runningConstraintModelManager.addConstraint(
+                    "col_" + str(col_idx), constraint
+                )
+                self._terminalConstraintModelManager.addConstraint(
+                    "col_term_" + str(col_idx), constraint
+                )
 
         # Bounds costs
 
-                # Cost for self-collision
+        # Cost for self-collision
         maxfloat = sys.float_info.max
         xlb = np.concatenate(
             [
@@ -159,10 +164,13 @@ class OCPPandaReachingColWithMultipleCol:
             ]
         )
         bounds = crocoddyl.ActivationBounds(xlb, xub, 1.0)
-        xLimitResidual = crocoddyl.ResidualModelState(self._state, self._x0, self._actuation.nu)
+        xLimitResidual = crocoddyl.ResidualModelState(
+            self._state, self._x0, self._actuation.nu
+        )
         xLimitActivation = crocoddyl.ActivationModelQuadraticBarrier(bounds)
-        limitCost = crocoddyl.CostModelResidual(self._state, xLimitActivation, xLimitResidual)
-
+        limitCost = crocoddyl.CostModelResidual(
+            self._state, xLimitActivation, xLimitResidual
+        )
 
         # Adding costs to the models
         self._runningCostModel.addCost("stateReg", xRegCost, self._WEIGHT_xREG)
@@ -209,7 +217,7 @@ class OCPPandaReachingColWithMultipleCol:
         problem = crocoddyl.ShootingProblem(
             self._x0, [self._runningModel] * self._T, self._terminalModel
         )
-        
+
         # Create solver + callback
         ddp = mim_solvers.SolverCSQP(problem)
 

@@ -2,14 +2,12 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-import pybullet
 from mim_robots.pybullet.env import BulletEnvWithGround
 import pinocchio as pin
 import mpc_utils
 import pin_utils
 from ocp import OCPPandaReachingColWithMultipleCol
 from wrapper_panda import PandaRobot
-from scenes import Scene
 
 np.set_printoptions(precision=4, linewidth=180)
 
@@ -23,7 +21,7 @@ class MPC:
         env: BulletEnvWithGround,
         TARGET_POSE_1: pin.SE3,
         TARGET_POSE_2: pin.SE3,
-        T_sim: float
+        T_sim: float,
     ):
         """Create the MPC class used to solve the OCP problem.
 
@@ -241,8 +239,10 @@ class MPC:
             # Going through the obstacles
             for obstacle, shape in self._distances.items():
                 for shape_name, distance_between_shape_and_obstacle in shape.items():
-                    id_shape = self._robot_simulator.pin_robot.collision_model.getGeometryId(
-                        shape_name
+                    id_shape = (
+                        self._robot_simulator.pin_robot.collision_model.getGeometryId(
+                            shape_name
+                        )
                     )
                     id_obstacle = (
                         self._robot_simulator.pin_robot.collision_model.getGeometryId(
@@ -309,7 +309,6 @@ class MPC:
         plt.show()
 
     def plot_mpc_results(self):
-
         plot_data = mpc_utils.extract_plot_data_from_sim_data(self._sim_data)
         mpc_utils.plot_mpc_results(
             plot_data,
@@ -325,4 +324,3 @@ class NotSolvedError(Exception):
     def __init__(self, message="Solve method must be called before plot."):
         self.message = message
         super().__init__(self.message)
-

@@ -54,7 +54,7 @@ class PandaWrapper:
         """
 
         # Importing the model
-        pinocchio_model_dir = dirname(dirname(((str(abspath(__file__))))))
+        pinocchio_model_dir = dirname(dirname((str(abspath(__file__)))))
         model_path = join(pinocchio_model_dir, "robot_description")
         self._mesh_dir = join(model_path, "meshes")
         urdf_filename = "franka2.urdf"
@@ -207,7 +207,7 @@ class PandaRobot(PinBulletWrapper):
         robot_full = RobotWrapper(rmodel, cmodel, vmodel)
 
         # Loading the URDF of the robot to display it in pybullet.
-        package_model_dir = dirname(dirname(((str(abspath(__file__))))))
+        package_model_dir = dirname(dirname((str(abspath(__file__)))))
         model_path = join(package_model_dir, "robot_description")
         urdf_filename = "franka2.urdf"
         self._urdf_path = join(join(model_path, "urdf"), urdf_filename)
