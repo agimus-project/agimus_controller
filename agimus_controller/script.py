@@ -9,7 +9,7 @@
 
 import os
 from argparse import ArgumentParser
-from math import pi, fabs
+from math import pi
 from hpp.corbaserver.manipulation import (
     Client,
     ConstraintGraph,

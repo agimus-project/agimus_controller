@@ -34,7 +34,7 @@
 
   <!-- MiM dependencies. -->
   <exec_depend>mim_solvers</exec_depend>
-  
+
   <!-- HPP dependencies. -->
   <exec_depend>hpp-corbaserver</exec_depend>
   <exec_depend>hpp-manipulation-corba</exec_depend>

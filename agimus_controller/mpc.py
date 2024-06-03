@@ -2,7 +2,6 @@ import crocoddyl
 import pinocchio as pin
 import numpy as np
 import example_robot_data
-import time
 import mim_solvers
 
 
@@ -118,7 +117,6 @@ class Problem:
         if self.use_mim:
             last_model = self.get_last_model_with_mim()
         else:
-
             last_model = self.get_last_model_without_mim(
                 goal_placement_residual, self.x_plan[-1, :], u_ref
             )
@@ -201,7 +199,7 @@ class Problem:
             np.array([1e-3] * self.nv),
         )
         constraints.addConstraint("shoulder_lift_joint_velocity", joint_vel_constraint)
-        
+
         for joint_name in self.robot.model.names:
             joint_vel_residual = crocoddyl.ResidualModelFrameVelocity(
                 self.state,
@@ -309,9 +307,11 @@ class Problem:
         return crocoddyl.ShootingProblem(x0, models, terminal_model)
 
     def update_cost(self, model, new_model, cost_name):
-        model.differential.costs.costs[cost_name].cost.residual.reference = (
-            new_model.differential.costs.costs[cost_name].cost.residual.reference.copy()
-        )
+        model.differential.costs.costs[
+            cost_name
+        ].cost.residual.reference = new_model.differential.costs.costs[
+            cost_name
+        ].cost.residual.reference.copy()
         new_weight = new_model.differential.costs.costs[cost_name].weight
         model.differential.costs.costs[cost_name].weight = new_weight
         if new_weight == 0:
