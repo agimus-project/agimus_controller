@@ -30,8 +30,8 @@ add_project_dependency(crocoddyl 2.0.2 REQUIRED PKG_CONFIG_REQUIRES
                        "crocoddyl >= 2.0.2")
 add_project_dependency(example-robot-data 4.1.0 REQUIRED PKG_CONFIG_REQUIRES
                        "example-robot-data >= 4.1.0")
-add_project_dependency(mim_solvers 0.0.4 REQUIRED PKG_CONFIG_REQUIRES
-                       "mim_solvers >= 0.0.4")
+add_project_dependency(mim_solvers 0.0.3 REQUIRED PKG_CONFIG_REQUIRES
+                       "mim_solvers >= 0.0.3")
 
 if(NOT INSTALL_ROS_INTERFACE_ONLY)
   # Install the python package.
