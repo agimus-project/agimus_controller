@@ -29,6 +29,7 @@ class MPC:
         self.croco_xs = None
         self.croco_us = None
         self.whole_traj_T = x_plan.shape[0]
+        self.steps_duration = None
 
     def get_next_state(self, x, problem):
         """Get state at the next step by doing a crocoddyl integration."""
@@ -48,6 +49,7 @@ class MPC:
 
     def simulate_mpc(self, T, save_predictions=False, node_idx_breakpoint=None):
         """Simulate mpc behavior using crocoddyl integration as a simulator."""
+        self.steps_duration = np.zeros(self.whole_traj_T - 2)
         mpc_xs = np.zeros([self.whole_traj_T, 2 * self.nq])
         mpc_us = np.zeros([self.whole_traj_T - 1, self.nq])
         x0 = self.whole_x_plan[0, :]
@@ -76,10 +78,9 @@ class MPC:
         for idx in range(1, self.whole_traj_T - 1):
             x_plan = self.update_planning(x_plan, self.whole_x_plan[next_node_idx, :])
             a_plan = self.update_planning(a_plan, self.whole_a_plan[next_node_idx, :])
-            start = time.time()
+            start_mpc_step_time = time.time()
             x, u = self.mpc_step(x, x_plan[-1], a_plan[-1])
-            end = time.time()
-            # print("step time ", end - start)
+            self.steps_duration[idx - 1] = time.time() - start_mpc_step_time
             if next_node_idx < self.whole_x_plan.shape[0] - 1:
                 next_node_idx += 1
             mpc_xs[idx + 1, :] = x

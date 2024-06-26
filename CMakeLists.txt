@@ -68,7 +68,7 @@ if(NOT INSTALL_ROS_INTERFACE_ONLY)
   endforeach()
 
   # Install the utils files.
-  set(project_python_utils_files pin_utils.py plots.py ros_np_multiarray.py
+  set(project_python_utils_files build_models.py ocp_analyzer.py pin_utils.py plots.py ros_np_multiarray.py
                                  scenes.py wrapper_meshcat.py wrapper_panda.py)
   foreach(file ${project_python_utils_files})
     python_install_on_site(${PROJECT_NAME}/utils ${file})

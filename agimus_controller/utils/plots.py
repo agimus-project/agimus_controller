@@ -22,6 +22,7 @@ class MPCPlots:
         vf=None,
         v=None,
         ball_init_pose=None,
+        mpc_steps_duration: np.ndarray = None,
     ):
         self.ball_init_pose = ball_init_pose
         if v is not None:
@@ -29,6 +30,7 @@ class MPCPlots:
         elif vf is not None:
             self.v = vf.createViewer()
         self.DT = DT
+        self.mpc_steps_duration = mpc_steps_duration
         self._rmodel = rmodel
         self._rdata = self._rmodel.createData()
 
@@ -62,6 +64,15 @@ class MPCPlots:
             plt.xlabel("time (s)")
             plt.ylabel("effector " + axis_string[idx] + " position")
             plt.legend(["crocoddyl", "hpp"], loc="best")
+        plt.show()
+
+    def plot_mpc_steps_duration(self):
+        """Plot MPC steps duration."""
+        nb_values = self.mpc_steps_duration.shape[0]
+        t = np.linspace(0, nb_values - 1, nb_values)
+        plt.plot(t, self.mpc_steps_duration)
+        plt.xlabel("time (s)")
+        plt.ylabel("MPC step duration")
         plt.show()
 
     def plot_traj_configuration(self):
