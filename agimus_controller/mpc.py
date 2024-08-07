@@ -47,6 +47,11 @@ class MPC:
         u_ref = model.differential.costs.costs["uReg"].cost.residual.reference
         return x_ref, p_ref, u_ref
 
+    def get_predictions(self):
+        xs = np.array(self.ocp.solver.xs)
+        us = np.array(self.ocp.solver.us)
+        return xs, us
+
     def simulate_mpc(self, T, save_predictions=False, node_idx_breakpoint=None):
         """Simulate mpc behavior using crocoddyl integration as a simulator."""
         mpc_xs = np.zeros([self.whole_traj_T, 2 * self.nq])
