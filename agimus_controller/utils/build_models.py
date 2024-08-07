@@ -3,13 +3,11 @@ import pinocchio as pin
 import numpy as np
 import rospy
 import franka_description
-import example_robot_data
-from panda_torque_mpc_pywrap import reduce_capsules_robot
-
+import agimus_demos_description
 
 from pathlib import Path
 from hppfcl import Sphere, Box, Cylinder, Capsule
-from agimus_controller.utils.path_finder import get_project_root
+from hpp.rostools import process_xacro
 
 
 class ObstacleParamsParser:
@@ -123,7 +121,9 @@ class RobotModelConstructor:
         self.load_model(load_from_ros)
 
     def load_model(self, load_from_ros):
-        yaml_path = get_project_root() / "config" / "param.yaml"
+        yaml_path = str(
+            Path(agimus_demos_description.__path__[0]) / "pick_and_place" / "param.yaml"
+        )
         mesh_dir = str(Path(franka_description.__path__[0]) / "meshes")
 
         if load_from_ros:
@@ -132,51 +132,38 @@ class RobotModelConstructor:
             # Getting urdf and srdf content
             urdf_string = rospy.get_param("robot_description")
             srdf_string = rospy.get_param("robot_description_semantic")
-            self.construct_robot_model(urdf_string, srdf_string, mesh_dir)
-            self.construct_collision_model(self.rmodel, urdf_string, yaml_path)
-        else:
+
+        if not load_from_ros:
             print("Load robot from files")
 
-            urdf_path = str(get_project_root() / "urdf" / "robot.urdf")
-            srdf_path = str(get_project_root() / "srdf" / "demo.srdf")
-            robot = example_robot_data.load("panda")
-            self.set_robot_model(robot, urdf_path, srdf_path)
-            self.set_collision_model(urdf_path, yaml_path)
+            robot_package_path = Path(franka_description.__path__[0])
+            robot_dir_path = robot_package_path / "robots" / "panda"
 
-    def set_robot_model(self, robot, urdf_path, srdf_path):
-        self._model = pin.Model()
-        pin.buildModelFromUrdf(urdf_path, self._model)
-        pin.loadReferenceConfigurations(self._model, srdf_path, False)
+            urdf_path = str(robot_dir_path / "panda.urdf.xacro")
+            srdf_path = str(robot_dir_path / "panda.srdf")
 
-        q0 = self._model.referenceConfigurations["default"]
+            urdf_string = process_xacro(urdf_path)
+            with open(srdf_path, "r") as f:
+                srdf_string = f.read()
+
+        self.construct_robot_model(self.robot, urdf_string, srdf_string, mesh_dir)
+        self.construct_collision_model(self.rmodel, urdf_string, yaml_path)
+
+    def construct_robot_model(self, robot, urdf_string, srdf_string, mesh_dir):
+        self._model, self._cmodel, self._vmodel = pin.buildModelFromXML(
+            urdf_string, mesh_dir
+        )
+
         locked_joints = [
             robot.model.getJointId("panda_finger_joint1"),
             robot.model.getJointId("panda_finger_joint2"),
         ]
-        self._rmodel = pin.buildReducedModel(self._model, locked_joints, q0)
-
-    def set_collision_model(self, urdf_path, yaml_path):
-        self._cmodel = pin.buildGeomFromUrdf(self._rmodel, urdf_path, pin.COLLISION)
-        self._crmodel = reduce_capsules_robot(self._cmodel)
-        parser = ObstacleParamsParser(yaml_path, self._crmodel)
-        parser.add_collisions()
-        self._crmodel = parser.collision_model
-
-    def construct_robot_model(self, urdf_string, srdf_string):
-        self._model = pin.buildModelFromXML(urdf_string)
-
-        locked_joints = [
-            self._model.getJointId("panda_finger_joint1"),
-            self._model.getJointId("panda_finger_joint2"),
-        ]
         pin.loadReferenceConfigurationsFromXML(self._model, srdf_string, False)
-        self._cmodel = pin.buildGeomFromUrdfString(
-            self._model, urdf_string, pin.COLLISION
-        )
-        q0 = self._model.referenceConfigurations["default"]
+        geom_models = [self._vmodel, self._cmodel]
+        q0 = self.model.referenceConfigurations["default"]
         self._rmodel, geometric_models_reduced = pin.buildReducedModel(
-            self._model,
-            list_of_geom_models=[self._cmodel],
+            self._rmodel,
+            list_of_geom_models=geom_models,
             list_of_joints_to_lock=locked_joints,
             reference_configuration=q0,
         )

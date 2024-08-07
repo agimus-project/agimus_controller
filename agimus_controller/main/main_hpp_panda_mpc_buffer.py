@@ -17,6 +17,7 @@ if __name__ == "__main__":
 
     rmodel = robot_constructor.get_robot_reduced_model()
     cmodel = robot_constructor.get_collision_reduced_model()
+    vmodel = robot_constructor.get_visual_reduced_model()
 
     ee_frame_name = pandawrapper.get_ee_frame_name()
     hpp_interface = HppInterface()
