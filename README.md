@@ -48,8 +48,6 @@ package.
 
 To run the simulation with ros one can launch:
 ```bash
-hppcorbaserver
-gepetto-gui
 roslaunch panda_torque_mpc simulation.launch arm_id:=panda simulate_camera:=false
 roslaunch panda_torque_mpc sim_controllers.launch controller:=ctrl_mpc_linearized
 ROS_NAMESPACE=/ctrl_mpc_linearized rosrun agimus_controller hpp_agimus_controller_node
@@ -57,8 +55,6 @@ ROS_NAMESPACE=/ctrl_mpc_linearized rosrun agimus_controller hpp_agimus_controlle
 
 Start on the robot:
 ```bash
-hppcorbaserver
-gepetto-gui
 ROS_MASTER_URI=http://172.17.1.1:11311 ROS_IP=172.17.1.1 roslaunch panda_torque_mpc real_controllers.launch controller:=ctrl_mpc_linearized robot_ip:=172.17.1.3 robot:=panda
 ROS_MASTER_URI=http://172.17.1.1:11311 ROS_IP=172.17.1.1 ROS_NAMESPACE=/ctrl_mpc_linearized rosrun agimus_controller hpp_agimus_controller_node
 ```
