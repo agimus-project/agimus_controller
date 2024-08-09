@@ -17,6 +17,7 @@ from agimus_controller.utils.pin_utils import (
 )
 from agimus_controller.mpc import MPC
 from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
+from agimus_controller_ros.sim_utils import convert_float_to_ros_duration_msg
 
 
 class AgimusControllerNodeParameters:
@@ -222,9 +223,10 @@ class ControllerBase:
         self.send(sensor_msg, u, k)
         self.rate.sleep()
         while not rospy.is_shutdown():
-            start_compute_time = rospy.Time.now()
+            start_compute_time = time.time()
             sensor_msg, u, k = self.solve()
             self.send(sensor_msg, u, k)
             self.rate.sleep()
-            self.ocp_solve_time.data = rospy.Time.now() - start_compute_time
+            compute_time = time.time() - start_compute_time
+            self.ocp_solve_time = convert_float_to_ros_duration_msg(compute_time)
             self.ocp_solve_time_pub.publish(self.ocp_solve_time)
