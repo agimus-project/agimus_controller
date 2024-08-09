@@ -1,0 +1,6 @@
+<launch>
+
+    <include file="$(find agimus_controller)/launch/hpp_bringup.launch"/>
+    <node pkg="agimus_controller" name="agimus_controller_node" type="agimus_controller_node" />
+
+</launch>
