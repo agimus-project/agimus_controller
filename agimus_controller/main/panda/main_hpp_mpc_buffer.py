@@ -1,7 +1,7 @@
 import numpy as np
 from agimus_controller.hpp_interface import HppInterface
 from agimus_controller.mpc import MPC
-from agimus_controller.utils.path_finder import get_package_path
+from agimus_controller.utils.path_finder import get_package_path, get_mpc_params_dict
 from agimus_controller.visualization.plots import MPCPlots
 from agimus_controller.utils.pin_utils import get_ee_pose_from_configuration
 from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
@@ -11,6 +11,7 @@ from agimus_controller.robot_model.panda_model import (
     PandaRobotModel,
     PandaRobotModelParameters,
 )
+from agimus_controller_ros.parameters import OCPParameters
 from agimus_controller.main.servers import Servers
 
 
@@ -34,6 +35,10 @@ class APP(object):
         rmodel = pandawrapper.get_reduced_robot_model()
         cmodel = pandawrapper.get_reduced_collision_model()
         ee_frame_name = panda_params.ee_frame_name
+        mpc_params_dict = get_mpc_params_dict()
+        ocp_params = OCPParameters(
+            use_ros_params=False, params_dict=mpc_params_dict["ocp"]
+        )
 
         hpp_interface = HppInterface()
         q_init, q_goal = hpp_interface.get_panda_q_init_q_goal()
@@ -42,17 +47,8 @@ class APP(object):
         whole_x_plan, whole_a_plan, whole_traj_T = hpp_interface.get_hpp_x_a_planning(
             1e-2
         )
-        armature = np.zeros(rmodel.nq)
-        effector_frame_name = "panda_hand_tcp"
-        ocp = OCPCrocoHPP(
-            rmodel,
-            cmodel,
-            use_constraints=False,
-            armature=armature,
-            effector_frame_name=effector_frame_name,
-        )
+        ocp = OCPCrocoHPP(rmodel, cmodel, ocp_params)
         mpc = MPC(ocp, whole_x_plan, whole_a_plan, rmodel, cmodel)
-        mpc.ocp.set_weights(10**4, 1, 10**-3, 0)
 
         nq = rmodel.nq
         nv = rmodel.nv
@@ -64,7 +60,7 @@ class APP(object):
         first_point.a = whole_a_plan[0, :]
         traj_buffer.add_trajectory_point(first_point)
         whole_traj_T = whole_x_plan.shape[0]
-        T = 100
+        T = ocp_params.horizon_size
         mpc_xs = np.zeros([whole_traj_T, 2 * nq])
         mpc_us = np.zeros([whole_traj_T - 1, nq])
         x = first_point.get_x_as_q_v()
@@ -116,7 +112,7 @@ class APP(object):
             rmodel=rmodel,
             vmodel=pandawrapper.get_reduced_visual_model(),
             cmodel=cmodel,
-            DT=mpc.ocp.DT,
+            DT=mpc.ocp.params.dt,
             ee_frame_name=ee_frame_name,
             viewer=viewer,
         )

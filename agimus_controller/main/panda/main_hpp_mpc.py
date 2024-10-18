@@ -1,14 +1,14 @@
 import time
-import numpy as np
 from agimus_controller.hpp_interface import HppInterface
 from agimus_controller.mpc import MPC
-from agimus_controller.utils.path_finder import get_package_path
+from agimus_controller.utils.path_finder import get_package_path, get_mpc_params_dict
 from agimus_controller.visualization.plots import MPCPlots
 from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
 from agimus_controller.robot_model.panda_model import (
     PandaRobotModel,
     PandaRobotModelParameters,
 )
+from agimus_controller_ros.parameters import OCPParameters
 from agimus_controller.main.servers import Servers
 
 
@@ -28,7 +28,10 @@ class APP(object):
         pandawrapper = PandaRobotModel.load_model(
             params=panda_params, env=collision_file_path
         )
-
+        mpc_params_dict = get_mpc_params_dict()
+        ocp_params = OCPParameters(
+            use_ros_params=False, params_dict=mpc_params_dict["ocp"]
+        )
         rmodel = pandawrapper.get_reduced_robot_model()
         cmodel = pandawrapper.get_reduced_collision_model()
         ee_frame_name = panda_params.ee_frame_name
@@ -39,21 +42,12 @@ class APP(object):
         viewer = hpp_interface.get_viewer()
         x_plan, a_plan, _ = hpp_interface.get_hpp_x_a_planning(1e-2)
 
-        armature = np.zeros(rmodel.nq)
-        effector_frame_name = "panda_hand_tcp"
-        ocp = OCPCrocoHPP(
-            rmodel,
-            cmodel,
-            use_constraints=True,
-            armature=armature,
-            effector_frame_name=effector_frame_name,
-        )
+        ocp = OCPCrocoHPP(rmodel, cmodel, ocp_params)
 
         mpc = MPC(ocp, x_plan, a_plan, rmodel, cmodel)
 
         start = time.time()
-        mpc.ocp.set_weights(10**4, 1, 10**-3, 0)
-        mpc.simulate_mpc(T=100, save_predictions=False)
+        mpc.simulate_mpc(save_predictions=False)
         end = time.time()
         print("Time of solving: ", end - start)
         u_plan = mpc.ocp.get_u_plan(x_plan, a_plan)
@@ -65,7 +59,7 @@ class APP(object):
             rmodel=rmodel,
             vmodel=pandawrapper.get_reduced_visual_model(),
             cmodel=cmodel,
-            DT=mpc.ocp.DT,
+            DT=mpc.ocp.params.dt,
             ee_frame_name=ee_frame_name,
             viewer=viewer,
         )

@@ -5,75 +5,41 @@ import mim_solvers
 
 from colmpc import ResidualDistanceCollision
 
-from agimus_controller.utils.pin_utils import (
-    get_ee_pose_from_configuration,
-)
+from agimus_controller.utils.pin_utils import get_ee_pose_from_configuration
+from agimus_controller_ros.parameters import OCPParameters
 
 
 class OCPCrocoHPP:
     def __init__(
-        self,
-        rmodel: pin.Model,
-        cmodel: pin.GeometryModel = None,
-        use_constraints: bool = False,
-        armature: np.ndarray = None,
-        effector_frame_name: str = "panda_hand_tcp",
-        use_callbacks: bool = False,
+        self, rmodel: pin.Model, cmodel: pin.GeometryModel, params: OCPParameters
     ) -> None:
         """Class to define the OCP linked witha HPP generated trajectory.
 
         Args:
             rmodel (pin.Model): Pinocchio model of the robot.
             cmodel (pin.GeometryModel): Pinocchio geometry model of the robot. Must have been convexified for the collisions to work.
-            use_constraints : boolean to activate collision avoidance constraints.
-            armature : armature of the robot.
-
-        Raises:
-            Exception: Unkown robot.
+            params (OCPParameters) : parameters of the ocp.
         """
-        self.use_callbacks = use_callbacks
-        # Robot models
         self._rmodel = rmodel
         self._cmodel = cmodel
-
-        # Data of the model
+        self.params = params
         self._rdata = self._rmodel.createData()
 
-        # Obtaining the gripper frame id
-        self._effector_frame_id = self._rmodel.getFrameId(effector_frame_name)
-        # Weights of the different costs
-        self._weight_x_reg = 1e-1
-        self._weight_u_reg = 1e-4
-        self._weight_ee_placement = 1e6
+        self._effector_frame_id = self._rmodel.getFrameId(params.effector_frame_name)
+        self._weight_x_reg = self.params.state_weight
+        self._weight_u_reg = self.params.control_weight
+        self._weight_ee_placement = self.params.gripper_weight
         self._weight_vel_reg = 0
-
-        # Using the constraints ?
-        self.use_constraints = use_constraints
-
-        # Safety marging for the collisions
-        self._safety_margin = 1e-1
-
-        # Creating the state and actuation models
+        self._collision_margin = 1e-1
         self.state = crocoddyl.StateMultibody(self._rmodel)
         self.actuation = crocoddyl.ActuationModelFull(self.state)
-
-        # Setting up variables necessary for the OCP
-        self.armature = armature
-        self.DT = 1e-2  # Time step of the OCP
         self.nq = self._rmodel.nq  # Number of joints of the robot
-        self.nv = self._rmodel.nv  # Dimension of the speed of the robot
-
-        # Creating HPP variables
+        self.nv = self._rmodel.nv  # Dimension of the joint's speed vector of the robot
         self.x_plan = None
         self.a_plan = None
         self.u_plan = None
-        self.T = None
-
-        # Creating the running and terminal models
         self.running_models = None
         self.terminal_model = None
-
-        # Solver used for the OCP
         self.solver = None
 
     def get_u_plan(
@@ -139,7 +105,6 @@ class OCPCrocoHPP:
         """
         self.x_plan = x_plan
         self.a_plan = a_plan
-        self.T = x_plan.shape[0]
         self.u_plan = self.get_u_plan(x_plan, a_plan)
         placement_ref = get_ee_pose_from_configuration(
             self._rmodel,
@@ -154,7 +119,7 @@ class OCPCrocoHPP:
         """Set running models based on state and acceleration reference trajectory."""
 
         running_models = []
-        for idx in range(self.T - 1):
+        for idx in range(self.params.horizon_size - 1):
             running_cost_model = crocoddyl.CostModelSum(self.state)
             x_ref = self.x_plan[idx, :]
             x_reg_cost = self.get_state_residual(x_ref)
@@ -171,7 +136,7 @@ class OCPCrocoHPP:
                 "gripperPose", placement_reg_cost, 0
             )  # useful for mpc to reset ocp
 
-            if self.use_constraints:
+            if self.params.use_constraints:
                 constraints = self.get_constraints()
                 running_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
                     self.state, self.actuation, running_cost_model, constraints
@@ -180,9 +145,9 @@ class OCPCrocoHPP:
                 running_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
                     self.state, self.actuation, running_cost_model
                 )
-            running_DAM.armature = self.armature
+            running_DAM.armature = self.params.armature
             running_models.append(
-                crocoddyl.IntegratedActionModelEuler(running_DAM, self.DT)
+                crocoddyl.IntegratedActionModelEuler(running_DAM, self.params.dt)
             )
         self.running_models = running_models
         return self.running_models
@@ -192,7 +157,7 @@ class OCPCrocoHPP:
         if len(self._cmodel.collisionPairs) != 0:
             for col_idx in range(len(self._cmodel.collisionPairs)):
                 collision_constraint = self._get_collision_constraint(
-                    col_idx, self._safety_margin
+                    col_idx, self._collision_margin
                 )
                 # Adding the constraint to the constraint manager
                 constraint_model_manager.addConstraint(
@@ -202,7 +167,7 @@ class OCPCrocoHPP:
 
     def set_terminal_model(self, placement_ref):
         """Set terminal model."""
-        if self.use_constraints:
+        if self.params.use_constraints:
             last_model = self.get_terminal_model_with_constraints(
                 placement_ref, self.x_plan[-1, :], self.u_plan[-1, :]
             )
@@ -234,8 +199,8 @@ class OCPCrocoHPP:
         terminal_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
             self.state, self.actuation, terminal_cost_model
         )
-        terminal_DAM.armature = self.armature
-        return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.DT)
+        terminal_DAM.armature = self.params.armature
+        return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.params.dt)
 
     def get_terminal_model_with_constraints(
         self, placement_ref, x_ref: np.ndarray, u_plan: np.ndarray
@@ -262,8 +227,8 @@ class OCPCrocoHPP:
         terminal_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
             self.state, self.actuation, terminal_cost_model, constraints
         )
-        terminal_DAM.armature = self.armature
-        return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.DT)
+        terminal_DAM.armature = self.params.armature
+        return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.params.dt)
 
     def _get_collision_constraint(
         self, col_idx: int, safety_margin: float
@@ -382,7 +347,7 @@ class OCPCrocoHPP:
                 runningModels[node_idx], runningModels[node_idx + 1], True
             )
         self.update_model(runningModels[-1], self.solver.problem.terminalModel, False)
-        if self.use_constraints:
+        if self.params.use_constraints:
             terminal_model = self.get_terminal_model_with_constraints(
                 placement_ref, x_ref, u_plan
             )
@@ -408,7 +373,7 @@ class OCPCrocoHPP:
         self.set_models(x_plan, a_plan)
         return crocoddyl.ShootingProblem(x0, self.running_models, self.terminal_model)
 
-    def run_solver(self, problem, xs_init, us_init, max_iter, max_qp_iter):
+    def run_solver(self, problem, xs_init, us_init):
         """
         Run FDDP or CSQP solver
         problem : crocoddyl ocp problem.
@@ -418,18 +383,18 @@ class OCPCrocoHPP:
         set_callback : activate solver callback
         """
         # Creating the solver for this OC problem, defining a logger
-        if self.use_constraints:
+        if self.params.use_constraints:
             solver = mim_solvers.SolverCSQP(problem)
             solver.use_filter_line_search = True
             solver.termination_tolerance = 2e-4
-            solver.max_qp_iters = max_qp_iter
-            solver.with_callbacks = self.use_callbacks
+            solver.max_qp_iters = self.params.max_qp_iter
+            solver.with_callbacks = self.params.activate_callback
         else:
             solver = crocoddyl.SolverFDDP(problem)
             solver.use_filter_line_search = True
             solver.termination_tolerance = 1e-3
-            if self.use_callbacks:
+            if self.params.activate_callback:
                 solver.setCallbacks([crocoddyl.CallbackVerbose()])
 
-        solver.solve(xs_init, us_init, max_iter)
+        solver.solve(xs_init, us_init, self.params.max_iter)
         self.solver = solver

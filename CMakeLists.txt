@@ -65,6 +65,7 @@ if(NOT INSTALL_ROS_INTERFACE_ONLY)
   endforeach()
 
   install(FILES package.xml DESTINATION share/${PROJECT_NAME})
+  install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
 endif()
 install(DIRECTORY ${PROJECT_NAME}/resources
         DESTINATION ${PYTHON_SITELIB}/${PROJECT_NAME})

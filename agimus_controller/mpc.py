@@ -65,18 +65,18 @@ class MPC:
 
     def simulate_mpc(self, save_predictions=False, node_idx_breakpoint=None):
         """Simulate mpc behavior using crocoddyl integration as a simulator."""
-
+        T = self.ocp.params.horizon_size
         mpc_xs = np.zeros([self.whole_traj_T, 2 * self.nq])
         mpc_us = np.zeros([self.whole_traj_T - 1, self.nq])
         x0 = self.whole_x_plan[0, :]
         mpc_xs[0, :] = x0
 
-        x_plan = self.whole_x_plan[: self.ocp.T, :]
-        a_plan = self.whole_a_plan[: self.ocp.T, :]
-        x, u0 = self.mpc_first_step(x_plan, a_plan, x0, self.ocp.T)
+        x_plan = self.whole_x_plan[:T, :]
+        a_plan = self.whole_a_plan[:T, :]
+        x, u0 = self.mpc_first_step(x_plan, a_plan, x0, T)
         mpc_xs[1, :] = x
         mpc_us[0, :] = u0
-        next_node_idx = self.ocp.T
+        next_node_idx = T
 
         if save_predictions:
             self.create_mpc_data(self.ocp.use_constraints)
@@ -90,7 +90,7 @@ class MPC:
                 self.ocp._effector_frame_id,
                 x_plan[-1, : self.nq],
             )
-            x, u = self.mpc_step(x, x_plan[-1], a_plan[-1], placement_ref, 7, 100)
+            x, u = self.mpc_step(x, x_plan[-1], a_plan[-1], placement_ref)
             if next_node_idx < self.whole_x_plan.shape[0] - 1:
                 next_node_idx += 1
             mpc_xs[idx + 1, :] = x
@@ -118,13 +118,14 @@ class MPC:
     def mpc_first_step(self, x_plan, a_plan, x0, T):
         """Create crocoddyl problem from planning, run solver and get new state."""
         problem = self.ocp.build_ocp_from_plannif(x_plan, a_plan, x0)
-        self.ocp.run_solver(
-            problem, list(x_plan), list(self.ocp.u_plan[: T - 1]), 1000, 100
-        )
+        max_iter = self.ocp.params.max_iter
+        self.ocp.params.max_iter = 1000
+        self.ocp.run_solver(problem, list(x_plan), list(self.ocp.u_plan[: T - 1]))
+        self.ocp.params.max_iter = max_iter
         x = self.get_next_state(x0, self.ocp.solver.problem)
         return x, self.ocp.solver.us[0]
 
-    def mpc_step(self, x0, new_x_ref, new_a_ref, placement_ref, max_iter, max_qp_iter):
+    def mpc_step(self, x0, new_x_ref, new_a_ref, placement_ref):
         """Reset ocp, run solver and get new state."""
         u_ref_terminal_node = self.ocp.get_inverse_dynamic_control(new_x_ref, new_a_ref)
         self.ocp.reset_ocp(x0, new_x_ref, u_ref_terminal_node[: self.nq], placement_ref)
@@ -132,9 +133,7 @@ class MPC:
         xs_init[0] = x0
         us_init = list(self.ocp.solver.us[1:]) + [self.ocp.solver.us[-1]]
         self.ocp.solver.problem.x0 = x0
-        self.ocp.run_solver(
-            self.ocp.solver.problem, xs_init, us_init, max_iter, max_qp_iter
-        )
+        self.ocp.run_solver(self.ocp.solver.problem, xs_init, us_init)
         x0 = self.get_next_state(x0, self.ocp.solver.problem)
         return x0, self.ocp.solver.us[0]
 
@@ -148,6 +147,7 @@ class MPC:
         self.mpc_data["translation_refs"] = [p_ref]
         self.mpc_data["control_refs"] = [u_ref]
         self.mpc_data["kkt_norm"] = [self.ocp.solver.KKT]
+
         if use_constraints:
             collision_residuals = self.get_collision_residuals()
             self.mpc_data["coll_residuals"] = collision_residuals

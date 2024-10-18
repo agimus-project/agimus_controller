@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import time
-import numpy as np
 from agimus_controller.robot_model.ur3_model import UR3RobotModel
-
+from agimus_controller_ros.parameters import OCPParameters
+from agimus_controller.utils.path_finder import get_mpc_params_dict
 from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
 from agimus_controller.mpc import MPC
 from agimus_controller.hpp_interface import HppInterface
@@ -16,21 +16,20 @@ class APP(object):
             self.servers = Servers()
             self.servers.spawn_servers(use_gui)
 
-        panda_wrapper = UR3RobotModel.load_model()
-        rmodel = panda_wrapper.get_reduced_robot_model()
+        ur3_wrapper = UR3RobotModel.load_model()
+        rmodel = ur3_wrapper.get_reduced_robot_model()
         hpp_interface = HppInterface()
-        hpp_interface.set_ur3_problem_solver(panda_wrapper)
+        hpp_interface.set_ur3_problem_solver(ur3_wrapper)
         x_plan, a_plan, _ = hpp_interface.get_hpp_x_a_planning(1e-2)
         viewer = hpp_interface.get_viewer()
-        armature = np.zeros(rmodel.nq)
-        print("rmodel = ", rmodel)
-        ocp = OCPCrocoHPP(
-            rmodel=rmodel, cmodel=None, use_constraints=False, armature=armature
+        mpc_params_dict = get_mpc_params_dict()
+        ocp_params = OCPParameters(
+            use_ros_params=False, params_dict=mpc_params_dict["ocp"]
         )
+        ocp = OCPCrocoHPP(rmodel=rmodel, cmodel=None, params=ocp_params)
         mpc = MPC(ocp, x_plan, a_plan, rmodel)
         start = time.time()
-        mpc.ocp.set_weights(10**4, 1, 10**-3, 0)
-        mpc.simulate_mpc(T=100, save_predictions=False)
+        mpc.simulate_mpc(save_predictions=False)
         end = time.time()
         u_plan = mpc.ocp.get_u_plan(x_plan, a_plan)
         self.mpc_plots = MPCPlots(
@@ -39,7 +38,9 @@ class APP(object):
             whole_x_plan=x_plan,
             whole_u_plan=u_plan,
             rmodel=rmodel,
-            DT=mpc.ocp.DT,
+            vmodel=ur3_wrapper.get_reduced_visual_model(),
+            cmodel=ur3_wrapper.get_reduced_collision_model(),
+            DT=mpc.ocp.params.dt,
             ee_frame_name="wrist_3_joint",
             viewer=viewer,
         )
