@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import time
-import numpy as np
 from agimus_controller.robot_model.ur3_model import UR3RobotModel
 from agimus_controller_ros.parameters import OCPParameters
 from agimus_controller.utils.path_finder import get_mpc_params_dict

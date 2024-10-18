@@ -1,5 +1,4 @@
 import time
-import numpy as np
 from agimus_controller.hpp_interface import HppInterface
 from agimus_controller.mpc import MPC
 from agimus_controller.utils.path_finder import get_package_path, get_mpc_params_dict

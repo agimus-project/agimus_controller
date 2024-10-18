@@ -399,9 +399,9 @@ class ControllerBase:
         if self.params.use_constraints:
             collision_residuals = self.mpc.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][
-                    coll_residual_key
-                ] += collision_residuals[coll_residual_key]
+                self.mpc_data["coll_residuals"][coll_residual_key] += (
+                    collision_residuals[coll_residual_key]
+                )
 
         if "vision_refs" in self.mpc_data.keys():
             self.mpc_data["vision_refs"].append(

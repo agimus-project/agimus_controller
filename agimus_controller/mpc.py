@@ -167,6 +167,6 @@ class MPC:
         if use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][
-                    coll_residual_key
-                ] += collision_residuals[coll_residual_key]
+                self.mpc_data["coll_residuals"][coll_residual_key] += (
+                    collision_residuals[coll_residual_key]
+                )
