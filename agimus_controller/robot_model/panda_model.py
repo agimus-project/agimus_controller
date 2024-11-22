@@ -46,13 +46,13 @@ class PandaRobotModel(RobotModel):
             return super().load_model(PandaRobotModelParameters(), env)
 
 
-def get_pick_and_place_task_models():
+def get_task_models(task_name):
     robot_params = PandaRobotModelParameters()
     robot_params.collision_as_capsule = True
     robot_params.self_collision = False
     agimus_demos_description_dir = get_package_path("agimus_demos_description")
     collision_file_path = (
-        agimus_demos_description_dir / "pick_and_place" / "obstacle_params.yaml"
+        agimus_demos_description_dir / task_name / "obstacle_params.yaml"
     )
     robot_constructor = PandaRobotModel.load_model(
         params=robot_params, env=collision_file_path
@@ -60,4 +60,16 @@ def get_pick_and_place_task_models():
 
     rmodel = robot_constructor.get_reduced_robot_model()
     cmodel = robot_constructor.get_reduced_collision_model()
-    return rmodel, cmodel
+    vmodel = robot_constructor.get_reduced_visual_model()
+    return rmodel, cmodel, vmodel
+
+
+def get_robot_constructor(task_name):
+    robot_params = PandaRobotModelParameters()
+    robot_params.collision_as_capsule = True
+    robot_params.self_collision = False
+    agimus_demos_description_dir = get_package_path("agimus_demos_description")
+    collision_file_path = (
+        agimus_demos_description_dir / task_name / "obstacle_params.yaml"
+    )
+    return PandaRobotModel.load_model(params=robot_params, env=collision_file_path)
