@@ -48,11 +48,14 @@ class MPCPlots:
         self.meshcat_server = MeshcatServer()
         self.meshcat_server.start()
         self.MeshcatVis = MeshcatWrapper()
+        self.MeshcatVis.x0 = self.croco_xs[0][: self.nq]
+        self.MeshcatVis.last_x0 = self.croco_xs[-1][: self.nq]
         self.vis = self.MeshcatVis.visualize(
             robot_model=self.rmodel,
             robot_visual_model=self.vmodel,
             robot_collision_model=self.cmodel,
         )
+        self.vis[0].display(self.croco_xs[0][: self.nq])
 
     def update_croco_predictions(self, croco_xs, croco_us):
         self.croco_xs = croco_xs
