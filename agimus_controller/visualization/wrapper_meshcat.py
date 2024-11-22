@@ -59,6 +59,8 @@ class MeshcatWrapper:
 
         self._grid = grid
         self._axes = axes
+        self.x0 = None
+        self.last_x0 = None
 
     def visualize(
         self,
@@ -156,3 +158,101 @@ class MeshcatWrapper:
         material.color = int(r * 255) * 256**2 + int(g * 255) * 256 + int(b * 255)
         material.opacity = a
         return material
+
+    def get_geometry_dict(self):
+        dict = {}
+        for idx, obj in enumerate(self._cmodel.geometryObjects):
+            dict[obj.name] = [obj, idx]
+        return dict
+
+    def remove_geom(self, name):
+        self._cmodel.removeGeometryObject(name)
+        self.refresh_meshcat()
+
+    def set_geom_radius(self, idx, radius):
+        self._cmodel.geometryObjects[idx].geometry.radius = radius
+        self.refresh_meshcat()
+
+    def set_geom_half_length(self, idx, halfLength):
+        self._cmodel.geometryObjects[idx].geometry.halfLength = halfLength
+        self.refresh_meshcat()
+
+    def set_geom_placement(self, idx, translation):
+        self._cmodel.geometryObjects[idx].placement.translation = translation
+        self.refresh_meshcat()
+
+    def set_geom_parent_frame(self, idx, frame_name):
+        parentFrame = self._rmodel.getFrameId(frame_name)
+        parentJoint = self._rmodel.getJointId(frame_name)
+        self._cmodel.geometryObjects[idx].parentFrame = parentFrame
+        self._cmodel.geometryObjects[idx].parentJoint = parentJoint
+        self.refresh_meshcat()
+
+    def set_geom_rotation_x(self, idx, angle):
+        rot = self._cmodel.geometryObjects[idx].placement.rotation
+        new_rot = np.matmul(rot, self.get_x_rot_matrix(angle))
+        self._cmodel.geometryObjects[idx].placement.rotation = new_rot
+        self.refresh_meshcat()
+
+    def set_geom_rotation_y(self, idx, angle):
+        rot = self._cmodel.geometryObjects[idx].placement.rotation
+        new_rot = np.matmul(rot, self.get_y_rot_matrix(angle))
+        self._cmodel.geometryObjects[idx].placement.rotation = new_rot
+        self.refresh_meshcat()
+
+    def set_geom_rotation_z(self, idx, angle):
+        rot = self._cmodel.geometryObjects[idx].placement.rotation
+        new_rot = np.matmul(rot, self.get_z_rot_matrix(angle))
+        self._cmodel.geometryObjects[idx].placement.rotation = new_rot
+        self.refresh_meshcat()
+
+    def get_x_rot_matrix(self, angle):
+        rot = np.zeros((3, 3))
+        rot[0, 0] = 1
+        rot[1, 1] = np.cos(angle)
+        rot[2, 1] = np.sin(angle)
+        rot[1, 2] = -np.sin(angle)
+        rot[2, 2] = np.cos(angle)
+        return rot
+
+    def get_y_rot_matrix(self, angle):
+        rot = np.zeros((3, 3))
+        rot[1, 1] = 1
+        rot[0, 0] = np.cos(angle)
+        rot[2, 0] = np.sin(angle)
+        rot[0, 2] = -np.sin(angle)
+        rot[2, 2] = np.cos(angle)
+        return rot
+
+    def get_z_rot_matrix(self, angle):
+        rot = np.zeros((3, 3))
+        rot[2, 2] = 1
+        rot[0, 0] = np.cos(angle)
+        rot[1, 0] = np.sin(angle)
+        rot[0, 1] = -np.sin(angle)
+        rot[1, 1] = np.cos(angle)
+        return rot
+
+    def print_geometry_object_info(self, idx):
+        print("name ", self._cmodel.geometryObjects[idx].name)
+        print("placement \n", self._cmodel.geometryObjects[idx].placement)
+        print("geometry type ", type(self._cmodel.geometryObjects[idx].geometry))
+        if type(self._cmodel.geometryObjects[idx].geometry) is hppfcl.Capsule:
+            print("radius ", self._cmodel.geometryObjects[idx].geometry.radius)
+            print("halfLength ", self._cmodel.geometryObjects[idx].geometry.halfLength)
+
+    def refresh_meshcat(self):
+        self.vis = self.visualize(
+            robot_model=self._rmodel,
+            robot_visual_model=self._vmodel,
+            robot_collision_model=self._cmodel,
+        )
+        self.viewer_pin.display(self.x0)
+
+    def refresh_meshcat_at_last_pose(self):
+        self.vis = self.visualize(
+            robot_model=self._rmodel,
+            robot_visual_model=self._vmodel,
+            robot_collision_model=self._cmodel,
+        )
+        self.viewer_pin.display(self.last_x0)
