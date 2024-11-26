@@ -182,13 +182,15 @@ class ControllerBase:
         rot = pose.orientation
         pose_array = [trans.x, trans.y, trans.z, rot.w, rot.x, rot.y, rot.z]
         in_prev_world_M_object = pin.XYZQUATToSE3(pose_array)
-        if self.state_machine in [HPPStateMachine.WAITING_PICK_TRAJECTORY,
+        if self.state_machine in [
+            HPPStateMachine.WAITING_PICK_TRAJECTORY,
             HPPStateMachine.RECEIVING_PICK_TRAJECTORY,
-            HPPStateMachine.WAITING_PLACE_TRAJECTORY,]:
+            HPPStateMachine.WAITING_PLACE_TRAJECTORY,
+        ]:
             self.in_world_M_object = self.in_world_M_prev_world * in_prev_world_M_object
         if self.init_in_world_M_object is None:
             self.init_in_world_M_object = self.in_world_M_object
-    
+
     def change_state(self):
         self.state_machine_timeline_idx = (self.state_machine_timeline_idx + 1) % len(
             self.state_machine_timeline
@@ -284,9 +286,13 @@ class ControllerBase:
                 self.effector_frame_id,
                 x0[: self.rmodel.nq],
             ).translation
-            if np.linalg.norm(self.in_world_M_effector.translation - current_pose) < 0.01 and self.state_machine == HPPStateMachine.WAITING_PLACE_TRAJECTORY:
-                    print("changing state for visual servoing")
-                    self.change_state()
+            if (
+                np.linalg.norm(self.in_world_M_effector.translation - current_pose)
+                < 0.01
+                and self.state_machine == HPPStateMachine.WAITING_PLACE_TRAJECTORY
+            ):
+                print("changing state for visual servoing")
+                self.change_state()
         else:
             self.mpc.ocp.set_last_running_model_placement_weight(0)
         self.mpc.mpc_step(x0, new_x_ref, new_a_ref, self.in_world_M_effector)
@@ -312,7 +318,6 @@ class ControllerBase:
         self.mpc.ocp.set_ee_placement_weight(gripper_weight_terminal_node)
 
     def update_effector_placement_with_vision(self):
-        
         self.target_translation_object_to_effector = (
             self.in_world_M_effector.translation
             - self.init_in_world_M_object.translation
@@ -323,12 +328,12 @@ class ControllerBase:
             + self.target_translation_object_to_effector
         )
         # Currently not used because it needs the implementation of symmetries
-        #in_object_rot_effector = (
+        # in_object_rot_effector = (
         #    self.init_in_world_M_object.rotation.T * self.in_world_M_effector.rotation
-        #)
-        #self.in_world_M_effector.rotation = (
+        # )
+        # self.in_world_M_effector.rotation = (
         #    self.in_world_M_object.rotation * in_object_rot_effector
-        #)
+        # )
 
     def pick_traj_last_point_is_in_horizon(self):
         return (
@@ -370,10 +375,10 @@ class ControllerBase:
                         and np.linalg.norm(self.pick_traj_last_pose - current_pose)
                         < self.params.start_visual_servoing_dist
                     )
-                    
+
                     if self.do_visual_servoing:
                         self.start_visual_servoing_time = time.time()
-                
+
             else:
                 self.do_visual_servoing = False
             return self.do_visual_servoing
@@ -383,11 +388,11 @@ class ControllerBase:
             sensor_msg = deepcopy(self.sensor_msg)
         return sensor_msg
 
-    def set_control_inside_limits(self,u):
-        control_limits=[86]*4 + [11]*3
-        for idx,control_limit in enumerate(control_limits):
-            if np.abs(u[idx]) > control_limit :
-                u[idx] *=  control_limit/np.abs(u[idx])
+    def set_control_inside_limits(self, u):
+        control_limits = [86] * 4 + [11] * 3
+        for idx, control_limit in enumerate(control_limits):
+            if np.abs(u[idx]) > control_limit:
+                u[idx] *= control_limit / np.abs(u[idx])
         return u
 
     def send(self, sensor_msg, u, k):

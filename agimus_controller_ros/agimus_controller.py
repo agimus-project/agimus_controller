@@ -28,5 +28,3 @@ class AgimusControllerNode(ControllerBase):
             self.elapsed_time >= 0.1 and self.last_elapsed_time < 0.1
         ):
             self.change_state()
-
-    
