@@ -29,15 +29,16 @@ class HPPStateMachine(Enum):
     WAITING_PICK_TRAJECTORY = 1
     RECEIVING_PICK_TRAJECTORY = 2
     WAITING_PLACE_TRAJECTORY = 3
-    RECEIVING_PLACE_TRAJECTORY = 4
-    WAITING_GOING_INIT_POSE_TRAJECTORY = 5
-    RECEIVING_GOING_INIT_POSE_TRAJECTORY = 6
+    STOP_VISUALISE_SERVOING = 4
+    RECEIVING_PLACE_TRAJECTORY = 5
+    WAITING_GOING_INIT_POSE_TRAJECTORY = 6
+    RECEIVING_GOING_INIT_POSE_TRAJECTORY = 7
 
 
 def find_tracked_object(detections):
     tless1_detections = []
     for detection in detections:
-        if detection.results[0].hypothesis.class_id != "tless-obj_000001":
+        if detection.results[0].hypothesis.class_id != "tless-obj_000023":
             continue
         else:
             tless1_detections.append(detection)
@@ -92,6 +93,7 @@ class ControllerBase:
             HPPStateMachine.WAITING_PICK_TRAJECTORY,
             HPPStateMachine.RECEIVING_PICK_TRAJECTORY,
             HPPStateMachine.WAITING_PLACE_TRAJECTORY,
+            HPPStateMachine.STOP_VISUALISE_SERVOING,
             HPPStateMachine.RECEIVING_PLACE_TRAJECTORY,
             HPPStateMachine.WAITING_GOING_INIT_POSE_TRAJECTORY,
             HPPStateMachine.RECEIVING_GOING_INIT_POSE_TRAJECTORY,
@@ -180,9 +182,21 @@ class ControllerBase:
         rot = pose.orientation
         pose_array = [trans.x, trans.y, trans.z, rot.w, rot.x, rot.y, rot.z]
         in_prev_world_M_object = pin.XYZQUATToSE3(pose_array)
-        self.in_world_M_object = self.in_world_M_prev_world * in_prev_world_M_object
+        if self.state_machine in [HPPStateMachine.WAITING_PICK_TRAJECTORY,
+            HPPStateMachine.RECEIVING_PICK_TRAJECTORY,
+            HPPStateMachine.WAITING_PLACE_TRAJECTORY,]:
+            self.in_world_M_object = self.in_world_M_prev_world * in_prev_world_M_object
         if self.init_in_world_M_object is None:
             self.init_in_world_M_object = self.in_world_M_object
+    
+    def change_state(self):
+        self.state_machine_timeline_idx = (self.state_machine_timeline_idx + 1) % len(
+            self.state_machine_timeline
+        )
+        self.state_machine = self.state_machine_timeline[
+            self.state_machine_timeline_idx
+        ]
+        print("changing state to ", self.state_machine)
 
     def wait_first_sensor_msg(self):
         wait_for_input = True
@@ -264,6 +278,15 @@ class ControllerBase:
         ):
             self.update_effector_placement_with_vision()
             self.set_increasing_weight()
+            current_pose = get_ee_pose_from_configuration(
+                self.rmodel,
+                self.rdata,
+                self.effector_frame_id,
+                x0[: self.rmodel.nq],
+            ).translation
+            if np.linalg.norm(self.in_world_M_effector.translation - current_pose) < 0.01 and self.state_machine == HPPStateMachine.WAITING_PLACE_TRAJECTORY:
+                    print("changing state for visual servoing")
+                    self.change_state()
         else:
             self.mpc.ocp.set_last_running_model_placement_weight(0)
         self.mpc.mpc_step(x0, new_x_ref, new_a_ref, self.in_world_M_effector)
@@ -289,9 +312,7 @@ class ControllerBase:
         self.mpc.ocp.set_ee_placement_weight(gripper_weight_terminal_node)
 
     def update_effector_placement_with_vision(self):
-        in_object_rot_effector = (
-            self.init_in_world_M_object.rotation.T * self.in_world_M_effector.rotation
-        )
+        
         self.target_translation_object_to_effector = (
             self.in_world_M_effector.translation
             - self.init_in_world_M_object.translation
@@ -301,9 +322,13 @@ class ControllerBase:
             self.in_world_M_object.translation
             + self.target_translation_object_to_effector
         )
-        self.in_world_M_effector.rotation = (
-            self.in_world_M_object.rotation * in_object_rot_effector
-        )
+        # Currently not used because it needs the implementation of symmetries
+        #in_object_rot_effector = (
+        #    self.init_in_world_M_object.rotation.T * self.in_world_M_effector.rotation
+        #)
+        #self.in_world_M_effector.rotation = (
+        #    self.in_world_M_object.rotation * in_object_rot_effector
+        #)
 
     def pick_traj_last_point_is_in_horizon(self):
         return (
@@ -312,6 +337,8 @@ class ControllerBase:
         )
 
     def pick_traj_last_point_is_near(self, x0):
+        if self.state_machine == HPPStateMachine.STOP_VISUALISE_SERVOING:
+            return True
         if (
             self.state_machine == HPPStateMachine.WAITING_PLACE_TRAJECTORY
             and self.pick_traj_last_pose is None
@@ -343,8 +370,10 @@ class ControllerBase:
                         and np.linalg.norm(self.pick_traj_last_pose - current_pose)
                         < self.params.start_visual_servoing_dist
                     )
+                    
                     if self.do_visual_servoing:
                         self.start_visual_servoing_time = time.time()
+                
             else:
                 self.do_visual_servoing = False
             return self.do_visual_servoing
@@ -354,7 +383,15 @@ class ControllerBase:
             sensor_msg = deepcopy(self.sensor_msg)
         return sensor_msg
 
+    def set_control_inside_limits(self,u):
+        control_limits=[86]*4 + [11]*3
+        for idx,control_limit in enumerate(control_limits):
+            if np.abs(u[idx]) > control_limit :
+                u[idx] *=  control_limit/np.abs(u[idx])
+        return u
+
     def send(self, sensor_msg, u, k):
+        u = self.set_control_inside_limits(u)
         self.control_msg.header = Header()
         self.control_msg.header.stamp = rospy.Time.now()
         self.control_msg.feedback_gain = to_multiarray_f64(k)

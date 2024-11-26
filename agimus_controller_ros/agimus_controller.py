@@ -29,11 +29,4 @@ class AgimusControllerNode(ControllerBase):
         ):
             self.change_state()
 
-    def change_state(self):
-        self.state_machine_timeline_idx = (self.state_machine_timeline_idx + 1) % len(
-            self.state_machine_timeline
-        )
-        self.state_machine = self.state_machine_timeline[
-            self.state_machine_timeline_idx
-        ]
-        print("changing state to ", self.state_machine)
+    
