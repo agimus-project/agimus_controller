@@ -192,6 +192,95 @@ class ObstacleParamsParser:
         # Return the copy of the model.
         return model_copy
 
+    def modify_colllision_model(self, rcmodel: pin.GeometryModel):
+        geoms_to_remove_name = [
+            "panda_rightfinger_0",
+            "panda_link7_sc_capsule_1",
+            "panda_link6_sc_capsule_0",
+            "panda_link5_sc_capsule_0",
+            "panda_link4_sc_capsule_0",
+        ]
+
+        for geom_to_remove_name in geoms_to_remove_name:
+            rcmodel.removeGeometryObject(geom_to_remove_name)
+        rcmodel = self.set_panda_ee_capsule_data(rcmodel)
+        rcmodel = self.set_panda_link7_capsule_data(rcmodel)
+        rcmodel = self.set_panda_link5_capsule_data(rcmodel)
+        rcmodel = self.set_panda_link3_capsule_data(rcmodel)
+        return rcmodel
+
+    def set_panda_ee_capsule_data(self, rcmodel: pin.GeometryModel):
+        idx = self.get_geometry_object_idx("panda_leftfinger_0", rcmodel)
+        # copy color of other geometry object
+        if len(rcmodel.geometryObjects) > idx + 1:
+            rcmodel.geometryObjects[idx].meshColor = rcmodel.geometryObjects[
+                idx + 1
+            ].meshColor
+        else:
+            rcmodel.geometryObjects[idx].meshColor = rcmodel.geometryObjects[
+                idx - 1
+            ].meshColor
+        rcmodel.geometryObjects[idx].geometry = Capsule(0.105, 0.048 * 2)
+        rot = np.array(
+            [
+                [0.439545, 0.707107, -0.553896],
+                [-0.439545, 0.707107, 0.553896],
+                [0.783327, 0, 0.62161],
+            ],
+        )
+        rcmodel.geometryObjects[idx].placement.rotation = rot
+        rcmodel.geometryObjects[idx].placement.translation = np.array(
+            [0.032, -0.03, 0.11]
+        )
+        return rcmodel
+
+    def set_panda_link7_capsule_data(self, rcmodel: pin.GeometryModel):
+        idx = self.get_geometry_object_idx("panda_link7_sc_capsule_0", rcmodel)
+        rcmodel.geometryObjects[idx].geometry = Sphere(0.065)
+
+        rcmodel.geometryObjects[idx].placement.translation = np.array(
+            [-0.012, 0.01, -0.025]
+        )
+        return rcmodel
+
+    def set_panda_link5_capsule_data(self, rcmodel: pin.GeometryModel):
+        idx = self.get_geometry_object_idx("panda_link5_sc_capsule_1", rcmodel)
+        rot = np.array(
+            [
+                [0.996802, -0.0799057, -0.00119868],
+                [0.0799147, 0.996689, 0.0149514],
+                [0, -0.0149994, 0.999888],
+            ]
+        )
+        rcmodel.geometryObjects[idx].placement.rotation = rot
+        rcmodel.geometryObjects[idx].placement.translation = np.array([0, 0.03, -0.15])
+        rcmodel.geometryObjects[idx].geometry.radius = 0.095
+        rcmodel.geometryObjects[idx].geometry.halfLength = 0.135
+        return rcmodel
+
+    def set_panda_link3_capsule_data(self, rcmodel: pin.GeometryModel):
+        idx = self.get_geometry_object_idx("panda_link3_sc_capsule_0", rcmodel)
+        rot = np.array(
+            [
+                [0.980067, 0, 0.198669],
+                [0, 1, 0],
+                [-0.198669, 0, 0.980067],
+            ]
+        )
+        rcmodel.geometryObjects[idx].placement.rotation = rot
+        rcmodel.geometryObjects[idx].placement.translation = np.array(
+            [0.035, 0.0, -0.158]
+        )
+        rcmodel.geometryObjects[idx].geometry.radius = 0.13
+        rcmodel.geometryObjects[idx].geometry.halfLength = 0.13
+        return rcmodel
+
+    def get_geometry_object_idx(self, name: str, rcmodel: pin.GeometryModel):
+        for idx, geom in enumerate(rcmodel.geometryObjects):
+            if geom.name == name:
+                return idx
+        return -1
+
     def add_self_collision(
         self, rmodel: pin.Model, rcmodel: pin.GeometryModel, srdf: Path = Path()
     ) -> pin.GeometryModel:

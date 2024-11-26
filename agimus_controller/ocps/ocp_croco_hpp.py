@@ -30,7 +30,7 @@ class OCPCrocoHPP:
         self._weight_u_reg = self.params.control_weight
         self._weight_ee_placement = self.params.gripper_weight
         self._weight_vel_reg = 0
-        self._collision_margin = 1e-1
+        self._collision_margin = 3e-2
         self.state = crocoddyl.StateMultibody(self._rmodel)
         self.actuation = crocoddyl.ActuationModelFull(self.state)
         self.nq = self._rmodel.nq  # Number of joints of the robot
