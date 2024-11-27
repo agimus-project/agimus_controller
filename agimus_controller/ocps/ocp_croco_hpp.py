@@ -30,7 +30,7 @@ class OCPCrocoHPP:
         self._weight_u_reg = self.params.control_weight
         self._weight_ee_placement = self.params.gripper_weight
         self._weight_vel_reg = 0
-        self._collision_margin = 1e-1
+        self._collision_margin = 3e-2
         self.state = crocoddyl.StateMultibody(self._rmodel)
         self.actuation = crocoddyl.ActuationModelFull(self.state)
         self.nq = self._rmodel.nq  # Number of joints of the robot
@@ -161,6 +161,34 @@ class OCPCrocoHPP:
         self.running_models = running_models
         return self.running_models
 
+    def get_model(self, placement_ref, x_ref: np.ndarray, u_ref: np.ndarray):
+        running_cost_model = crocoddyl.CostModelSum(self.state)
+        x_reg_cost = self.get_state_residual(x_ref)
+        u_reg_cost = self.get_control_residual(u_ref)
+        vel_reg_cost = self.get_velocity_residual()
+        placement_ref = get_ee_pose_from_configuration(
+            self._rmodel, self._rdata, self._effector_frame_id, x_ref[: self.nq]
+        )
+        placement_reg_cost = self.get_placement_residual(placement_ref)
+        running_cost_model.addCost("xReg", x_reg_cost, self._weight_x_reg)
+        running_cost_model.addCost("uReg", u_reg_cost, self._weight_u_reg)
+        running_cost_model.addCost("velReg", vel_reg_cost, self._weight_vel_reg)
+        running_cost_model.addCost(
+            "gripperPose", placement_reg_cost, 0
+        )  # useful for mpc to reset ocp
+
+        if self.params.use_constraints:
+            constraints = self.get_constraints()
+            running_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
+                self.state, self.actuation, running_cost_model, constraints
+            )
+        else:
+            running_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
+                self.state, self.actuation, running_cost_model
+            )
+        running_DAM.armature = self.params.armature
+        return crocoddyl.IntegratedActionModelEuler(running_DAM, self.params.dt)
+
     def get_constraints(self):
         constraint_model_manager = crocoddyl.ConstraintModelManager(self.state, self.nq)
         if len(self._cmodel.collisionPairs) != 0:
@@ -176,6 +204,10 @@ class OCPCrocoHPP:
 
     def set_terminal_model(self, placement_ref):
         """Set terminal model."""
+        # last_model = self.get_new_weight_terminal_model_without_constraints(
+        #    placement_ref, self.x_plan[-1, :], self.u_plan[-1, :]
+        # )
+
         if self.params.use_constraints:
             last_model = self.get_terminal_model_with_constraints(
                 placement_ref, self.x_plan[-1, :], self.u_plan[-1, :]
@@ -239,6 +271,35 @@ class OCPCrocoHPP:
         terminal_DAM.armature = self.params.armature
         return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.params.dt)
 
+    def get_new_weight_terminal_model_without_constraints(
+        self, placement_ref, x_ref: np.ndarray, u_plan: np.ndarray
+    ):
+        """Return last model without constraints."""
+
+        terminal_cost_model = crocoddyl.CostModelSum(self.state)
+        placement_reg_cost = self.get_placement_residual(placement_ref)
+        terminal_cost_model.addCost("gripperPose", placement_reg_cost, 0)
+        vel_cost = self.get_velocity_residual()
+        if np.linalg.norm(x_ref[self.nq :]) < 1e-9:
+            terminal_cost_model.addCost("velReg", vel_cost, 0)
+        else:
+            terminal_cost_model.addCost("velReg", vel_cost, 0)
+        stateWeightsTerm = np.array([1.0] * self.nq + [0.1] * self.nv) ** 2
+        x_reg_cost = self.get_state_residual(x_ref, x_reg_weights=stateWeightsTerm)
+
+        terminal_cost_model.addCost(
+            "xReg", x_reg_cost, self._weight_x_reg * self.params.dt * 1000
+        )
+
+        u_reg_cost = self.get_control_residual(u_plan)
+        terminal_cost_model.addCost("uReg", u_reg_cost, 0)
+        constraints = self.get_constraints()
+        terminal_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
+            self.state, self.actuation, terminal_cost_model, constraints
+        )
+        terminal_DAM.armature = self.params.armature
+        return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.params.dt)
+
     def _get_collision_constraint(
         self, col_idx: int, safety_margin: float
     ) -> "crocoddyl.ConstraintModelResidual":
@@ -292,12 +353,19 @@ class OCPCrocoHPP:
             self.state, crocoddyl.ResidualModelControl(self.state, uref)
         )
 
-    def get_state_residual(self, xref):
+    def get_state_residual(self, xref, x_reg_weights=None):
         """Return state residual with xref the state reference."""
-        return crocoddyl.CostModelResidual(
-            self.state,  # x_reg_weights,
-            crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
-        )
+        if x_reg_weights is None:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
+            )
+        else:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ActivationModelWeightedQuad(x_reg_weights),
+                crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
+            )
 
     def get_xlimit_residual(self):
         """Return state limit residual."""
@@ -331,11 +399,9 @@ class OCPCrocoHPP:
 
     def update_cost(self, model, new_model, cost_name, update_weight=True):
         """Update model's cost reference and weight by copying new_model's cost."""
-        model.differential.costs.costs[
-            cost_name
-        ].cost.residual.reference = new_model.differential.costs.costs[
-            cost_name
-        ].cost.residual.reference.copy()
+        model.differential.costs.costs[cost_name].cost.residual.reference = (
+            new_model.differential.costs.costs[cost_name].cost.residual.reference.copy()
+        )
         if update_weight:
             new_weight = new_model.differential.costs.costs[cost_name].weight
             model.differential.costs.costs[cost_name].weight = new_weight
@@ -346,6 +412,21 @@ class OCPCrocoHPP:
         self.update_cost(model, new_model, "gripperPose", update_weight)
         self.update_cost(model, new_model, "velReg", update_weight)
         self.update_cost(model, new_model, "uReg", update_weight)
+
+    # def reset_ocp(self, x, x_ref: np.ndarray, u_plan: np.ndarray, placement_ref):
+    #    """Reset ocp problem using next reference in state and control."""
+    #    self.solver.problem.x0 = x
+    #    runningModels = list(self.solver.problem.runningModels)
+    #    for node_idx in range(len(runningModels) - 1):
+    #        self.update_model(
+    #            runningModels[node_idx], runningModels[node_idx + 1], True
+    #        )
+    #    self.update_model(runningModels[-1], self.solver.problem.terminalModel, False)
+    #
+    #    terminal_model = self.get_new_weight_terminal_model_without_constraints(
+    #        placement_ref, x_ref, u_plan
+    #    )
+    #    self.update_model(self.solver.problem.terminalModel, terminal_model, True)
 
     def reset_ocp(self, x, x_ref: np.ndarray, u_plan: np.ndarray, placement_ref):
         """Reset ocp problem using next reference in state and control."""
