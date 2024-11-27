@@ -29,7 +29,7 @@ Different mains are available:
 - panda scripts :
     -  `python3 -m agimus_controller.main.panda.main_hpp_mpc_buffer`
     -  `python3 -m agimus_controller.main.panda.main_hpp_mpc`
-    -  `python3 -m agimus_controller.main.panda.main_reaching_goal`
+    -  `python3 -im agimus_controller.main.panda.main_reaching_goal`
     -  `python3 -m agimus_controller.main.panda.main_meshcat_display`
     -  `python3 -m agimus_controller.main.panda.main_optim_traj`
     -  `python3 -m agimus_controller.main.panda.main_scenes`

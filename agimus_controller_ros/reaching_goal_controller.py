@@ -21,7 +21,9 @@ from agimus_controller_ros.parameters import AgimusControllerNodeParameters
 class ReachingGoalController:
     def __init__(self, params: AgimusControllerNodeParameters) -> None:
         self.params = params
-        self.rmodel, self.cmodel = get_task_models(task_name="goal_reaching")
+        self.rmodel, self.cmodel, self.vmodel = get_task_models(
+            task_name="reaching_goal"
+        )
         self.rdata = self.rmodel.createData()
         self.effector_frame_id = self.rmodel.getFrameId(
             self.params.ocp.effector_frame_name

@@ -11,6 +11,13 @@ from agimus_controller.robot_model.panda_model import (
 from agimus_controller.ocps.parameters import OCPParameters
 from agimus_controller.main.servers import Servers
 
+from agimus_controller.utils.ocp_analyzer import (
+    return_cost_vectors,
+    return_constraint_vector,
+    plot_costs_from_dic,
+    plot_constraints_from_dic,
+)
+
 
 class APP(object):
     def main(self, use_gui=False, spawn_servers=False):
@@ -43,22 +50,26 @@ class APP(object):
 
         ocp = OCPCrocoHPP(rmodel, cmodel, ocp_params)
 
-        mpc = MPC(ocp, x_plan, a_plan, rmodel, cmodel)
+        self.mpc = MPC(ocp, x_plan, a_plan, rmodel, cmodel)
 
         start = time.time()
-        mpc.simulate_mpc(save_predictions=False)
+        self.mpc.simulate_mpc(save_predictions=False)
         end = time.time()
         print("Time of solving: ", end - start)
-        u_plan = mpc.ocp.get_u_plan(x_plan, a_plan)
+        costs = return_cost_vectors(self.mpc.ocp.solver, weighted=True)
+        constraint = return_constraint_vector(self.mpc.ocp.solver)
+        plot_costs_from_dic(costs)
+        plot_constraints_from_dic(constraint)
+        u_plan = self.mpc.ocp.get_u_plan(x_plan, a_plan)
         self.mpc_plots = MPCPlots(
-            croco_xs=mpc.croco_xs,
-            croco_us=mpc.croco_us,
+            croco_xs=self.mpc.croco_xs,
+            croco_us=self.mpc.croco_us,
             whole_x_plan=x_plan,
             whole_u_plan=u_plan,
             rmodel=rmodel,
             vmodel=pandawrapper.get_reduced_visual_model(),
             cmodel=cmodel,
-            DT=mpc.ocp.params.dt,
+            DT=self.mpc.ocp.params.dt,
             ee_frame_name=ee_frame_name,
             viewer=viewer,
         )

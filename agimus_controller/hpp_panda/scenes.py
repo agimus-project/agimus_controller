@@ -150,12 +150,12 @@ class Scene:
         """
         if self._name_scene == "box" or "wall":
             self.shapes_avoiding_collision = [
-                "panda_link5_sc_capsule_1",
+                "panda_link5_sc_capsule_0",
                 "panda_leftfinger_0",
             ]
         elif self._name_scene == "ball":
             self.shapes_avoiding_collision = [
-                "panda_link5_sc_capsule_1",
+                "panda_link5_sc_capsule_0",
                 "panda_leftfinger_0",
             ]
         else:

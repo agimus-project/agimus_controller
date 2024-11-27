@@ -22,6 +22,7 @@ class MPCSearch:
         self.results["max_us"] = []
         self.results["max_increase_us"] = []
         self.results["combination"] = []
+        self.results["max_kkt"] = []
 
     def get_trajectory_difference(self, configuration_traj=True):
         """Compute at each node the absolute difference in position either in cartesian or configuration space and sum it."""
@@ -69,27 +70,36 @@ class MPCSearch:
         self.best_combination = None
         self.best_croco_xs = None
         self.best_croco_us = None
-        self.best_diff = 1e6
+        self.best_kkt = 1e6
         grip_cost = 0
         self.mpc.ocp.use_constraints = use_constraints
         if use_constraints:
-            for x_exponent in range(0, 8, 2):
-                for u_exponent in range(-32, -26, 2):
-                    start = time.time()
-                    _, x_cost, u_cost, _, _ = self.get_cost_from_exponent(
-                        0, x_exponent, u_exponent, 0, 0
-                    )
-                    print(" x : ", x_cost, " u : ", u_cost)
-                    self.try_new_costs(
-                        grip_cost,
-                        x_cost,
-                        u_cost,
-                        configuration_traj=configuration_traj,
-                        vel_cost=0,
-                        xlim_cost=0,
-                    )
-                    end = time.time()
-                    print("mpc simulation duration ", end - start)
+            for grip_exponent in range(0, 6, 2):
+                for vel_exponent in range(-5, 0, 5):
+                    for u_exponent in range(-34, -28, 2):
+                        start = time.time()
+                        grip_cost, _, u_cost, vel_cost, _ = self.get_cost_from_exponent(
+                            grip_exponent, 0, u_exponent, vel_exponent, 0
+                        )
+                        self.mpc.ocp.set_weights(grip_cost, 0, u_cost, vel_cost)
+                        print(
+                            " grip : ",
+                            grip_cost,
+                            " u : ",
+                            u_cost,
+                            " vel cost",
+                            vel_cost,
+                        )
+                        self.try_new_costs(
+                            grip_cost,
+                            x_cost=0,
+                            u_cost=u_cost,
+                            configuration_traj=configuration_traj,
+                            vel_cost=vel_cost,
+                            xlim_cost=0,
+                        )
+                        end = time.time()
+                        print("mpc simulation duration ", end - start)
         else:
             for grip_exponent in range(25, 50, 5):
                 for x_exponent in range(0, 15, 5):
@@ -120,7 +130,7 @@ class MPCSearch:
 
         self.croco_xs = self.best_croco_xs
         self.croco_us = self.best_croco_us
-        print("best diff ", self.best_diff)
+        print("best kkt ", self.best_kkt)
         print("best combination ", self.best_combination)
         print("max torque ", np.max(np.abs(self.croco_us)))
 
@@ -145,7 +155,7 @@ class MPCSearch:
         configuration_traj=False,
     ):
         """Set problem, run solver, add result in dict and check if we found a better solution."""
-        self.mpc.simulate_mpc(100)
+        self.mpc.simulate_mpc(save_predictions=True)
         self.croco_xs = self.mpc.croco_xs
         self.croco_us = self.mpc.croco_us
         max_us = np.max(np.abs(self.croco_us))
@@ -157,10 +167,13 @@ class MPCSearch:
         self.results["combination"].append(
             [grip_cost, x_cost, u_cost, vel_cost, xlim_cost]
         )
+        max_kkt = max(self.mpc.mpc_data["kkt_norm"])
+        print("max kkt ", max_kkt)
+        self.results["max_kkt"].append(max_kkt)
         diff = self.get_trajectory_difference(configuration_traj)
-        if diff < self.best_diff and max_us < 100 and max_increase_us < 50:
+        if max_kkt < self.best_kkt and max_us < 100 and max_increase_us < 50:
             self.best_combination = [grip_cost, x_cost, u_cost, vel_cost, xlim_cost]
-            self.best_diff = diff
+            self.best_kkt = max_kkt
             self.best_croco_xs = self.croco_xs
             self.best_croco_us = self.croco_us
 
