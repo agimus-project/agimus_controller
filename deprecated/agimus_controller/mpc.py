@@ -162,9 +162,9 @@ class MPC:
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][coll_residual_key] += (
-                    collision_residuals[coll_residual_key]
-                )
+                self.mpc_data["coll_residuals"][
+                    coll_residual_key
+                ] += collision_residuals[coll_residual_key]
 
     def get_ee_pred_from_xs_pred(self, xs):
         pred_ee = np.zeros((xs.shape[0], 3))
@@ -192,7 +192,7 @@ class MPC:
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][coll_residual_key] += (
-                    collision_residuals[coll_residual_key]
-                )
+                self.mpc_data["coll_residuals"][
+                    coll_residual_key
+                ] += collision_residuals[coll_residual_key]
         np.save("ocp_data.npy", ocp_data)
