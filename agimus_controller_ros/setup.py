@@ -1,25 +1,39 @@
-from setuptools import find_packages, setup
+from pathlib import Path
+from typing import List
+
+from setuptools import setup
 
 package_name = "agimus_controller_ros"
+project_source_dir = Path(__file__).parent
+
+
+def get_files(dir: Path, pattern: str) -> List[str]:
+    return [x.as_posix() for x in (dir).glob(pattern) if x.is_file()]
+
 
 setup(
     name=package_name,
     version="0.0.0",
-    packages=find_packages(exclude=["test"]),
+    packages=["agimus_controller_ros"],
+    package_dir={},
+    install_requires=["setuptools"],
+    zip_safe=True,
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
+        (
+            f"share/{package_name}/launch",
+            get_files(project_source_dir / "launch", "*.launch.py"),
+        ),
     ],
-    install_requires=["setuptools"],
-    zip_safe=True,
     maintainer="gepetto",
-    maintainer_email="kateryna.zorina@cvut.cz",
-    description="TODO: Package description",
-    license="Apache-2.0",
-    tests_require=["pytest"],
+    maintainer_email="gsaurel@laas.fr",
+    description="ROS2 agimus_controller package",
+    license="BSD",
     entry_points={
         "console_scripts": [
             "mpc_input_dummy_publisher = agimus_controller_ros.mpc_input_dummy_publisher:main",
+            "agimus_controller_node = agimus_controller_ros.agimus_controller:main",
         ],
     },
 )
