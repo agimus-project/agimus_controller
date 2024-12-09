@@ -6,12 +6,9 @@ jobs:
   build:
     strategy:
       matrix:
-        include:
-          - package_name: ["agimus_controller", "agimus_controller_example",agimus_controller_ros"]
-          - ros_version: "humble"
-            ubuntu_version: "ubuntu-22.04"
-          # - ros_version: "iron"
-          #   ubuntu_version: "ubuntu-22.04"
+          package_name: ["agimus_controller", "agimus_controller_example",agimus_controller_ros"]
+          ros_version: ["humble"]
+          ubuntu_version: ["ubuntu-22.04"]
     runs-on: ${{ matrix.ubuntu_version }}
     steps:
       #
