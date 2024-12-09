@@ -110,4 +110,3 @@ rosservice call /hpp/target/set_joint_names "names:
 rostopic pub /hpp/target/read_path std_msgs/UInt32 0
 rostopic pub /hpp/target/publish std_msgs/Empty
 ```
-
