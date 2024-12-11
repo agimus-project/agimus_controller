@@ -11,7 +11,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
-from std_msgs.msg import Header, String
+from std_msgs.msg import String
 from agimus_msgs.msg import MpcInput
 from builtin_interfaces.msg import Duration
 
