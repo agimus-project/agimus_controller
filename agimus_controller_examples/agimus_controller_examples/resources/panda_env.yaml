@@ -21,4 +21,3 @@ support_link_1:
     # translation: [0.6385, -0.1655, 0.77]  # tx,ty,tz
     translation: [0.6385, -0.1655, 0.39]  # tx,ty,tz
     rotation: [0, 0, 0, 1] #qx,qy,qz,qw
-

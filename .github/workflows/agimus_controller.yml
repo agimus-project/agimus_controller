@@ -1,0 +1,46 @@
+name: Ubuntu20.04, ROS2 Continuous Integration
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+          package_name: [
+            "agimus_controller",
+            "agimus_controller_examples",
+            "agimus_controller_ros",
+          ]
+          ros_version: ["humble"]
+          ubuntu_version: ["ubuntu-22.04"]
+    runs-on: ${{ matrix.ubuntu_version }}
+    steps:
+      #
+      # Checkout the current branch. Only used to get the deps.repos file.
+      # The last step here re-clone the repo at the right place.
+      #
+      - uses: actions/checkout@v4
+
+      #
+      # Use the .repos inside the cloned repository.
+      #
+      - run: |
+          cp ../${{ github.event.repository.name }}/dependencies.repos /tmp/deps.repos
+
+      #
+      # Setup the machines and build environment
+      #
+      - name: Install ROS.
+        uses: ros-tooling/setup-ros@0.7.9
+        with:
+          required-ros-distributions: ${{ matrix.ros_version }}
+
+      #
+      # Build and test the repo
+      #
+      - uses: ros-tooling/action-ros-ci@0.3.15
+        with:
+          package-name: ${{ matrix.package_name }}
+          target-ros2-distro: ${{ matrix.ros_version }}
+          vcs-repo-file-url: /tmp/deps.repos
