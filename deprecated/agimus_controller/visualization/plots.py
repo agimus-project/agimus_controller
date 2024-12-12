@@ -32,9 +32,11 @@ class MPCPlots:
         self.cmodel = cmodel
         self._rdata = self.rmodel.createData()
 
-        self._last_joint_name, self._last_joint_id, self._last_joint_frame_id = (
-            get_last_joint(self.rmodel)
-        )
+        (
+            self._last_joint_name,
+            self._last_joint_id,
+            self._last_joint_frame_id,
+        ) = get_last_joint(self.rmodel)
 
         self.nq = self.rmodel.nq
         self.croco_xs = croco_xs

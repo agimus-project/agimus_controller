@@ -41,9 +41,11 @@ class HppAgimusController(ControllerBase):
         self.hpp_interface.set_panda_planning(
             q_init, self.q_goal, use_gepetto_gui=False
         )
-        self.whole_x_plan, self.whole_a_plan, _ = (
-            self.hpp_interface.get_hpp_x_a_planning(self.params.dt)
-        )
+        (
+            self.whole_x_plan,
+            self.whole_a_plan,
+            _,
+        ) = self.hpp_interface.get_hpp_x_a_planning(self.params.dt)
 
 
 def crocco_motion_server_node():
