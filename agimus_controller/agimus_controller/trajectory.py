@@ -12,7 +12,7 @@ class TrajectoryPoint:
     robot_configuration: np.ndarray
     robot_velocity: np.ndarray
     robot_acceleration: np.ndarray
-    robot_effort: np.ndarray
+    robot_effort: np.ndarray  # Is robot effort the same as robot torque?
     forces: dict[Force]  # Dictionary of pinocchio.Force
     end_effector_poses: dict[SE3]  # Dictionary of pinocchio.SE3
 

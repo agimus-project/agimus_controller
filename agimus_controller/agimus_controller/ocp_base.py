@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import List
+
 import numpy as np
+import numpy.typing as npt
 
 from agimus_controller.mpc_data import OCPResults, OCPDebugData
 from agimus_controller.trajectory import WeightedTrajectoryPoint
@@ -27,7 +30,9 @@ class OCPBase(ABC):
 
     @abstractmethod
     def solve(
-        self, x0: np.ndarray, x_init: list[np.ndarray], u_init: list[np.ndarray]
+        self,
+        x_init: List[npt.NDArray[np.float64]],
+        u_init: List[npt.NDArray[np.float64]],
     ) -> None:
         ...
 
