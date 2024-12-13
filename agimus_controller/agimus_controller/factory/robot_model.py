@@ -1,9 +1,11 @@
-from copy import deepcopy
 from dataclasses import dataclass
-import numpy as np
+from copy import deepcopy
 from pathlib import Path
-import pinocchio as pin
 from typing import Union
+
+import numpy as np
+import numpy.typing as npt
+import pinocchio as pin
 
 
 @dataclass
@@ -15,6 +17,7 @@ class RobotModelParameters:
     srdf = Path() | str
     collision_as_capsule = False
     self_collision = False
+    armature = npt.NDArray[np.float64]
 
 
 class RobotModelFactory:
@@ -94,3 +97,12 @@ class RobotModelFactory:
     def print_model(self):
         print("full model =\n", self._complete_model)
         print("reduced model =\n", self._rmodel)
+
+    @property
+    def armature(self) -> npt.NDArray[np.float64]:
+        """Armature of the robot.
+
+        Returns:
+            npt.NDArray[np.float64]: Armature of the robot.
+        """
+        return self._params.armature
