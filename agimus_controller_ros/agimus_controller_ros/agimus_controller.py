@@ -23,7 +23,6 @@ from agimus_controller_ros.sim_utils import (
     convert_float_to_ros_duration_msg,
     mpc_msg_to_weighted_traj_point,
 )
-from agimus_controller.utils.pin_utils import get_ee_pose_from_configuration
 from agimus_controller.mpc import MPC
 from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
 
