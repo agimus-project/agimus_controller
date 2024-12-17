@@ -101,6 +101,11 @@ class OCPCrocoHPP:
         self.a_plan = a_plan
         self.u_plan = self.get_u_plan(x_plan, a_plan)
 
+    def set_weights_variables(self, weight_q, weight_qdot, weight_pose):
+        self._weight_q = weight_q
+        self._weight_qdot = weight_qdot
+        self._weight_pose = weight_pose
+
     def set_models(self):
         """Set running models and terminal model for the ocp.
 
@@ -131,13 +136,22 @@ class OCPCrocoHPP:
         for idx in range(self.params.horizon_size - 1):
             running_cost_model = crocoddyl.CostModelSum(self.state)
             x_ref = self.x_plan[idx, :]
-            x_reg_cost = self.get_state_residual(x_ref)
+            x_weights = np.concatenate(
+                [
+                    self._weight_q[idx, :],
+                    self._weight_qdot[idx, :],
+                ]
+            )
+            x_reg_cost = self.get_state_residual(x_ref, x_weights)
             u_reg_cost = self.get_control_residual(self.u_plan[idx, :])
             vel_reg_cost = self.get_velocity_residual()
             placement_ref = get_ee_pose_from_configuration(
                 self._rmodel, self._rdata, self._effector_frame_id, x_ref[: self.nq]
             )
-            placement_reg_cost = self.get_placement_residual(placement_ref)
+            placement_weights = self._weight_pose[idx, :]
+            placement_reg_cost = self.get_placement_residual(
+                placement_ref, placement_weights
+            )
             running_cost_model.addCost("xReg", x_reg_cost, self._weight_x_reg)
             running_cost_model.addCost("uReg", u_reg_cost, self._weight_u_reg)
             running_cost_model.addCost("velReg", vel_reg_cost, self._weight_vel_reg)
@@ -264,14 +278,23 @@ class OCPCrocoHPP:
         )
         return constraint
 
-    def get_placement_residual(self, placement_ref):
+    def get_placement_residual(self, placement_ref, placement_weights=None):
         """Return placement residual with desired reference for end effector placement."""
-        return crocoddyl.CostModelResidual(
-            self.state,
-            crocoddyl.ResidualModelFramePlacement(
-                self.state, self._effector_frame_id, placement_ref
-            ),
-        )
+        if placement_weights is None:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ResidualModelFramePlacement(
+                    self.state, self._effector_frame_id, placement_ref
+                ),
+            )
+        else:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ActivationModelWeightedQuad(placement_weights),
+                crocoddyl.ResidualModelFramePlacement(
+                    self.state, self._effector_frame_id, placement_ref
+                ),
+            )
 
     def get_velocity_residual(self):
         """Return velocity residual of desired joint."""
@@ -292,12 +315,19 @@ class OCPCrocoHPP:
             self.state, crocoddyl.ResidualModelControl(self.state, uref)
         )
 
-    def get_state_residual(self, xref):
+    def get_state_residual(self, xref, x_reg_weights=None):
         """Return state residual with xref the state reference."""
-        return crocoddyl.CostModelResidual(
-            self.state,  # x_reg_weights,
-            crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
-        )
+        if x_reg_weights is None:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
+            )
+        else:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ActivationModelWeightedQuad(x_reg_weights),
+                crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
+            )
 
     def get_xlimit_residual(self):
         """Return state limit residual."""

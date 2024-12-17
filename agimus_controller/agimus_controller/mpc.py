@@ -1,6 +1,9 @@
 from __future__ import annotations
 import numpy as np
+import numpy.typing as npt
+
 from agimus_controller.utils.pin_utils import get_ee_pose_from_configuration
+from agimus_controller.trajectory import WeightedTrajectoryPoint
 
 
 class MPC:
@@ -123,17 +126,35 @@ class MPC:
         x = self.get_next_state(x0, self.ocp.solver.problem)
         return x, self.ocp.solver.us[0]
 
-    def mpc_step(self, x0, new_x_ref, new_a_ref, placement_ref):
+    def mpc_step(
+        self,
+        x0: npt.NDArray[np.float64],
+        new_point: WeightedTrajectoryPoint,
+        end_effector_name: str,
+    ) -> None:
         """Reset ocp, run solver and get new state."""
-        u_ref_terminal_node = self.ocp.get_inverse_dynamic_control(new_x_ref, new_a_ref)
-        self.ocp.reset_ocp(x0, new_x_ref, u_ref_terminal_node[: self.nq], placement_ref)
+        new_x_ref = np.concatenate(
+            [
+                new_point.point.robot_configuration,
+                new_point.point.robot_velocity,
+            ]
+        )
+
+        u_ref_terminal_node = self.ocp.get_inverse_dynamic_control(
+            new_x_ref, np.array(new_point.point.robot_acceleration)
+        )
+        self.ocp.reset_ocp(
+            x0,
+            new_x_ref,
+            u_ref_terminal_node[: self.nq],
+            new_point.point.end_effector_poses[end_effector_name],
+        )
         xs_init = list(self.ocp.solver.xs[1:]) + [self.ocp.solver.xs[-1]]
         xs_init[0] = x0
         us_init = list(self.ocp.solver.us[1:]) + [self.ocp.solver.us[-1]]
         self.ocp.solver.problem.x0 = x0
         self.ocp.run_solver(self.ocp.solver.problem, xs_init, us_init)
         x0 = self.get_next_state(x0, self.ocp.solver.problem)
-        return x0, self.ocp.solver.us[0]
 
     def create_mpc_data(self):
         xs, us = self.get_predictions()
