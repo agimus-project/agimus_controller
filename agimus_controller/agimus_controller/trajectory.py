@@ -1,6 +1,7 @@
 from collections import deque
 from dataclasses import dataclass
 import numpy as np
+import numpy.typing as npt
 from pinocchio import SE3, Force
 
 
@@ -8,25 +9,25 @@ from pinocchio import SE3, Force
 class TrajectoryPoint:
     """Trajectory point aiming at being a reference for the MPC."""
 
-    time_ns: int
-    robot_configuration: np.ndarray
-    robot_velocity: np.ndarray
-    robot_acceleration: np.ndarray
-    robot_effort: np.ndarray
-    forces: dict[Force]  # Dictionary of pinocchio.Force
-    end_effector_poses: dict[SE3]  # Dictionary of pinocchio.SE3
+    time_ns: int | None = None
+    robot_configuration: npt.NDArray[np.float64] | None = None
+    robot_velocity: npt.NDArray[np.float64] | None = None
+    robot_acceleration: npt.NDArray[np.float64] | None = None
+    robot_effort: npt.NDArray[np.float64] | None = None
+    forces: dict[Force] | None = None  # Dictionary of pinocchio.Force
+    end_effector_poses: dict[SE3] | None = None  # Dictionary of pinocchio.SE3
 
 
 @dataclass
 class TrajectoryPointWeights:
     """Trajectory point weights aiming at being set in the MPC costs."""
 
-    w_robot_configuration: np.ndarray
-    w_robot_velocity: np.ndarray
-    w_robot_acceleration: np.ndarray
-    w_robot_effort: np.ndarray
-    w_forces: dict[np.ndarray]
-    w_end_effector_poses: dict[np.ndarray]
+    w_robot_configuration: npt.NDArray[np.float64] | None = None
+    w_robot_velocity: npt.NDArray[np.float64] | None = None
+    w_robot_acceleration: npt.NDArray[np.float64] | None = None
+    w_robot_effort: npt.NDArray[np.float64] | None = None
+    w_forces: dict[npt.NDArray[np.float64]] | None = None
+    w_end_effector_poses: dict[npt.NDArray[np.float64]] | None = None
 
 
 @dataclass
