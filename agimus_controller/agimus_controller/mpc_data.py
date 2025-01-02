@@ -16,14 +16,13 @@ class OCPResults:
 
 @dataclass
 class OCPDebugData:
-    # Solver infos
-    problem_solved: bool = False
-
     # Debug data
     result: list[TrajectoryPoint]
     references: list[TrajectoryPoint]
     kkt_norms: list[np.float64]
     collision_distance_residuals: list[dict[np.float64]]
+    # Solver infos
+    problem_solved: bool = False
 
 
 @dataclass

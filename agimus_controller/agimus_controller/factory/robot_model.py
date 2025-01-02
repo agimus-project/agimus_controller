@@ -1,20 +1,25 @@
+from dataclasses import dataclass, field
 from copy import deepcopy
-from dataclasses import dataclass
-import numpy as np
 from pathlib import Path
-import pinocchio as pin
 from typing import Union
+
+import numpy as np
+import numpy.typing as npt
+import pinocchio as pin
 
 
 @dataclass
 class RobotModelParameters:
-    q0_name = str()
-    free_flyer = False
-    locked_joint_names = []
-    urdf = Path() | str
-    srdf = Path() | str
-    collision_as_capsule = False
-    self_collision = False
+    q0_name: str = ""
+    free_flyer: bool = False
+    locked_joint_names: list[str] = field(default_factory=list)  # Default empty list
+    urdf: Path | str = ""
+    srdf: Path | str = ""
+    collision_as_capsule: bool = False
+    self_collision: bool = False
+    armature: npt.NDArray[np.float64] = field(
+        default_factory=lambda: np.array([])
+    )  # Default empty NumPy array
 
 
 class RobotModelFactory:
@@ -94,3 +99,12 @@ class RobotModelFactory:
     def print_model(self):
         print("full model =\n", self._complete_model)
         print("reduced model =\n", self._rmodel)
+
+    @property
+    def armature(self) -> npt.NDArray[np.float64]:
+        """Armature of the robot.
+
+        Returns:
+            npt.NDArray[np.float64]: Armature of the robot.
+        """
+        return self._params.armature
