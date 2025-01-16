@@ -53,7 +53,7 @@ class APP(object):
         self.mpc = MPC(ocp, x_plan, a_plan, rmodel, cmodel)
 
         start = time.time()
-        self.mpc.simulate_mpc(save_predictions=False)
+        self.mpc.simulate_mpc(save_predictions=True)
         end = time.time()
         print("Time of solving: ", end - start)
         costs = return_cost_vectors(self.mpc.ocp.solver, weighted=True)
