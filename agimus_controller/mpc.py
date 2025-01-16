@@ -83,7 +83,7 @@ class MPC:
         next_node_idx = T
         if save_predictions:
             self.create_mpc_data(step_time=mpc_step_time)
-        for idx in range(1,self.whole_traj_T - 1): #self.whole_traj_T - 1
+        for idx in range(1, self.whole_traj_T - 1):  # self.whole_traj_T - 1
             x_plan = self.update_planning(x_plan, self.whole_x_plan[next_node_idx, :])
             a_plan = self.update_planning(a_plan, self.whole_a_plan[next_node_idx, :])
             placement_ref = get_ee_pose_from_configuration(
@@ -151,7 +151,7 @@ class MPC:
         self.mpc_data["kkt_norm"] = [self.ocp.solver.KKT]
         self.mpc_data["nb_iter"] = [self.ocp.solver.iter]
         self.mpc_data["nb_qp_iter"] = [self.ocp.solver.qp_iters]
-        
+
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             self.mpc_data["coll_residuals"] = collision_residuals
@@ -172,9 +172,9 @@ class MPC:
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][
-                    coll_residual_key
-                ] += collision_residuals[coll_residual_key]
+                self.mpc_data["coll_residuals"][coll_residual_key] += (
+                    collision_residuals[coll_residual_key]
+                )
         if step_time is not None:
             self.mpc_data["step_time"].append(step_time)
 
@@ -204,7 +204,7 @@ class MPC:
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][
-                    coll_residual_key
-                ] += collision_residuals[coll_residual_key]
+                self.mpc_data["coll_residuals"][coll_residual_key] += (
+                    collision_residuals[coll_residual_key]
+                )
         np.save("ocp_data.npy", ocp_data)

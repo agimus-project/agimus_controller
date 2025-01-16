@@ -88,11 +88,9 @@ def return_cost_vectors(ddp, weighted=False, integrated=False):
                 cost_tag
             ].cost
             if weighted:
-                costs[cost_tag][
-                    -1
-                ] *= ddp.problem.terminalModel.differential.costs.costs.todict()[
-                    cost_tag
-                ].weight
+                costs[cost_tag][-1] *= (
+                    ddp.problem.terminalModel.differential.costs.costs.todict()[cost_tag].weight
+                )
         except Exception as ex:
             print(ex.with_traceback())
             costs[cost_tag][-1] = np.mean(
@@ -160,9 +158,9 @@ def return_weights(ddp):
     ):
         if cost_tag not in weights:
             weights.update({cost_tag: np.nan * np.ones(ddp.problem.T + 1)})
-        weights[cost_tag][
-            -1
-        ] = ddp.problem.terminalModel.differential.costs.costs.todict()[cost_tag].weight
+        weights[cost_tag][-1] = (
+            ddp.problem.terminalModel.differential.costs.costs.todict()[cost_tag].weight
+        )
 
     return weights
 

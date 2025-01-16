@@ -129,18 +129,21 @@ class OCPCrocoHPP:
 
         running_models = []
         placement_ref = get_ee_pose_from_configuration(
-                self._rmodel, self._rdata, self._effector_frame_id, self.x_plan[-1,: self.nq]
-            )
+            self._rmodel,
+            self._rdata,
+            self._effector_frame_id,
+            self.x_plan[-1, : self.nq],
+        )
         for idx in range(self.params.horizon_size - 1):
             running_cost_model = crocoddyl.CostModelSum(self.state)
             x_ref = self.x_plan[idx, :]
-            activation_weights_x = np.array([1.0]*7+[0.1]*7)
-            x_reg_cost = self.get_state_residual(x_ref,activation_weights_x)
+            activation_weights_x = np.array([1.0] * 7 + [0.1] * 7)
+            x_reg_cost = self.get_state_residual(x_ref, activation_weights_x)
             u_reg_cost = self.get_control_residual(self.u_plan[idx, :])
             vel_reg_cost = self.get_velocity_residual()
-            #placement_ref = get_ee_pose_from_configuration(
+            # placement_ref = get_ee_pose_from_configuration(
             #    self._rmodel, self._rdata, self._effector_frame_id, x_ref[: self.nq]
-            #)
+            # )
             placement_reg_cost = self.get_placement_residual(placement_ref)
             running_cost_model.addCost("xReg", x_reg_cost, self._weight_x_reg)
             running_cost_model.addCost("uReg", u_reg_cost, self._weight_u_reg)
@@ -225,17 +228,19 @@ class OCPCrocoHPP:
         """Return terminal model with constraints for mim_solvers."""
         terminal_cost_model = crocoddyl.CostModelSum(self.state)
         placement_reg_cost = self.get_placement_residual(placement_ref)
-        activation_weights_x = np.array([1.0]*7+[0.1]*7)
-        x_reg_cost = self.get_state_residual(x_ref,activation_weights_x)
+        activation_weights_x = np.array([1.0] * 7 + [0.1] * 7)
+        x_reg_cost = self.get_state_residual(x_ref, activation_weights_x)
         u_reg_cost = self.get_control_residual(u_ref)
         vel_cost = self.get_velocity_residual()
         terminal_cost_model.addCost("xReg", x_reg_cost, 0)
-        #if np.linalg.norm(x_ref[self.nq :]) < 1e-9:
+        # if np.linalg.norm(x_ref[self.nq :]) < 1e-9:
         #    terminal_cost_model.addCost("velReg", vel_cost, self._weight_ee_placement)
-        #else:
+        # else:
         terminal_cost_model.addCost("velReg", vel_cost, 0)
         terminal_cost_model.addCost(
-            "gripperPose", placement_reg_cost, 0# self._weight_ee_placement
+            "gripperPose",
+            placement_reg_cost,
+            0,  # self._weight_ee_placement
         )
         terminal_cost_model.addCost("uReg", u_reg_cost, 0)
 
@@ -376,9 +381,11 @@ class OCPCrocoHPP:
 
     def update_cost(self, model, new_model, cost_name, update_weight=True):
         """Update model's cost reference and weight by copying new_model's cost."""
-        model.differential.costs.costs[cost_name].cost.residual.reference = (
-            new_model.differential.costs.costs[cost_name].cost.residual.reference.copy()
-        )
+        model.differential.costs.costs[
+            cost_name
+        ].cost.residual.reference = new_model.differential.costs.costs[
+            cost_name
+        ].cost.residual.reference.copy()
         if update_weight:
             new_weight = new_model.differential.costs.costs[cost_name].weight
             model.differential.costs.costs[cost_name].weight = new_weight
@@ -413,7 +420,9 @@ class OCPCrocoHPP:
             self.update_model(
                 runningModels[node_idx], runningModels[node_idx + 1], True
             )
-            self.update_cost(runningModels[node_idx], runningModels[-1], "gripperPose", False)
+            self.update_cost(
+                runningModels[node_idx], runningModels[-1], "gripperPose", False
+            )
         self.update_model(runningModels[-1], self.solver.problem.terminalModel, False)
         if self.params.use_constraints:
             terminal_model = self.get_terminal_model_with_constraints(
@@ -456,7 +465,7 @@ class OCPCrocoHPP:
             solver.use_filter_line_search = True
             solver.termination_tolerance = 1e-4
             solver.max_qp_iters = self.params.max_qp_iter
-            #solver.setCallbacks([mim_solvers.CallbackVerbose(), mim_solvers.CallbackLogger()])
+            # solver.setCallbacks([mim_solvers.CallbackVerbose(), mim_solvers.CallbackLogger()])
             solver.with_callbacks = self.params.activate_callback
         else:
             solver = crocoddyl.SolverFDDP(problem)

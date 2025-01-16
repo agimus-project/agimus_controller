@@ -13,9 +13,7 @@ from agimus_controller.ocps.parameters import OCPParameters
 from agimus_controller.main.servers import Servers
 from agimus_controller.utils.ocp_analyzer import (
     return_cost_vectors,
-    return_constraint_vector,
     plot_costs_from_dic,
-    plot_constraints_from_dic,
 )
 
 
@@ -47,9 +45,9 @@ class APP(object):
         self.mpc.simulate_mpc(save_predictions=True)
         solver = self.mpc.ocp.solver
         costs = return_cost_vectors(solver, weighted=True)
-        #constraint = return_constraint_vector(solver)
+        # constraint = return_constraint_vector(solver)
         plot_costs_from_dic(costs)
-        #plot_constraints_from_dic(constraint)
+        # plot_constraints_from_dic(constraint)
         max_kkt = max(self.mpc.mpc_data["kkt_norm"])
         mean_kkt = np.mean(self.mpc.mpc_data["kkt_norm"])
         mean_iter = np.mean(self.mpc.mpc_data["nb_iter"])

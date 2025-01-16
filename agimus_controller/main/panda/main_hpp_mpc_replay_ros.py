@@ -47,11 +47,15 @@ class APP(object):
         q_init, q_goal = self.hpp_interface.get_panda_q_init_q_goal()
         self.hpp_interface.set_panda_planning(q_init, q_goal, use_gepetto_gui=use_gui)
         viewer = self.hpp_interface.get_viewer()
-        #x_plan, a_plan, _ = hpp_interface.get_hpp_x_a_planning(1e-2)
-        hpp_traj_dict = np.load("/home/gepetto/ros_ws/src/agimus_controller/agimus_controller/main/panda/" + "hpp_trajectory.npy",allow_pickle=True).item()
+        # x_plan, a_plan, _ = hpp_interface.get_hpp_x_a_planning(1e-2)
+        hpp_traj_dict = np.load(
+            "/home/gepetto/ros_ws/src/agimus_controller/agimus_controller/main/panda/"
+            + "hpp_trajectory.npy",
+            allow_pickle=True,
+        ).item()
         poses = hpp_traj_dict["poses"]
         vels = hpp_traj_dict["vels"]
-        self.x_plan = np.concatenate([poses,vels],axis=1)
+        self.x_plan = np.concatenate([poses, vels], axis=1)
         self.a_plan = hpp_traj_dict["accs"]
 
         ocp = OCPCrocoHPP(rmodel, cmodel, ocp_params)

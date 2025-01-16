@@ -112,7 +112,9 @@ class OCPPoseRef:
             / self.params.increasing_weights["time_reach_percent"]
         )
 
-    def get_model(self, x_ref, u_ref, des_pose,add_constraints = True, null_weights=False):
+    def get_model(
+        self, x_ref, u_ref, des_pose, add_constraints=True, null_weights=False
+    ):
         running_cost_model = crocoddyl.CostModelSum(self.state)
         u_reg_cost = self.get_control_residual(u_ref)
         ugrav_reg_cost = self.get_control_grav_residual()
@@ -123,9 +125,7 @@ class OCPPoseRef:
         if null_weights:
             running_cost_model.addCost("uReg", u_reg_cost, 0)
             running_cost_model.addCost("ugravReg", ugrav_reg_cost, self._weight_u_reg)
-            running_cost_model.addCost(
-                "gripperPose", placement_reg_cost, 0
-            )
+            running_cost_model.addCost("gripperPose", placement_reg_cost, 0)
             running_cost_model.addCost("velReg", vel_reg_cost, 0)
             running_cost_model.addCost("xReg", x_reg_cost, 0)
         else:
@@ -148,7 +148,6 @@ class OCPPoseRef:
             )
         running_DAM.armature = self.params.armature
         return crocoddyl.IntegratedActionModelEuler(running_DAM, self.params.dt)
-    
 
     def get_terminal_model(self, x_ref, u_ref, des_pose):
         cost_model = crocoddyl.CostModelSum(self.state)
@@ -281,10 +280,8 @@ class OCPPoseRef:
         self.solver.problem.x0 = x0
         u_grav = self.get_grav_compensation(x0[: self.nq])
         runningModels = list(self.solver.problem.runningModels)
-        self.update_model(
-            runningModels[0], runningModels[ 1], False
-        )
-        for node_idx in range(1,len(runningModels) - 1):
+        self.update_model(runningModels[0], runningModels[1], False)
+        for node_idx in range(1, len(runningModels) - 1):
             self.update_model(
                 runningModels[node_idx], runningModels[node_idx + 1], True
             )
@@ -317,10 +314,22 @@ class OCPPoseRef:
             )
             self.set_weight_ee_placement(weight)
             self.set_vel_weight(weight / 10)
-            if idx ==0:
-                models.append(self.get_model(self.x_goal, u_grav, self.des_pose,add_constraints=False,null_weights=False))
+            if idx == 0:
+                models.append(
+                    self.get_model(
+                        self.x_goal,
+                        u_grav,
+                        self.des_pose,
+                        add_constraints=False,
+                        null_weights=False,
+                    )
+                )
             else:
-                models.append(self.get_model(self.x_goal, u_grav, self.des_pose,add_constraints=True))
+                models.append(
+                    self.get_model(
+                        self.x_goal, u_grav, self.des_pose, add_constraints=True
+                    )
+                )
         terminal_model = self.get_terminal_model(x0, u_grav, self.des_pose)
         self.next_node_time = self.params.horizon_size * self.params.dt - 0.2
 
@@ -346,5 +355,5 @@ class OCPPoseRef:
             solver.solve(xs_init, us_init, self.params.max_iter)
             self.solver = solver
         else:
-            #self.solver.problem = problem
+            # self.solver.problem = problem
             self.solver.solve(xs_init, us_init, self.params.max_iter)
