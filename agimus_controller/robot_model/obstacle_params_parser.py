@@ -195,6 +195,7 @@ class ObstacleParamsParser:
     def modify_colllision_model(self, rcmodel: pin.GeometryModel):
         geoms_to_remove_name = [
             "panda_rightfinger_0",
+            'panda_link7_sc_capsule_1',
             "panda_link6_sc_capsule_0",
             "panda_link5_sc_capsule_0",
             "panda_link4_sc_capsule_0",
