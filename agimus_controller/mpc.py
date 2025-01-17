@@ -55,7 +55,7 @@ class MPC:
 
     def get_collision_residuals(self):
         constraints_residual_dict = self.ocp.solver.problem.runningDatas[
-            0
+            1
         ].differential.constraints.constraints.todict()
         constraints_values = {}
         for constraint_key in constraints_residual_dict.keys():
@@ -172,9 +172,9 @@ class MPC:
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][coll_residual_key] += (
-                    collision_residuals[coll_residual_key]
-                )
+                self.mpc_data["coll_residuals"][
+                    coll_residual_key
+                ] += collision_residuals[coll_residual_key]
         if step_time is not None:
             self.mpc_data["step_time"].append(step_time)
 
@@ -204,7 +204,7 @@ class MPC:
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
-                self.mpc_data["coll_residuals"][coll_residual_key] += (
-                    collision_residuals[coll_residual_key]
-                )
+                self.mpc_data["coll_residuals"][
+                    coll_residual_key
+                ] += collision_residuals[coll_residual_key]
         np.save("ocp_data.npy", ocp_data)

@@ -75,9 +75,9 @@ class APP(object):
         print(f"mean kkt {mean_kkt} mean iter {mean_iter}")
         print(f"mean solve time {mean_solve_time}")
         costs = return_cost_vectors(self.mpc.ocp.solver, weighted=True)
-        constraint = return_constraint_vector(self.mpc.ocp.solver)
+        # constraint = return_constraint_vector(self.mpc.ocp.solver)
         plot_costs_from_dic(costs)
-        plot_constraints_from_dic(constraint)
+        # plot_constraints_from_dic(constraint)
         u_plan = self.mpc.ocp.get_u_plan(self.x_plan, self.a_plan)
         self.mpc_plots = MPCPlots(
             croco_xs=self.mpc.croco_xs,
