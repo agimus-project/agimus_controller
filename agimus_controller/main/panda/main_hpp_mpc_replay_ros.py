@@ -14,9 +14,7 @@ from agimus_controller.main.servers import Servers
 
 from agimus_controller.utils.ocp_analyzer import (
     return_cost_vectors,
-    return_constraint_vector,
     plot_costs_from_dic,
-    plot_constraints_from_dic,
 )
 
 
