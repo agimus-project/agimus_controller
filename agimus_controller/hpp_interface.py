@@ -246,10 +246,12 @@ class HppInterface:
             print("#" * 20)
             print(f"Number of rounds: {args.N}")
             print(f"Number of successes: {success}")
-            print(f"Success rate: {success/ args.N * 100}%")
+            print(f"Success rate: {success / args.N * 100}%")
             if success > 0:
-                print(f"Average time per success: {totalTime.total_seconds()/success}")
-                print(f"Average number nodes per success: {totalNumberNodes/success}")
+                print(
+                    f"Average time per success: {totalTime.total_seconds() / success}"
+                )
+                print(f"Average number nodes per success: {totalNumberNodes / success}")
         self.ps = ps
         self.problem = ps.client.basic.problem
         self.viewer = vf.createViewer()
