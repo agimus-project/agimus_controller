@@ -2,7 +2,7 @@ ci:
   autoupdate_branch: main
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.7.0
+  rev: v0.9.2
   hooks:
   - id: ruff
     args:
@@ -16,7 +16,7 @@ repos:
   hooks:
   - id: cmake-format
 - repo: https://github.com/pre-commit/mirrors-clang-format
-  rev: v19.1.2
+  rev: v19.1.7
   hooks:
   - id: clang-format
     args:
