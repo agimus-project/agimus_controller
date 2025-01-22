@@ -89,7 +89,9 @@ def return_cost_vectors(ddp, weighted=False, integrated=False):
             ].cost
             if weighted:
                 costs[cost_tag][-1] *= (
-                    ddp.problem.terminalModel.differential.costs.costs.todict()[cost_tag].weight
+                    ddp.problem.terminalModel.differential.costs.costs.todict()[
+                        cost_tag
+                    ].weight
                 )
         except Exception as ex:
             print(ex.with_traceback())

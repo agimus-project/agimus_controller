@@ -75,7 +75,7 @@ class APP(object):
             if not first_step_done:
                 buffer_size = traj_buffer.get_size(point_attributes)
                 if buffer_size < 2 * T:
-                    print(f"buffer size is {buffer_size}, waiting for {2*T} points.")
+                    print(f"buffer size is {buffer_size}, waiting for {2 * T} points.")
                 else:
                     horizon_points = traj_buffer.get_points(T, point_attributes)
                     x_plan = np.zeros([T, mpc.nx])
