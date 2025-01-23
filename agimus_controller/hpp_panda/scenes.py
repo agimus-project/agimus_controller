@@ -150,21 +150,13 @@ class Scene:
         """
         if self._name_scene == "box" or "wall":
             self.shapes_avoiding_collision = [
-                "panda_link7_sc_capsule_0",
-                "panda_link7_sc_capsule_1",
-                "panda_link6_sc_capsule_0",
-                "panda_link5_sc_capsule_1",
-                "panda_link5_sc_capsule_0",
-                "panda_rightfinger_0",
-                "panda_leftfinger_0",
+                # "panda_link5_sc_capsule_0",
+                # "panda_leftfinger_0",
             ]
         elif self._name_scene == "ball":
             self.shapes_avoiding_collision = [
-                "panda_leftfinger_0",
-                "panda_rightfinger_0",
-                "panda_link6_sc_capsule_0",
-                "panda_link5_sc_capsule_0",
-                "panda_link5_sc_capsule_1",
+                # "panda_link5_sc_capsule_0",
+                # "panda_leftfinger_0",
             ]
         else:
             raise NotImplementedError(

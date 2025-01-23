@@ -1,5 +1,6 @@
 from __future__ import annotations
 import numpy as np
+import time
 from agimus_controller.utils.pin_utils import get_ee_pose_from_configuration
 
 
@@ -54,7 +55,7 @@ class MPC:
 
     def get_collision_residuals(self):
         constraints_residual_dict = self.ocp.solver.problem.runningDatas[
-            0
+            1
         ].differential.constraints.constraints.todict()
         constraints_values = {}
         for constraint_key in constraints_residual_dict.keys():
@@ -74,13 +75,15 @@ class MPC:
         x_plan = self.whole_x_plan[:T, :]
         a_plan = self.whole_a_plan[:T, :]
         self.ocp.set_planning_variables(x_plan, a_plan)
+        start_mpc_step_time = time.time()
         x, u0 = self.mpc_first_step(x_plan, self.ocp.u_plan[: T - 1], x0)
+        mpc_step_time = time.time() - start_mpc_step_time
         mpc_xs[1, :] = x
         mpc_us[0, :] = u0
         next_node_idx = T
         if save_predictions:
-            self.create_mpc_data()
-        for idx in range(1, self.whole_traj_T - 1):
+            self.create_mpc_data(step_time=mpc_step_time)
+        for idx in range(1, self.whole_traj_T - 1):  # self.whole_traj_T - 1
             x_plan = self.update_planning(x_plan, self.whole_x_plan[next_node_idx, :])
             a_plan = self.update_planning(a_plan, self.whole_a_plan[next_node_idx, :])
             placement_ref = get_ee_pose_from_configuration(
@@ -89,13 +92,15 @@ class MPC:
                 self.ocp._effector_frame_id,
                 x_plan[-1, : self.nq],
             )
+            start_mpc_step_time = time.time()
             x, u = self.mpc_step(x, x_plan[-1], a_plan[-1], placement_ref)
+            mpc_step_time = time.time() - start_mpc_step_time
             if next_node_idx < self.whole_x_plan.shape[0] - 1:
                 next_node_idx += 1
             mpc_xs[idx + 1, :] = x
             mpc_us[idx, :] = u
             if save_predictions:
-                self.fill_predictions_and_refs_arrays()
+                self.fill_predictions_and_refs_arrays(step_time=mpc_step_time)
         self.croco_xs = mpc_xs
         self.croco_us = mpc_us
         if save_predictions:
@@ -135,7 +140,7 @@ class MPC:
         x0 = self.get_next_state(x0, self.ocp.solver.problem)
         return x0, self.ocp.solver.us[0]
 
-    def create_mpc_data(self):
+    def create_mpc_data(self, step_time=None):
         xs, us = self.get_predictions()
         x_ref, p_ref, u_ref = self.get_reference()
         self.mpc_data["preds_xs"] = [xs]
@@ -145,11 +150,15 @@ class MPC:
         self.mpc_data["control_refs"] = [u_ref]
         self.mpc_data["kkt_norm"] = [self.ocp.solver.KKT]
         self.mpc_data["nb_iter"] = [self.ocp.solver.iter]
+        self.mpc_data["nb_qp_iter"] = [self.ocp.solver.qp_iters]
+
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             self.mpc_data["coll_residuals"] = collision_residuals
+        if step_time is not None:
+            self.mpc_data["step_time"] = [step_time]
 
-    def fill_predictions_and_refs_arrays(self):
+    def fill_predictions_and_refs_arrays(self, step_time=None):
         xs, us = self.get_predictions()
         x_ref, p_ref, u_ref = self.get_reference()
         self.mpc_data["preds_xs"].append(xs)
@@ -159,12 +168,15 @@ class MPC:
         self.mpc_data["control_refs"].append(u_ref)
         self.mpc_data["kkt_norm"].append(self.ocp.solver.KKT)
         self.mpc_data["nb_iter"].append(self.ocp.solver.iter)
+        self.mpc_data["nb_qp_iter"].append(self.ocp.solver.qp_iters)
         if self.ocp.params.use_constraints:
             collision_residuals = self.get_collision_residuals()
             for coll_residual_key in collision_residuals.keys():
                 self.mpc_data["coll_residuals"][coll_residual_key] += (
                     collision_residuals[coll_residual_key]
                 )
+        if step_time is not None:
+            self.mpc_data["step_time"].append(step_time)
 
     def get_ee_pred_from_xs_pred(self, xs):
         pred_ee = np.zeros((xs.shape[0], 3))

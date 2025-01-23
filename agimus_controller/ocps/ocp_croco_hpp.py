@@ -30,11 +30,13 @@ class OCPCrocoHPP:
         self._weight_u_reg = self.params.control_weight
         self._weight_ee_placement = self.params.gripper_weight
         self._weight_vel_reg = 0
-        self._collision_margin = 1e-1
+        self._collision_margin = 2e-2
+        self.ratio_q_to_qdot_weight = 0.04
         self.state = crocoddyl.StateMultibody(self._rmodel)
         self.actuation = crocoddyl.ActuationModelFull(self.state)
         self.nq = self._rmodel.nq  # Number of joints of the robot
         self.nv = self._rmodel.nv  # Dimension of the joint's speed vector of the robot
+        self.modulo_nb_active_cons = 1
         self.x_plan = None
         self.a_plan = None
         self.u_plan = None
@@ -128,25 +130,39 @@ class OCPCrocoHPP:
         """Set running models based on state and acceleration reference trajectory."""
 
         running_models = []
+        placement_ref = get_ee_pose_from_configuration(
+            self._rmodel,
+            self._rdata,
+            self._effector_frame_id,
+            self.x_plan[-1, : self.nq],
+        )
         for idx in range(self.params.horizon_size - 1):
             running_cost_model = crocoddyl.CostModelSum(self.state)
             x_ref = self.x_plan[idx, :]
-            x_reg_cost = self.get_state_residual(x_ref)
+            joint_ratio = 1.0
+            activation_weights_x = np.array(
+                [1.0] * 4
+                + [joint_ratio] * 3
+                + [self.ratio_q_to_qdot_weight] * 4
+                + [self.ratio_q_to_qdot_weight * joint_ratio] * 3
+            )
+            x_reg_cost = self.get_state_residual(x_ref, activation_weights_x)
             u_reg_cost = self.get_control_residual(self.u_plan[idx, :])
             vel_reg_cost = self.get_velocity_residual()
-            placement_ref = get_ee_pose_from_configuration(
-                self._rmodel, self._rdata, self._effector_frame_id, x_ref[: self.nq]
-            )
+            # placement_ref = get_ee_pose_from_configuration(
+            #    self._rmodel, self._rdata, self._effector_frame_id, x_ref[: self.nq]
+            # )
             placement_reg_cost = self.get_placement_residual(placement_ref)
             running_cost_model.addCost("xReg", x_reg_cost, self._weight_x_reg)
             running_cost_model.addCost("uReg", u_reg_cost, self._weight_u_reg)
             running_cost_model.addCost("velReg", vel_reg_cost, self._weight_vel_reg)
             running_cost_model.addCost(
-                "gripperPose", placement_reg_cost, 0
+                "gripperPose", placement_reg_cost, self._weight_ee_placement
             )  # useful for mpc to reset ocp
 
-            if self.params.use_constraints:
-                constraints = self.get_constraints()
+            if self.params.use_constraints:  # and idx % 3 in [1, 2]
+                # active =  self.modulo_nb_active_cons
+                constraints = self.get_constraints(active=True)
                 running_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
                     self.state, self.actuation, running_cost_model, constraints
                 )
@@ -161,7 +177,7 @@ class OCPCrocoHPP:
         self.running_models = running_models
         return self.running_models
 
-    def get_constraints(self):
+    def get_constraints(self, active=True):
         constraint_model_manager = crocoddyl.ConstraintModelManager(self.state, self.nq)
         if len(self._cmodel.collisionPairs) != 0:
             for col_idx in range(len(self._cmodel.collisionPairs)):
@@ -170,12 +186,16 @@ class OCPCrocoHPP:
                 )
                 # Adding the constraint to the constraint manager
                 constraint_model_manager.addConstraint(
-                    "col_term_" + str(col_idx), collision_constraint
+                    "col_term_" + str(col_idx), collision_constraint, active=active
                 )
         return constraint_model_manager
 
     def set_terminal_model(self, placement_ref):
         """Set terminal model."""
+        # last_model = self.get_new_weight_terminal_model_without_constraints(
+        #    placement_ref, self.x_plan[-1, :], self.u_plan[-1, :]
+        # )
+
         if self.params.use_constraints:
             last_model = self.get_terminal_model_with_constraints(
                 placement_ref, self.x_plan[-1, :], self.u_plan[-1, :]
@@ -217,21 +237,59 @@ class OCPCrocoHPP:
         """Return terminal model with constraints for mim_solvers."""
         terminal_cost_model = crocoddyl.CostModelSum(self.state)
         placement_reg_cost = self.get_placement_residual(placement_ref)
-        x_reg_cost = self.get_state_residual(x_ref)
+        joint_ratio = 1.0
+        activation_weights_x = np.array(
+            [1.0] * 4
+            + [joint_ratio] * 3
+            + [self.ratio_q_to_qdot_weight] * 4
+            + [self.ratio_q_to_qdot_weight * joint_ratio] * 3
+        )
+        x_reg_cost = self.get_state_residual(x_ref, activation_weights_x)
         u_reg_cost = self.get_control_residual(u_ref)
         vel_cost = self.get_velocity_residual()
         terminal_cost_model.addCost("xReg", x_reg_cost, 0)
-        if np.linalg.norm(x_ref[self.nq :]) < 1e-9:
-            terminal_cost_model.addCost("velReg", vel_cost, self._weight_ee_placement)
-        else:
-            terminal_cost_model.addCost("velReg", vel_cost, 0)
+        # if np.linalg.norm(x_ref[self.nq :]) < 1e-9:
+        #    terminal_cost_model.addCost("velReg", vel_cost, self._weight_ee_placement)
+        # else:
+        terminal_cost_model.addCost("velReg", vel_cost, 0)
         terminal_cost_model.addCost(
-            "gripperPose", placement_reg_cost, self._weight_ee_placement
+            "gripperPose",
+            placement_reg_cost,
+            0,  # self._weight_ee_placement
         )
         terminal_cost_model.addCost("uReg", u_reg_cost, 0)
 
         # Add torque constraint
         # Joints torque limits given by the manufactor
+        constraints = self.get_constraints(active=True)
+        terminal_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
+            self.state, self.actuation, terminal_cost_model, constraints
+        )
+        terminal_DAM.armature = self.params.armature
+        return crocoddyl.IntegratedActionModelEuler(terminal_DAM, self.params.dt)
+
+    def get_new_weight_terminal_model_without_constraints(
+        self, placement_ref, x_ref: np.ndarray, u_plan: np.ndarray
+    ):
+        """Return last model without constraints."""
+
+        terminal_cost_model = crocoddyl.CostModelSum(self.state)
+        placement_reg_cost = self.get_placement_residual(placement_ref)
+        terminal_cost_model.addCost("gripperPose", placement_reg_cost, 0)
+        vel_cost = self.get_velocity_residual()
+        if np.linalg.norm(x_ref[self.nq :]) < 1e-9:
+            terminal_cost_model.addCost("velReg", vel_cost, 0)
+        else:
+            terminal_cost_model.addCost("velReg", vel_cost, 0)
+        stateWeightsTerm = np.array([1.0] * self.nq + [0.1] * self.nv) ** 2
+        x_reg_cost = self.get_state_residual(x_ref, x_reg_weights=stateWeightsTerm)
+
+        terminal_cost_model.addCost(
+            "xReg", x_reg_cost, self._weight_x_reg * self.params.dt * 1000
+        )
+
+        u_reg_cost = self.get_control_residual(u_plan)
+        terminal_cost_model.addCost("uReg", u_reg_cost, 0)
         constraints = self.get_constraints()
         terminal_DAM = crocoddyl.DifferentialActionModelFreeFwdDynamics(
             self.state, self.actuation, terminal_cost_model, constraints
@@ -292,12 +350,19 @@ class OCPCrocoHPP:
             self.state, crocoddyl.ResidualModelControl(self.state, uref)
         )
 
-    def get_state_residual(self, xref):
+    def get_state_residual(self, xref, x_reg_weights=None):
         """Return state residual with xref the state reference."""
-        return crocoddyl.CostModelResidual(
-            self.state,  # x_reg_weights,
-            crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
-        )
+        if x_reg_weights is None:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
+            )
+        else:
+            return crocoddyl.CostModelResidual(
+                self.state,
+                crocoddyl.ActivationModelWeightedQuad(x_reg_weights),
+                crocoddyl.ResidualModelState(self.state, xref, self.actuation.nu),
+            )
 
     def get_xlimit_residual(self):
         """Return state limit residual."""
@@ -329,6 +394,19 @@ class OCPCrocoHPP:
         """Return inverse dynamic control for a given state and acceleration."""
         return pin.rnea(self._rmodel, self._rdata, x[: self.nq], x[self.nq :], a).copy()
 
+    def update_constraint(self, model, active):
+        const_names = list(model.differential.constraints.constraints.todict().keys())
+        if active not in [True, False]:
+            print("active not true or false but ", active)
+        for const_name in const_names:
+            print(
+                "initial val ",
+                model.differential.constraints.constraints[const_name].active,
+                "new val",
+                active,
+            )
+            model.differential.constraints.constraints[const_name].active = active
+
     def update_cost(self, model, new_model, cost_name, update_weight=True):
         """Update model's cost reference and weight by copying new_model's cost."""
         model.differential.costs.costs[
@@ -347,15 +425,50 @@ class OCPCrocoHPP:
         self.update_cost(model, new_model, "velReg", update_weight)
         self.update_cost(model, new_model, "uReg", update_weight)
 
+    # def reset_ocp(self, x, x_ref: np.ndarray, u_plan: np.ndarray, placement_ref):
+    #    """Reset ocp problem using next reference in state and control."""
+    #    self.solver.problem.x0 = x
+    #    runningModels = list(self.solver.problem.runningModels)
+    #    for node_idx in range(len(runningModels) - 1):
+    #        self.update_model(
+    #            runningModels[node_idx], runningModels[node_idx + 1], True
+    #        )
+    #    self.update_model(runningModels[-1], self.solver.problem.terminalModel, False)
+    #
+    #    terminal_model = self.get_new_weight_terminal_model_without_constraints(
+    #        placement_ref, x_ref, u_plan
+    #    )
+    #    self.update_model(self.solver.problem.terminalModel, terminal_model, True)
+
     def reset_ocp(self, x, x_ref: np.ndarray, u_plan: np.ndarray, placement_ref):
         """Reset ocp problem using next reference in state and control."""
         self.solver.problem.x0 = x
         runningModels = list(self.solver.problem.runningModels)
+        self.modulo_nb_active_cons += 1
+        if self.modulo_nb_active_cons > 2:
+            self.modulo_nb_active_cons = 0
         for node_idx in range(len(runningModels) - 1):
             self.update_model(
                 runningModels[node_idx], runningModels[node_idx + 1], True
             )
+            self.update_cost(
+                runningModels[node_idx], runningModels[-1], "gripperPose", False
+            )
+            active = node_idx % 3 == self.modulo_nb_active_cons
+            # if node_idx == 1:
+            # print(
+            #    "self.modulo_nb_active_cons",
+            #    self.modulo_nb_active_cons,
+            #    "active ",
+            #    active,
+            # )
+
+            # self.update_constraint(runningModels[node_idx], active=active)
         self.update_model(runningModels[-1], self.solver.problem.terminalModel, False)
+        active = (len(runningModels) - 1) % 3 == self.modulo_nb_active_cons
+        # self.update_constraint(runningModels[-1], active=active)
+
+        # print("modulo ", self.modulo_nb_active_cons)
         if self.params.use_constraints:
             terminal_model = self.get_terminal_model_with_constraints(
                 placement_ref, x_ref, u_plan
@@ -395,8 +508,9 @@ class OCPCrocoHPP:
         if self.params.use_constraints:
             solver = mim_solvers.SolverCSQP(problem)
             solver.use_filter_line_search = True
-            solver.termination_tolerance = 2e-4
+            solver.termination_tolerance = 1e-4
             solver.max_qp_iters = self.params.max_qp_iter
+            # solver.setCallbacks([mim_solvers.CallbackVerbose(), mim_solvers.CallbackLogger()])
             solver.with_callbacks = self.params.activate_callback
         else:
             solver = crocoddyl.SolverFDDP(problem)

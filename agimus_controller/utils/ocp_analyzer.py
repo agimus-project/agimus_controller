@@ -128,7 +128,7 @@ def return_constraint_vector(solver):
                 else:
                     num_components = 1
                 constraints[constraint_tag] = np.nan * np.ones(
-                    (solver.problem.T + 1, num_components)
+                    (solver.problem.T, num_components)
                 )
             try:
                 if num_components == 1:

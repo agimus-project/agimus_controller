@@ -57,6 +57,7 @@ class RobotModel:
         model._update_collision_model(
             env, param.collision_as_capsule, param.self_collision, param.srdf
         )
+
         return model
 
     def _load_pinocchio_models(self, urdf: Path, free_flyer: bool) -> None:
@@ -108,6 +109,9 @@ class RobotModel:
             self._rcmodel = self._collision_parser.transform_model_into_capsules(
                 self._rcmodel
             )
+            # self._rcmodel = self._collision_parser.modify_colllision_model(
+            #    self._rcmodel
+            # )
         if self_collision and srdf.exists():
             self._rcmodel = self._collision_parser.add_self_collision(
                 self._rmodel, self._rcmodel, srdf
