@@ -25,8 +25,10 @@ from sensor_msgs.msg import JointState
 
 from agimus_controller.mpc import MPC
 from agimus_controller.mpc_data import OCPResults
-from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
-from agimus_controller.ocp_param_base import OCPParamsBaseCroco
+from agimus_controller.ocp.ocp_traj_tracking_collision_avoidance import (
+    OCPCrocoTrajTrackCollAvoidance,
+)
+from agimus_controller.ocp_param_traj_tracking import OCPParamsTrajTracking
 from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
@@ -56,6 +58,7 @@ class AgimusController(Node):
         self.robot_description_msg = None
         self.np_sensor_msg = None
         self.destroy_joint_sub = False
+        self.environment_msg = None
 
         self.initialize_ros_attributes()
         self.get_logger().info("Init done")
@@ -105,9 +108,19 @@ class AgimusController(Node):
                 reliability=ReliabilityPolicy.RELIABLE,
             ),
         )
+        self.subscriber_environment_description = self.create_subscription(
+            String,
+            "/environment_description",
+            self.environment_description_callback,
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
+        )
         self.subscriber_mpc_input = self.create_subscription(
             MpcInput,
-            "mpc_input",
+            "/mpc_input",
             self.mpc_input_callback,
             qos_profile=QoSProfile(
                 depth=10,
@@ -153,8 +166,11 @@ class AgimusController(Node):
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
 
-        ocp_params = OCPParamsBaseCroco(
+        ocp_params = OCPParamsTrajTracking(
             dt=self.params.ocp.dt,
+            collision_safety_margin=self.params.ocp.collision_safety_margin,
+            activation_distance_threshold=self.params.ocp.activation_distance_threshold,
+            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
             horizon_size=self.params.ocp.horizon_size,
             solver_iters=self.params.ocp.max_iter,
             callbacks=self.params.ocp.activate_callback,
@@ -162,7 +178,7 @@ class AgimusController(Node):
             dt_factor_n_seq=[(1, self.params.ocp.horizon_size)],
         )
 
-        ocp = OCPCrocoGoalReaching(self.robot_models, ocp_params)
+        ocp = OCPCrocoTrajTrackCollAvoidance(self.robot_models, ocp_params)
         ws = WarmStartReference()
         ws.setup(self.robot_models._robot_model)
         self.mpc = MPC()
@@ -174,7 +190,7 @@ class AgimusController(Node):
 
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
-        if self.robot_description_msg is None:
+        if self.robot_description_msg is None or self.environment_msg is None:
             return
         if self.q0 is None:
             self.q0 = np.array(joint_states_msg.position)
@@ -190,8 +206,12 @@ class AgimusController(Node):
         self.effector_frame_name = msg.ee_frame_name
 
     def robot_description_callback(self, msg: String) -> None:
-        """Create the models of the robot from the urdf string."""
+        """Set robot description xml msg."""
         self.robot_description_msg = msg
+
+    def environment_description_callback(self, msg: String) -> None:
+        """Set environment description xml msg."""
+        self.environment_msg = msg
 
     def create_robot_models(self) -> None:
         # TODO: fix, just hardcoded the thing: should exist in the demo folder?
@@ -202,13 +222,15 @@ class AgimusController(Node):
         )
 
         params = RobotModelParameters(
-            urdf=self.robot_description_msg.data,
+            robot_urdf=self.robot_description_msg.data,
+            env_urdf=self.environment_msg.data,
             srdf=Path(temp_srdf_path),
             free_flyer=self.params.free_flyer,
             collision_as_capsule=self.params.collision_as_capsule,
             self_collision=self.params.self_collision,
             armature=self.params.ocp.armature,
             moving_joint_names=self.moving_joint_names,
+            collision_pairs=self.params.collision_pairs,
         )
 
         self.robot_models = RobotModels(params)
@@ -238,6 +260,7 @@ class AgimusController(Node):
         Timer callback that checks we can start solve before doing it,
         then publish messages related to the OCP.
         """
+        # self.get_logger().info(f"environments msg  {str(self.environment_msg)}.")
         if self.sensor_msg is None:
             self.get_logger().warn(
                 "Waiting for sensor messages to arrive...",
