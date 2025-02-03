@@ -175,7 +175,6 @@ class AgimusController(Node):
             solver_iters=self.params.ocp.max_iter,
             callbacks=self.params.ocp.activate_callback,
             qp_iters=self.params.ocp.max_qp_iter,
-            dt_factor_n_seq=[(1, self.params.ocp.horizon_size)],
         )
 
         ocp = OCPCrocoTrajTrackCollAvoidance(self.robot_models, ocp_params)
