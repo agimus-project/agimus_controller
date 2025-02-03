@@ -2,21 +2,20 @@ from dataclasses import dataclass
 
 
 @dataclass
+class DTFactorsNSeq:
+    factors: list[int]  # Number of dts between two time steps, the "factor".
+    dts: list[int]  # Number of time steps, the "n".
+
+
+@dataclass
 class OCPParamsBaseCroco:
     """Input data structure of the OCP."""
 
-    # Data relevant to solve the OCP.
-    dt: float  # Integration step of the OCP.
-    solver_iters: int  # Number of solver iterations.
-    dt_factor_n_seq: list[
-        tuple[
-            int,  # Number of dts between two time steps, the "factor".
-            int,  # Number of time steps, the "n".
-        ]
-    ]
-    # Number of time steps in the horizon must be equal to:
-    #     sum(sn for _, sn in dt_factor_n_seq).
-    horizon_size: int
+    # Data relevant to solve the OCP
+    dt: float  # Integration step of the OCP
+    horizon_size: int  # Number of time steps in the horizon
+    solver_iters: int  # Number of solver iterations
+    dt_factor_n_seq: DTFactorsNSeq
     qp_iters: int = 200  # Number of QP iterations (must be a multiple of 25).
     termination_tolerance: float = (
         1e-3  # Termination tolerance (norm of the KKT conditions).

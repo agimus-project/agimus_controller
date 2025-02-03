@@ -5,6 +5,19 @@ agimus_controller_params:
       type: double
       default_value: 0.01
       description: "Step time of the OCP in seconds"
+    dt_factor_n_seq:
+      factors:
+        type: int_array
+        description: "See class OCPParamsBaseCroco"
+        validation:
+          not_empty<>: []
+          lower_element_bounds<>: [0]
+      dts:
+        type: int_array
+        description: "See class OCPParamsBaseCroco"
+        validation:
+          not_empty<>: []
+          lower_element_bounds<>: [0]
     horizon_size:
       type: int
       default_value: 20
@@ -41,6 +54,14 @@ agimus_controller_params:
       type: bool
       default_value: False
       description: "Whether or not we want to use solver callbacks"
+    collision_safety_margin:
+      type: double
+      default_value: 0.1
+      description: "safety margin for collision pairs"
+    activation_distance_threshold:
+      type: double
+      default_value: 0.1
+      description: "distance threshold used in the activation for collision costs"
   publish_debug_data:
     type: bool
     default_value: True
@@ -61,3 +82,7 @@ agimus_controller_params:
     type: bool
     default_value: True
     description: "Wether we account for self-collision"
+  collision_pairs:
+    type: string_array
+    default_value: [""]
+    description: "Contains collision pairs between robot capsules and environment's obstacles"
