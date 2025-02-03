@@ -16,7 +16,7 @@ class OCPBaseCroco(OCPBase):
     def __init__(
         self,
         robot_models: RobotModels,
-        ocp_params: OCPParamsBaseCroco,
+        params: OCPParamsBaseCroco,
     ) -> None:
         """Defines common behavior for all OCP using croccodyl. This is an abstract class with some helpers to design OCPs in a more friendly way.
 
@@ -28,13 +28,15 @@ class OCPBaseCroco(OCPBase):
         self._robot_models = robot_models
         self._collision_model = self._robot_models.collision_model
         self._armature = self._robot_models.armature
+        self.nq = self._robot_models.robot_model.nq
+        self.nv = self._robot_models.robot_model.nv
 
         # Stat and actuation model
         self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)
         self._actuation = crocoddyl.ActuationModelFull(self._state)
 
         # Setting the OCP parameters
-        self._ocp_params = ocp_params
+        self._params = params
         self._solver = None
         self._ocp_results: OCPResults = None
         self._debug_data: OCPDebugData = None
@@ -55,14 +57,14 @@ class OCPBaseCroco(OCPBase):
         self._solver = mim_solvers.SolverCSQP(self._problem)
 
         # Merit function
-        self._solver.use_filter_line_search = self._ocp_params.use_filter_line_search
+        self._solver.use_filter_line_search = self._params.use_filter_line_search
 
         # Parameters of the solver
-        self._solver.termination_tolerance = self._ocp_params.termination_tolerance
-        self._solver.max_qp_iters = self._ocp_params.qp_iters
-        self._solver.eps_abs = self._ocp_params.eps_abs
-        self._solver.eps_rel = self._ocp_params.eps_rel
-        if self._ocp_params.callbacks:
+        self._solver.termination_tolerance = self._params.termination_tolerance
+        self._solver.max_qp_iters = self._params.qp_iters
+        self._solver.eps_abs = self._params.eps_abs
+        self._solver.eps_rel = self._params.eps_rel
+        if self._params.callbacks:
             self._solver.setCallbacks(
                 [mim_solvers.CallbackVerbose(), mim_solvers.CallbackLogger()]
             )
@@ -70,12 +72,12 @@ class OCPBaseCroco(OCPBase):
     @property
     def horizon_size(self) -> int:
         """Number of time steps in the horizon."""
-        return self._ocp_params.horizon_size
+        return self._params.horizon_size
 
     @property
     def dt(self) -> float:
         """Integration step of the OCP."""
-        return self._ocp_params.dt
+        return self._params.dt
 
     @property
     def problem(self) -> crocoddyl.ShootingProblem:
@@ -90,6 +92,10 @@ class OCPBaseCroco(OCPBase):
     def create_terminal_model(self) -> crocoddyl.ActionModelAbstract:
         """Create the terminal model."""
         pass
+
+    def modify_cost_reference_and_weights(self, model, cost_name, reference, weigths):
+        model.differential.costs.costs[cost_name].cost.residual.reference = reference
+        model.differential.costs.costs[cost_name].cost.activation.weights = weigths
 
     def solve(
         self,

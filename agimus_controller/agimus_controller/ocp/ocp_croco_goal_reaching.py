@@ -9,7 +9,7 @@ from agimus_controller.trajectory import WeightedTrajectoryPoint
 class OCPCrocoGoalReaching(OCPBaseCroco):
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         running_model_list = []
-        for _ in range(self._ocp_params.horizon_size - 1):
+        for _ in range(self._params.horizon_size - 1):
             # Running cost model
             running_cost_model = crocoddyl.CostModelSum(self._state)
 
@@ -195,7 +195,6 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
                 reference_weighted_trajectory[-1].weights.w_robot_velocity,
             )
         )
-        # Modify end effector frame cost
 
         ee_names = list(
             iter(reference_weighted_trajectory[-1].weights.w_end_effector_poses)

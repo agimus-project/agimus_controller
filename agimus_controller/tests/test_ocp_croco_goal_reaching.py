@@ -35,7 +35,7 @@ class TestOCPGoalReaching(unittest.TestCase):
             q0=q0,
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
-            urdf=urdf_path,
+            robot_urdf=urdf_path,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,

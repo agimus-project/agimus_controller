@@ -70,7 +70,7 @@ class TestRobotModelParameters(unittest.TestCase):
         self.assertEqual(
             params.moving_joint_names, self.valid_args["moving_joint_names"]
         )
-        self.assertEqual(params.urdf, self.valid_args["urdf"])
+        self.assertEqual(params.robot_urdf, self.valid_args["urdf"])
         self.assertEqual(params.srdf, self.valid_args["srdf"])
         self.assertEqual(params.urdf_meshes_dir, self.valid_args["urdf_meshes_dir"])
         self.assertTrue(params.collision_as_capsule)
@@ -132,7 +132,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
             q0=q0,
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
-            urdf=urdf_path,
+            robot_urdf=urdf_path,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,
@@ -169,7 +169,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
     def test_load_urdf_from_string(self):
         params = deepcopy(self.params)
         with open(Path(robex.load("panda").urdf), "r") as file:
-            params.urdf = file.read().replace("\n", "")
+            params.robot_urdf = file.read().replace("\n", "")
 
         robot_models_str = RobotModels(params)
         self.assertEqual(

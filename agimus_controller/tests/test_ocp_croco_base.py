@@ -55,7 +55,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
                 running_DAM,
             )
             running_model.differential.armature = self._robot_models.armature
-            running_model_list = [running_model] * (self._ocp_params.horizon_size - 1)
+            running_model_list = [running_model] * (self._params.horizon_size - 1)
             return running_model_list
 
         def create_terminal_model(self):
@@ -124,7 +124,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
             q0=q0,
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
-            urdf=urdf_path,
+            robot_urdf=urdf_path,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,
