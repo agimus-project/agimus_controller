@@ -87,6 +87,10 @@ class RobotModels:
         self.load_models()  # Populate models
 
     @property
+    def params(self) -> RobotModelParameters:
+        return self._params
+
+    @property
     def full_robot_model(self) -> pin.Model:
         """Full robot model."""
         if self._full_robot_model is None:

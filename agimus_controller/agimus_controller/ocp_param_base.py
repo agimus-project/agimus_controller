@@ -28,6 +28,13 @@ class OCPParamsBaseCroco:
 
     def __post_init__(self):
         assert (
-            self.horizon_size == sum(sn for _, sn in self.dt_factor_n_seq)
+            self.horizon_size == sum(sn for _, sn in self.dt_factor_n_seq) + 1
             and "The horizon size must be equal to the sum of the time steps."
+        )
+
+    @property
+    def timesteps(self) -> tuple[float]:
+        return sum(
+            ((self.dt * factor,) * number for factor, number in self.dt_factor_n_seq),
+            tuple(),
         )

@@ -27,7 +27,7 @@ class OCPBaseCroco(OCPBase):
         # Setting the robot model
         self._robot_models = robot_models
         self._collision_model = self._robot_models.collision_model
-        self._armature = self._robot_models._params.armature
+        self._armature = self._robot_models.armature
 
         # Stat and actuation model
         self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)
@@ -76,6 +76,10 @@ class OCPBaseCroco(OCPBase):
     def dt(self) -> float:
         """Integration step of the OCP."""
         return self._ocp_params.dt
+
+    @property
+    def problem(self) -> crocoddyl.ShootingProblem:
+        return self._problem
 
     @abstractmethod
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:

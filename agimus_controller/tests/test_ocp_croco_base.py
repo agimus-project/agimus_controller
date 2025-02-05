@@ -140,7 +140,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
         self.ocp_params = OCPParamsBaseCroco(
             dt=0.1,
             horizon_size=10,
-            dt_factor_n_seq=[(1, 10)],
+            dt_factor_n_seq=[(1, 9)],
             solver_iters=100,
             callbacks=False,
         )

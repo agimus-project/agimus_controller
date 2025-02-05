@@ -13,11 +13,12 @@ WarmStartReference object.
 
 import numpy as np
 import numpy.typing as npt
-import pinocchio
 import crocoddyl
 
 from agimus_controller.trajectory import TrajectoryPoint
 from agimus_controller.warm_start_base import WarmStartBase
+from agimus_controller.factory.robot_model import RobotModels
+from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 
 
 class WarmStartShiftPreviousSolution(WarmStartBase):
@@ -26,7 +27,11 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
     def __init__(self) -> None:
         super().__init__()
 
-    def setup(self, rmodel: pinocchio.Model, timesteps: list[float]) -> None:
+    def setup(
+        self,
+        robot_models: RobotModels,
+        ocp_params: OCPParamsBaseCroco,
+    ) -> None:
         """Build the action model to easily shift in time in `shift`.
 
         Args:
@@ -36,17 +41,25 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
                 - timesteps[i] >= timesteps[0]
                 - timesteps matches the OCP nodes time steps.
         """
-        state = crocoddyl.StateMultibody(rmodel)
+        self._timesteps = ocp_params.timesteps
+        self._dt = self._timesteps[0]
+        assert ocp_params.dt == self._timesteps[0]
+        assert all(dt >= self._dt for dt in self._timesteps)
+
+        # Build the integrator
+        state = crocoddyl.StateMultibody(robot_models.robot_model)
         actuation = crocoddyl.ActuationModelFull(state)
+        cost_model = crocoddyl.CostModelSum(state)
         differential = crocoddyl.DifferentialActionModelFreeFwdDynamics(
             state,
             actuation,
+            cost_model,
         )
-        self._integrator = crocoddyl.IntegratedActionModelEuler(differential, 0.0)
+        armature = robot_models.params.armature
+        if armature.size > 0:
+            differential.armature = armature
+        self._integrator = crocoddyl.IntegratedActionModelEuler(differential, self._dt)
         self._integrator_data = self._integrator.createData()
-        self._timesteps = timesteps
-        self._dt = self._timesteps[0]
-        assert all(dt >= self._dt for dt in self._timesteps)
 
     def generate(
         self,
@@ -87,9 +100,8 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
                     us[i] = us[i + 1]
             else:
                 assert dt > self._dt
-                self._integrator.dt = dt
                 self._integrator.calc(self._integrator_data, xs[i], us[i])
-                xs[i] = self._integrator_data.xnext
+                xs[i] = self._integrator_data.xnext.copy()
                 # Keep the same control because we are still in the segment where
                 # ocp.us[i] was to be applied.
                 # TODO any better guess ? e.g.
