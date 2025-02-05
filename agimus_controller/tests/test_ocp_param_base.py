@@ -1,6 +1,6 @@
 import unittest
 
-from agimus_controller.ocp_param_base import OCPParamsBaseCroco
+from agimus_controller.ocp_param_base import OCPParamsBaseCroco, DTFactorsNSeq
 
 
 class TestOCPParamsCrocoBase(unittest.TestCase):
@@ -15,10 +15,12 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
         """
         Test the initialization of the OCPParamsBaseCroco class.
         """
+        params_dt_factor_n_seq = {"factors": [1], "dts": [99]}
+        dt_factor_param = DTFactorsNSeq(**params_dt_factor_n_seq)
         params = {
             "dt": 0.01,
             "horizon_size": 100,
-            "dt_factor_n_seq": [(1, 99)],
+            "dt_factor_n_seq": dt_factor_param,
             "solver_iters": 50,
             "qp_iters": 200,
             "termination_tolerance": 1e-3,

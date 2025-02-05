@@ -19,8 +19,8 @@ class RobotModelParameters:
     robot_urdf: Union[Path, str] = (
         ""  # Path to the robot URDF file or string containing URDF as an XML
     )
-    env_urdf: Union[Path, str] = (
-        ""  # Path to the environment URDF file or string containing URDF as an XML
+    env_urdf: Union[None, Path, str] = (
+        None  # Path to the environment URDF file or string containing URDF as an XML
     )
     srdf: Path = Path()  # Path to the SRDF file
     urdf_meshes_dir: Optional[Path] = (
@@ -30,9 +30,7 @@ class RobotModelParameters:
         False  # True if the collision model should be reduced to capsules.
     )
     # By default, the collision model when convexified is a sum of spheres and cylinders, often representing capsules. Here, all the couples sphere cylinder sphere are replaced by coal capsules.
-    self_collision: bool = (
-        False  # If True, the collision model takes into account collisions pairs written in the srdf file.
-    )
+    self_collision: bool = False  # If True, the collision model takes into account collisions pairs written in the srdf file.
     armature: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )  # Default empty NumPy array
@@ -131,6 +129,7 @@ class RobotModels:
         self._load_full_pinocchio_models()
 
         self._lock_joints()
+
         if self._params.collision_as_capsule:
             self._update_collision_model_to_capsules()
         if self._params.self_collision:
@@ -172,33 +171,38 @@ class RobotModels:
                 ]
             ]
 
-            # load environment models
-            if isinstance(self._params.env_urdf, Path):
-                with open(self._params.env_urdf, "r") as file:
-                    env_urdf = file.read().replace("\n", "")
-            else:
-                env_urdf = self._params.env_urdf
-            env_model = pin.buildModelFromXML(env_urdf)
-            env_collision_model = pin.buildGeomFromUrdfString(
-                env_model,
-                self._params.env_urdf,
-                pin.GeometryType.COLLISION,
-                package_dirs=None,
-            )
-
-            # make robot models append environment models
-            self._full_robot_model, self._collision_model = pin.appendModel(
-                self._full_robot_model,
-                env_model,
-                self._collision_model,
-                env_collision_model,
-                0,
-                pin.SE3.Identity(),
-            )
-
         except Exception as e:
             raise ValueError(
                 f"Failed to load URDF models from {self._params.robot_urdf}: {e}"
+            )
+        try:
+            # load environment models
+            if self._params.env_urdf is not None:
+                if isinstance(self._params.env_urdf, Path):
+                    with open(self._params.env_urdf, "r") as file:
+                        env_urdf = file.read().replace("\n", "")
+                else:
+                    env_urdf = self._params.env_urdf
+                env_model = pin.buildModelFromXML(env_urdf)
+                env_collision_model = pin.buildGeomFromUrdfString(
+                    env_model,
+                    self._params.env_urdf,
+                    pin.GeometryType.COLLISION,
+                    package_dirs=None,
+                )
+
+                # make robot models append environment models
+                self._full_robot_model, self._collision_model = pin.appendModel(
+                    self._full_robot_model,
+                    env_model,
+                    self._collision_model,
+                    env_collision_model,
+                    0,
+                    pin.SE3.Identity(),
+                )
+        except Exception as e:
+            raise ValueError(
+                f"Failed to load URDF models from {self._params.env_urdf}: {e}"
             )
 
     def _lock_joints(self) -> None:
