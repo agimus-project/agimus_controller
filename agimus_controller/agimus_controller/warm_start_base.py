@@ -91,5 +91,6 @@ class WarmStartBase(ABC):
 
         Args:
             previous_solution (OCPResuls): The solution of the optimization problem.
+
         """
         self._previous_solution = previous_solution
