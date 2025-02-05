@@ -167,14 +167,14 @@ class TestSimpleOCPCroco(unittest.TestCase):
             "feed_forward_terms": self.ocp.ocp_results.feed_forward_terms.tolist(),
         }
         data_file = str(
-            Path(__file__).parent / "ressources" / "simple_ocp_croco_results.pkl"
+            Path(__file__).parent / "resources" / "simple_ocp_croco_results.pkl"
         )
         with open(data_file, "wb") as handle:
             pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def test_check_results(self):
         file_path = str(
-            Path(__file__).parent / "ressources" / "simple_ocp_croco_results.pkl"
+            Path(__file__).parent / "resources" / "simple_ocp_croco_results.pkl"
         )
         # Load the results
         with open(file_path, "rb") as handle:

@@ -1,6 +1,7 @@
 {
   agimus-controller,
   buildPythonPackage,
+  franka-description,
   hpp-corbaserver,
   hpp-gepetto-viewer,
   hpp-manipulation-corba,
@@ -29,6 +30,7 @@ buildPythonPackage {
 
   dependencies = [
     agimus-controller
+    franka-description
     hpp-corbaserver
     hpp-manipulation-corba
     hpp-gepetto-viewer
@@ -41,6 +43,9 @@ buildPythonPackage {
   #nativeCheckInputs = [ pytestCheckHook ]; # Uncomment to add tests.
   doCheck = true;
   pythonImportsCheck = [ "agimus_controller_examples" ];
+  dontUseCmakeConfigure = true; # Something is propagating cmake…
+  dontWrapQtApps = true;
+
 
   meta = {
     description = "agimus_controller_examples is a sandbox for the agimus_controller package.";

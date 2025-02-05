@@ -38,7 +38,8 @@ class RobotModelParameters:
     def __post_init__(self):
         # Handle armature:
         if self.armature.size == 0:
-            # Use a default armature filled with 0s, based on the size of moving_joint_names
+            # Use a default armature filled with 0s,
+            # based on the size of moving_joint_names
             self.armature = np.zeros(len(self.moving_joint_names), dtype=np.float64)
 
         # Ensure armature has the same shape as moving_joint_names
@@ -46,7 +47,8 @@ class RobotModelParameters:
             len(self.armature) != len(self.moving_joint_names) and not self.free_flyer
         ):  #! TODO: Do the same for free flyer
             raise ValueError(
-                f"Armature must have the same shape as moving_joint_names. Got {self.armature.shape} and {len(self.moving_joint_names)}."
+                f"Armature must have the same shape as moving_joint_names. "
+                f"Got {self.armature.shape} and {len(self.moving_joint_names)}."
             )
 
         # Ensure URDF and SRDF are valid
@@ -83,7 +85,6 @@ class RobotModels:
         self._robot_model = None
         self._collision_model = None
         self._visual_model = None
-        self._q0 = deepcopy(self._params.q0)
         self.load_models()  # Populate models
 
     @property
@@ -116,6 +117,7 @@ class RobotModels:
 
     def load_models(self) -> None:
         """Load and prepare robot models based on parameters."""
+        self._q0 = deepcopy(self._params.q0)
         self._load_full_pinocchio_models()
         self._lock_joints()
         if self._params.collision_as_capsule:
@@ -166,6 +168,11 @@ class RobotModels:
 
     def _lock_joints(self) -> None:
         """Apply locked joints."""
+        # Sanity check.
+        for jn in self._params.moving_joint_names:
+            if jn not in self._full_robot_model.names:
+                raise ValueError(jn + " not in the model.")
+        # Find the joints to lock.
         joints_to_lock = []
         for jn in self._full_robot_model.names:
             if jn == "universe":
@@ -189,15 +196,19 @@ class RobotModels:
 
     def _update_collision_model_to_capsules(self) -> None:
         """Update the collision model to capsules."""
-        cmodel = self._collision_model.copy()
         list_names_capsules = []
+        geom_objects = self._collision_model.geometryObjects.copy()
         # Iterate through geometry objects in the collision model
-        for geom_object in cmodel.geometryObjects:
+        for geom_object in geom_objects:
             geometry = geom_object.geometry
-            # Remove superfluous suffix from the name
-            base_name = "_".join(geom_object.name.split("_")[:-1])
             # Convert cylinders to capsules
             if isinstance(geometry, coal.Cylinder):
+                # Remove superfluous suffix from the name
+                split_name = geom_object.name.split("_")
+                base_name = "_".join(split_name[:-1])
+                if sum(1 for obj in geom_objects if base_name in obj.name) < 3:
+                    continue
+                id = int(split_name[-1])
                 name = self._generate_capsule_name(base_name, list_names_capsules)
                 list_names_capsules.append(name)
                 capsule = pin.GeometryObject(
@@ -212,9 +223,18 @@ class RobotModels:
                 capsule.meshColor = self._params.collision_color
                 self._collision_model.addGeometryObject(capsule)
                 self._collision_model.removeGeometryObject(geom_object.name)
-
-            # Remove spheres associated with links
-            elif isinstance(geometry, coal.Sphere) and "link" in geom_object.name:
+                self._collision_model.removeGeometryObject(
+                    base_name + "_" + str(id + 1)
+                )
+                self._collision_model.removeGeometryObject(
+                    base_name + "_" + str(id + 2)
+                )
+            # Remove useless meshes.
+            elif (
+                not isinstance(geometry, coal.Sphere)
+                and not isinstance(geometry, coal.Box)
+                and not isinstance(geometry, coal.Cylinder)
+            ):
                 self._collision_model.removeGeometryObject(geom_object.name)
 
     def _update_collision_model_to_self_collision(self) -> None:
@@ -223,7 +243,7 @@ class RobotModels:
         pin.removeCollisionPairs(
             self._robot_model,
             self._collision_model,
-            str(self._params.srdf.absolute().as_posix()),
+            str(self._params.srdf.absolute()),
         )
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:

@@ -2,6 +2,7 @@
   agimus-controller,
   agimus-msgs,
   buildPythonPackage,
+  franka-description,
   lib,
   linear-feedback-controller-msgs,
   numpy,
@@ -30,6 +31,7 @@ buildPythonPackage {
   dependencies = [
     agimus-controller
     agimus-msgs
+    franka-description
     linear-feedback-controller-msgs
     numpy
     pinocchio
@@ -43,8 +45,6 @@ buildPythonPackage {
     rosPackages.humble.std-msgs
   ];
 
-  dontUseCmakeConfigure = true; # Something is propagating cmake…
-
   doCheck = true;
   nativeCheckInputs = [ pytestCheckHook ];
   disabledTests = [
@@ -52,6 +52,8 @@ buildPythonPackage {
     "test_pep257"
   ];
   pythonImportsCheck = [ "agimus_controller_ros" ];
+  dontUseCmakeConfigure = true; # Something is propagating cmake…
+  dontWrapQtApps = true;
 
   meta = {
     description = "The agimus_controller package";
