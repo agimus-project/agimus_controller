@@ -126,7 +126,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
         self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
     ):
         """Set the reference trajectory for the OCP."""
-
+        super().set_reference_weighted_trajectory(reference_weighted_trajectory)
         # Modify running costs reference and weights
         for i in range(self.horizon_size - 1):
             # Modifying the state regularization cost

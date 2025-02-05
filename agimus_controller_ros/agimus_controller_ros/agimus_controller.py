@@ -100,7 +100,7 @@ class AgimusController(Node):
         )
         self.subscriber_robot_description = self.create_subscription(
             String,
-            "/robot_description",
+            "/robot_description_with_collision",
             self.robot_description_callback,
             qos_profile=QoSProfile(
                 depth=1,
@@ -219,7 +219,6 @@ class AgimusController(Node):
             get_package_share_directory("franka_description"),
             "robots/fer/fer.srdf",
         )
-
         params = RobotModelParameters(
             robot_urdf=self.robot_description_msg.data,
             env_urdf=self.environment_msg.data,

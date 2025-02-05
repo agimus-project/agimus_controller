@@ -5,6 +5,7 @@ import mim_solvers
 import numpy as np
 import numpy.typing as npt
 
+from agimus_controller.trajectory import WeightedTrajectoryPoint
 from agimus_controller.factory.robot_model import RobotModels
 from agimus_controller.mpc_data import OCPResults, OCPDebugData
 from agimus_controller.ocp_base import OCPBase
@@ -39,7 +40,13 @@ class OCPBaseCroco(OCPBase):
         self._params = params
         self._solver = None
         self._ocp_results: OCPResults = None
-        self._debug_data: OCPDebugData = None
+        self._debug_data: OCPDebugData = OCPDebugData(
+            problem_solved=None,
+            result=None,
+            references=None,
+            kkt_norm=None,
+            collision_distance_residuals=None,
+        )
 
         # Create the running models
         self._running_model_list = self.create_running_model_list()
@@ -83,6 +90,13 @@ class OCPBaseCroco(OCPBase):
     def problem(self) -> crocoddyl.ShootingProblem:
         return self._problem
 
+    def set_reference_weighted_trajectory(
+        self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
+    ):
+        """Set the reference trajectory for the OCP."""
+        reference_trajectory_points = [el.point for el in reference_weighted_trajectory]
+        self._debug_data.references = reference_trajectory_points
+
     @abstractmethod
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         """Create the list of running models."""
@@ -115,26 +129,20 @@ class OCPBaseCroco(OCPBase):
         self._problem.x0 = x0
         # Solve the OCP
         res = self._solver.solve(
-            [x0] + x_warmstart, u_warmstart, self._ocp_params.solver_iters
+            [x0] + x_warmstart, u_warmstart, self._params.solver_iters
         )
         solution = [
             TrajectoryPoint(
                 time_ns=-1,
-                robot_configuration=state[: self._robot_models.robot_model.nq],
-                robot_velocity=state[self._robot_models.robot_model.nq :],
-                robot_acceleration=np.zeros_like(
-                    state[self._robot_models.robot_model.nq :]
-                ),
+                robot_configuration=state[: self.nq],
+                robot_velocity=state[self.nq :],
+                robot_acceleration=np.zeros_like(state[self.nq :]),
             )
             for state in self._solver.xs
         ]
-        self._debug_data = OCPDebugData(
-            problem_solved=res,
-            result=solution,
-            references=None,
-            kkt_norms=None,
-            collision_distance_residuals=None,
-        )
+        self._debug_data.problem_solved = res
+        self._debug_data.kkt_norm = self._solver.KKT
+        self._debug_data.result = solution
 
         # Store the results
         self._ocp_results = OCPResults(

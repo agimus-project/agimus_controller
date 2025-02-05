@@ -27,7 +27,7 @@ class OCPParamsBaseCroco:
 
     def __post_init__(self):
         assert (
-            self.horizon_size == sum(sn for _, sn in self.dt_factor_n_seq) + 1
+            self.horizon_size == sum(sn for sn in self.dt_factor_n_seq.dts) + 1
             and "The horizon size must be equal to the sum of the time steps."
         )
 

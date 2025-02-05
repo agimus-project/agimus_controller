@@ -8,12 +8,14 @@ agimus_controller_params:
     dt_factor_n_seq:
       factors:
         type: int_array
+        default_value: [1]
         description: "See class OCPParamsBaseCroco"
         validation:
           not_empty<>: []
           lower_element_bounds<>: [0]
       dts:
         type: int_array
+        default_value: [19]
         description: "See class OCPParamsBaseCroco"
         validation:
           not_empty<>: []
