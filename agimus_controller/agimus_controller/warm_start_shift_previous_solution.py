@@ -35,6 +35,7 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
                 that produces the previous solution. It is required that:
                 - timesteps[i] >= timesteps[0]
                 - timesteps matches the OCP nodes time steps.
+
         """
         state = crocoddyl.StateMultibody(rmodel)
         actuation = crocoddyl.ActuationModelFull(state)
