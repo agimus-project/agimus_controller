@@ -1,3 +1,5 @@
+"""Implement OCPBase."""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -10,16 +12,21 @@ from agimus_controller.trajectory import WeightedTrajectoryPoint
 class OCPBase(ABC):
     """Base class for the Optimal Control Problem (OCP) solver.
 
-    This class defines the interface for the OCP solver."""
+    This class defines the interface for the OCP solver.
+    """
 
     def __init__(self) -> None:
+        """Construct default object."""
         pass
 
     @abstractmethod
     def set_reference_weighted_trajectory(
         self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
     ) -> None:
-        """Set the reference trajectory and the weights of the costs for the OCP solver. This method should be implemented by the derived class."""
+        """Set the reference trajectory and the weights of the costs for the OCP solver.
+
+        This method should be implemented by the derived class.
+        """
         pass
 
     @property
@@ -29,6 +36,7 @@ class OCPBase(ABC):
 
         Returns:
             int: size of the horizon.
+
         """
         pass
 
@@ -39,6 +47,7 @@ class OCPBase(ABC):
 
         Returns:
             int: time step of the OCP.
+
         """
         pass
 
@@ -49,24 +58,29 @@ class OCPBase(ABC):
         x_warmstart: list[npt.NDArray[np.float64]],
         u_warmstart: list[npt.NDArray[np.float64]],
     ) -> None:
-        """Solver for the OCP. This method should be implemented by the derived class.
+        """Solve the OCP.
+
+        This method should be implemented by the derived class.
         The method should solve the OCP for the given initial state and warmstart values.
 
         Args:
             x0 (npt.NDArray[np.float64]): current state of the robot.
             x_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the state. This doesn't include the current state.
             u_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the control inputs.
+
         """
         pass
 
     @property
     @abstractmethod
     def ocp_results(self) -> OCPResults:
-        """Returns the results of the OCP solver.
+        """Return the results of the OCP solver.
+
         The solve method should be called before calling this method.
 
         Returns:
             OCPResults: Class containing the results of the OCP solver.
+
         """
         pass
 
@@ -76,6 +90,7 @@ class OCPBase(ABC):
 
         Args:
             value (OCPResults): New output data structure of the OCP.
+
         """
         pass
 
@@ -86,5 +101,6 @@ class OCPBase(ABC):
 
         Returns:
             OCPDebugData: Class containing the debug data of the OCP solver.
+
         """
         pass

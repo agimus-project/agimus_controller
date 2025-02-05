@@ -17,6 +17,7 @@ class MPC:
             a_plan (np.ndarray): Acceleration planification of HPP.
             rmodel (pin.Model): Pinocchio model of the robot
             cmodel (pin.CollisionModel): Pinocchio collision model.w
+
         """
         self.ocp = ocp
         self.whole_x_plan = x_plan

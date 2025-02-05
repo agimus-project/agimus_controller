@@ -33,6 +33,7 @@ def get_transform(T_: hppfcl.Transform3f):
 
     Returns:
         _type_: _description_
+
     """
     T = np.eye(4)
     if isinstance(T_, hppfcl.Transform3f):
@@ -55,8 +56,8 @@ class MeshcatWrapper:
         Args:
             grid (bool, optional): Boolean describing whether the grid will be displayed or not. Defaults to False.
             axes (bool, optional): Boolean describing whether the axes will be displayed or not. Defaults to False.
-        """
 
+        """
         self._grid = grid
         self._axes = axes
 
@@ -80,6 +81,7 @@ class MeshcatWrapper:
 
         Returns:
             tuple: viewer pinocchio and viewer meshcat.
+
         """
         # Creation of the visualizer,
         self.viewer = self.create_visualizer()
@@ -114,6 +116,7 @@ class MeshcatWrapper:
         -------
         vis : Meshcat.Visualizer
             visualizer from meshcat
+
         """
         self.viewer = meshcat.Visualizer(zmq_url="tcp://127.0.0.1:6000")
         self.viewer.delete()
@@ -132,6 +135,7 @@ class MeshcatWrapper:
             name of the object displayed
         color : np.ndarray, optional
             array describing the color of the target, by default np.array([1., 1., 1., 1.]) (ie white)
+
         """
         # Setting the object in the viewer
         self.viewer[e_name].set_object(g.Sphere(dim), self._meshcat_material(*color))
@@ -151,6 +155,7 @@ class MeshcatWrapper:
 
         Returns:
             material : meshcat.geometry.MeshPhongMaterial(). Material for meshcat
+
         """
         material = meshcat.geometry.MeshPhongMaterial()
         material.color = int(r * 255) * 256**2 + int(g * 255) * 256 + int(b * 255)

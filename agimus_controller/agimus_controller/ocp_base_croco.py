@@ -1,3 +1,5 @@
+"""Implement OCPBaseCroco."""
+
 from abc import abstractmethod
 
 import crocoddyl
@@ -13,16 +15,19 @@ from agimus_controller.trajectory import TrajectoryPoint
 
 
 class OCPBaseCroco(OCPBase):
+    """Optimal Control Problem Base class using a crocoddyl solver."""
+
     def __init__(
         self,
         robot_models: RobotModels,
         ocp_params: OCPParamsBaseCroco,
     ) -> None:
-        """Defines common behavior for all OCP using croccodyl. This is an abstract class with some helpers to design OCPs in a more friendly way.
+        """Define common behavior for all OCP using croccodyl. This is an abstract class with some helpers to design OCPs in a more friendly way.
 
         Args:
             robot_models (RobotModels): All models of the robot.
             ocp_params (OCPParamsBaseCroco): Input data structure of the OCP.
+
         """
         # Setting the robot model
         self._robot_models = robot_models
@@ -93,13 +98,15 @@ class OCPBaseCroco(OCPBase):
         x_warmstart: list[npt.NDArray[np.float64]],
         u_warmstart: list[npt.NDArray[np.float64]],
     ) -> None:
-        """Solves the OCP.
+        """Solve the OCP.
+
         The results can be accessed through the ocp_results property.
 
         Args:
             x0 (npt.NDArray[np.float64]): Current state of the robot.
             x_warmstart (list[npt.NDArray[np.float64]]): Predicted states for the OCP.
             u_warmstart (list[npt.NDArray[np.float64]]): Predicted control inputs for the OCP.
+
         """
         # Set the initial state
         self._problem.x0 = x0
@@ -139,6 +146,7 @@ class OCPBaseCroco(OCPBase):
 
         Returns:
             OCPResults: Output data structure of the OCP. It contains the states, Ricatti gains, and feed-forward terms.
+
         """
         return self._ocp_results
 
@@ -148,13 +156,16 @@ class OCPBaseCroco(OCPBase):
 
         Args:
             value (OCPResults): New output data structure of the OCP.
+
         """
         self._ocp_results = value
 
     @property
     def debug_data(self) -> OCPDebugData:
+        """Accessor for the debug data."""
         return self._debug_data
 
     @debug_data.setter
     def debug_data(self, value: OCPDebugData) -> None:
+        """Setter for the debug data."""
         self._debug_data = value

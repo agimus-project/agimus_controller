@@ -1,3 +1,5 @@
+"""Implement TestTrajectoryBuffer."""
+
 from copy import deepcopy
 import numpy as np
 from random import randint
@@ -13,11 +15,15 @@ from agimus_controller.trajectory import (
 
 
 class TestTrajectoryBuffer(unittest.TestCase):
-    """
-    TestOCPParamsCrocoBase unittests parameters settters and getters of OCPParamsBaseCrocoCroco class.
-    """
+    """TestOCPParamsCrocoBase unittests parameters settters and getters of OCPParamsBaseCrocoCroco class."""
 
     def __init__(self, methodName="runTest"):
+        """Construct a test suite.
+
+        Args:
+            methodName (str, optional): Name of the method to run. Defaults to "runTest".
+
+        """
         super().__init__(methodName)
         self.nv = randint(10, 100)  # Number of dof in the robot velocity
         self.nq = self.nv + 1  # Number of dof in the robot configuration
@@ -29,9 +35,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
         self.dt_ns = int(1e9 * self.dt)
 
     def generate_random_weighted_states(self, time_ns):
-        """
-        Generate random data for the TrajectoryPointWeights.
-        """
+        """Generate random data for the TrajectoryPointWeights."""
         return WeightedTrajectoryPoint(
             point=TrajectoryPoint(
                 time_ns=time_ns,
@@ -49,9 +53,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
         )
 
     def test_append_data(self):
-        """
-        Test adding points to the buffer.
-        """
+        """Test adding points to the buffer."""
         obj = TrajectoryBuffer(self.dt_factor_n_seq)
         times_ns = np.arange(
             0, 30 * self.trajectory_size * self.dt_ns, self.dt_ns, dtype=int
@@ -62,9 +64,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
         self.assertEqual(len(obj), times_ns.size)
 
     def test_clear_past(self):
-        """
-        Test clearing the past of the buffer.
-        """
+        """Test clearing the past of the buffer."""
         obj = TrajectoryBuffer(self.dt_factor_n_seq)
         times_ns = np.arange(
             0, 30 * self.trajectory_size * self.dt_ns, self.dt_ns, dtype=int
@@ -80,9 +80,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
         self.assertEqual(len(obj), times_ns.size - 3)
 
     def test_compute_horizon_index(self):
-        """
-        Test computing the time indexes from dt_factor_n_seq.
-        """
+        """Test computing the time indexes from dt_factor_n_seq."""
         obj = TrajectoryBuffer(self.dt_factor_n_seq)
         dt_factor_n_seq = [(1, 2), (2, 2), (3, 2), (4, 2), (5, 2)]
         indexes_out = obj.compute_horizon_indexes(dt_factor_n_seq)
@@ -90,9 +88,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
         np.testing.assert_equal(indexes_out, indexes_test)
 
     def test_horizon(self):
-        """
-        Test computing the horizon from the dt_factor_n_seq format.
-        """
+        """Test computing the horizon from the dt_factor_n_seq format."""
         obj = TrajectoryBuffer(self.dt_factor_n_seq)
         times_ns = np.arange(
             0, 30 * self.trajectory_size * self.dt_ns, self.dt_ns, dtype=int
@@ -107,9 +103,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
         )
 
     def test_horizon_with_more_complex_dt_factor_n_seq(self):
-        """
-        Test computing the horizon from complex dt_factor_n_seq.
-        """
+        """Test computing the horizon from complex dt_factor_n_seq."""
         dt_factor_n_seq = [(1, 2), (2, 2), (3, 2), (4, 2), (5, 2)]
         horizon_indexes = [0, 1, 3, 5, 8, 11, 15, 19, 24, 29]
 

@@ -1,3 +1,5 @@
+"""Implement PLanner."""
+
 from os.path import join
 import numpy as np
 from hpp.corbaserver import Client, Robot, ProblemSolver
@@ -8,14 +10,16 @@ from .scenes import Scene
 
 
 class Planner:
+    """Plan a trajectory from a goal to end configuration."""
+
     def __init__(self, robot_model: RobotModel, scene: Scene, T: int) -> None:
         """Instatiate a motion planning class taking the pinocchio model and the geometry model.
 
         Args:
-            rmodel (pin.Model): pinocchio model of the robot.
-            cmodel (pin.GeometryModel): collision model of the robot
+            robot_model (RobotModel): model of the robot.
             scene (Scene): scene describing the environement.
             T (int): number of nodes describing the trajectory.
+
         """
         # Copy args.
         self._robot_model = robot_model
@@ -34,6 +38,7 @@ class Planner:
         self._v = None
 
     def _create_planning_scene(self, use_gepetto_gui):
+        """Create a planning scene in HPP."""
         Robot.urdfFilename = str(self._robot_model_params.urdf)
         Robot.srdfFilename = str(self._robot_model_params.srdf)
 
@@ -61,7 +66,17 @@ class Planner:
         if use_gepetto_gui:
             self._v = vf.createViewer(collisionURDF=True)
 
-    def setup_planner(self, q_init, q_goal, use_gepetto_gui):
+    def setup_planner(
+        self, q_init: np.ndarray, q_goal: np.ndarray, use_gepetto_gui: bool
+    ):
+        """Set up the planner.
+
+        Args:
+            q_init (np.ndarray): Starting configuration.
+            q_goal (np.ndarray): Goal configuration.
+            use_gepetto_gui (bool): Do we export the trajectory in a gui?
+
+        """
         self._create_planning_scene(use_gepetto_gui)
 
         # Joints 8, and 9 are locked
@@ -77,6 +92,7 @@ class Planner:
         self._ps.addGoalConfig(q_goal_list)
 
     def solve_and_optimize(self):
+        """Solve the path planning problem and optimize the path."""
         self._ps.setRandomSeed(1)
         self._ps.solve()
         self._ps.getAvailable("pathoptimizer")
@@ -99,6 +115,7 @@ class Planner:
 
         Returns:
             q np.ndarray: configuration vector of the robot.
+
         """
         q = pin.randomConfiguration(self._rmodel)
         while self._check_collisions(q):
@@ -106,6 +123,7 @@ class Planner:
         return q
 
     def _generate_feasible_configurations_array(self):
+        """Generate configuration that are feasible kinematically."""
         col = True
         while col:
             q = np.zeros(self._rmodel.nq)
@@ -128,8 +146,8 @@ class Planner:
             q (np.ndarray): configuration array
         Returns:
             col (bool): True if no collision
-        """
 
+        """
         rdata = self._rmodel.createData()
         cdata = self._cmodel.createData()
         col = pin.computeCollisions(self._rmodel, rdata, self._cmodel, cdata, q, True)
@@ -138,8 +156,7 @@ class Planner:
     def _inverse_kinematics(
         self, target_pose, initial_guess=None, max_iters=1000, tol=1e-6
     ):
-        """
-        Solve the inverse kinematics problem for a given robot and target pose.
+        """Solve the inverse kinematics problem for a given robot and target pose.
 
         Args:
         target_pose (pin.SE3): Desired end-effector pose (as a pin.SE3 object)
@@ -149,8 +166,8 @@ class Planner:
 
         Returns:
         q_sol (np.ndarray): Joint configuration that achieves the target pose
-        """
 
+        """
         rdata = self._rmodel.createData()
 
         if initial_guess is None:

@@ -28,9 +28,8 @@ repos:
   rev: v0.9.3
   hooks:
   - id: ruff
-    args:
-    - --fix
-    - --exit-non-zero-on-fix
+    exclude: "deprecated/"
+    args: ["--fix", "--exit-non-zero-on-fix", "--select", "D"]
   - id: ruff-format
 -   repo: https://github.com/cheshirekow/cmake-format-precommit
     rev: v0.6.13

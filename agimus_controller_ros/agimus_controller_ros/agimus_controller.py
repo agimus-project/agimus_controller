@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Implement AgimusController."""
+
 import numpy as np
 
 from pathlib import Path
@@ -61,7 +63,7 @@ class AgimusController(Node):
         self.get_logger().info("Init done")
 
     def get_param_from_node(self, node_name: str, param_name: str) -> ParameterValue:
-        """Returns parameter from the node"""
+        """Return parameter from the node."""
         param_client = self.create_client(GetParameters, f"/{node_name}/get_parameters")
         while not param_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("Service not available, waiting again...")
@@ -77,7 +79,10 @@ class AgimusController(Node):
             raise ValueError("Failed to load moving joint names from LFC")
 
     def initialize_ros_attributes(self) -> None:
-        """Initialize ROS related attributes such as Publishers, Subscribers and Timers"""
+        """Initialize ROS related attributes.
+
+        The attributes initialized are the publishers, subscribers and timers.
+        """
         self.sensor_msg = None
         self.control_msg = None
 
@@ -151,8 +156,7 @@ class AgimusController(Node):
         self.create_timer(1.0 / self.params.rate, self.run_callback)
 
     def setup_mpc(self):
-        """Creates mpc, ocp, warmstart"""
-
+        """Create mpc, ocp, warmstart."""
         ocp_params = OCPParamsBaseCroco(
             dt=self.params.ocp.dt,
             horizon_size=self.params.ocp.horizon_size,
@@ -194,8 +198,10 @@ class AgimusController(Node):
         self.robot_description_msg = msg
 
     def create_robot_models(self) -> None:
+        """Create the robot model."""
         # TODO: fix, just hardcoded the thing: should exist in the demo folder?
         # add as a ros parameter in the yaml file srdf_path
+        # TODO create a robot_description and robot_description_semantic parameter.
         temp_srdf_path = os.path.join(
             get_package_share_directory("franka_description"),
             "robots/fer/fer.srdf",
@@ -217,9 +223,9 @@ class AgimusController(Node):
         self.get_logger().info("Robot Models initialized")
 
     def buffer_has_twice_horizon_points(self) -> bool:
-        """
-        Return true if buffer size has more than two times
-        the horizon size and False otherwise.
+        """Check if the buffer size is at least twice the size of the horizon.
+
+        Return true if buffer size has more than two times the horizon size and False otherwise.
         """
         return len(self.traj_buffer) >= 2 * self.params.ocp.horizon_size
 
@@ -234,9 +240,10 @@ class AgimusController(Node):
         self.control_publisher.publish(control_numpy_to_msg(ctrl_msg))
 
     def run_callback(self, *args) -> None:
-        """
-        Timer callback that checks we can start solve before doing it,
-        then publish messages related to the OCP.
+        """Run one mpc iteration.
+
+        First check we have the correct input, then run one iteration,
+        and finally publish the output.
         """
         if self.sensor_msg is None:
             self.get_logger().warn(
@@ -283,7 +290,7 @@ class AgimusController(Node):
 
 
 def main(args=None) -> None:
-    """Creates the Agimus controller ROS node object and spins it."""
+    """Create the AGIMUS controller ROS node object and spins it."""
     rclpy.init(args=args)
     agimus_controller_node = AgimusController()
     try:

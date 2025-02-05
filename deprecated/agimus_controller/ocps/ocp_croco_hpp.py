@@ -16,6 +16,7 @@ class OCPCrocoHPP:
             rmodel (pin.Model): Pinocchio model of the robot.
             cmodel (pin.GeometryModel): Pinocchio geometry model of the robot. Must have been convexified for the collisions to work.
             params (OCPParameters) : parameters of the ocp.
+
         """
         self._rmodel = rmodel
         self._cmodel = cmodel
@@ -51,6 +52,7 @@ class OCPCrocoHPP:
 
         Returns:
             np.ndarray: Array of (u) for each node, found by either RNEA of Generalized Gravity.
+
         """
         u_plan = np.zeros([x_plan.shape[0] - 1, self.nv])
         if using_gravity:  ### TODO for Théo
@@ -87,6 +89,7 @@ class OCPCrocoHPP:
             weight_x_reg (float): Weight of the state regularization.
             weight_u_reg (float): Weight of the control regularization.
             weight_vel_reg (float): Weight of the velocity regularization.
+
         """
         self._weight_ee_placement = weight_ee_placement
         self._weight_x_reg = weight_x_reg
@@ -109,6 +112,7 @@ class OCPCrocoHPP:
         Args:
             x_plan (np.ndarray): Array of (q,v) for each node, describing the trajectory found by the planner.
             a_plan (np.ndarray): Array of (dv/dt) for each node, describing the trajectory found by the planner.
+
         """
         placement_ref = get_ee_pose_from_configuration(
             self._rmodel,
@@ -128,7 +132,6 @@ class OCPCrocoHPP:
 
     def set_running_models(self):
         """Set running models based on state and acceleration reference trajectory."""
-
         running_models = []
         for idx in range(self.params.horizon_size - 1):
             running_cost_model = crocoddyl.CostModelSum(self.state)
@@ -261,6 +264,7 @@ class OCPCrocoHPP:
 
         Returns:
             _type_: _description_
+
         """
         obstacleDistanceResidual = ResidualDistanceCollision(
             self.state, 7, self._cmodel, col_idx
@@ -368,7 +372,7 @@ class OCPCrocoHPP:
             model.differential.costs.costs[cost_name].weight = new_weight
 
     def update_model(self, model, new_model, update_weight):
-        """update model's costs by copying new_model's costs."""
+        """Update model's costs by copying new_model's costs."""
         self.update_cost(model, new_model, "xReg", update_weight)
         self.update_cost(model, new_model, "gripperPose", update_weight)
         self.update_cost(model, new_model, "velReg", update_weight)
@@ -410,8 +414,7 @@ class OCPCrocoHPP:
         return crocoddyl.ShootingProblem(x0, self.running_models, self.terminal_model)
 
     def run_solver(self, problem, xs_init, us_init):
-        """
-        Run FDDP or CSQP solver
+        """Run FDDP or CSQP solver
         problem : crocoddyl ocp problem.
         xs_init : xs warm start.
         us_init : us warm start.

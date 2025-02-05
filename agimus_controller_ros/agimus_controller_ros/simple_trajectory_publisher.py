@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+"""Implement SimpleTrajectoryPublisher."""
+
 from agimus_msgs.msg import MpcInput
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
@@ -10,7 +13,10 @@ from sensor_msgs.msg import JointState
 
 
 class SimpleTrajectoryPublisher(Node):
+    """ROS2 Node publishing an oscillating joint trajectory."""
+
     def __init__(self):
+        """Construct the publisher ROS2 node."""
         super().__init__("simple_trajectory_publisher")
 
         self.pin_model = None
@@ -75,7 +81,7 @@ class SimpleTrajectoryPublisher(Node):
         self.robot_description_msg = msg
 
     def load_models(self):
-        """Callback to get robot description and store to object"""
+        """Build the robot model from description."""
         self.pin_model = pin.buildModelFromXML(self.robot_description_msg.data)
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
@@ -85,11 +91,7 @@ class SimpleTrajectoryPublisher(Node):
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
 
     def publish_mpc_input(self):
-        """
-        Main function to create a dummy mpc input
-        Modifies each joint in sin manner with 0.2 rad amplitude
-        """
-
+        """Modify each joint in sin manner with 0.2 rad amplitude."""
         if self.pin_model is None:  # wait for model to be available
             return
         if self.q0 is None or self.q is None:
@@ -146,6 +148,12 @@ class SimpleTrajectoryPublisher(Node):
 
 
 def main(args=None):
+    """ROS2 node publishing a simple oscillating trajectory.
+
+    Args:
+        args (_type_, optional): Forward args to the Node. Defaults to None.
+
+    """
     rclpy.init(args=args)
     node = SimpleTrajectoryPublisher()
     try:

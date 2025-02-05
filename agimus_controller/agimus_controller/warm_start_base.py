@@ -7,6 +7,7 @@ trajectories based on an initial robot state and a reference trajectory.
 Example:
     Subclass the WarmStartBase class and implement the `generate` method to create
     a warm-start for a specific optimization problem.
+
 """
 
 from abc import ABC, abstractmethod
@@ -42,8 +43,7 @@ class WarmStartBase(ABC):
         list[npt.NDArray[np.float64]],
         list[npt.NDArray[np.float64]],
     ]:
-        """
-        Generate initial values for a warm-start of the optimization problem.
+        """Generate initial values for a warm-start of the optimization problem.
 
         Args:
             initial_state (TrajectoryPoint): The initial state of the robot,
@@ -57,18 +57,19 @@ class WarmStartBase(ABC):
                 - list[npt.NDArray[np.float64]]: List of state vectors
                 for each point in the reference trajectory.
                 - list[npt.NDArray[np.float64]]: List of control inputs.
+
         """
         ...
 
     @abstractmethod
     def setup(self, *args, **kwargs) -> None:
-        """Sets up the variables needed for the warmstart computation. Allows to pass additional variables after the class is initialised, that are only know at the runtime.
+        """Set up the variables needed for the warmstart computation. Allows to pass additional variables after the class is initialised, that are only know at the runtime.
 
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
 
-            Example:
+        Example:
             >>> class MyPinocchioWarmstart(WarmStartBase):
             ...     def setup(self, rmodel: pin.Model) -> None:
             ...         self._rmodel = rmodel
@@ -78,6 +79,7 @@ class WarmStartBase(ABC):
             >>> # ...
             >>> rmodel: pin.Model() = await_urdf_model()
             >>> warmstart.setup(rmodel)
+
         """
         ...
 
@@ -86,6 +88,7 @@ class WarmStartBase(ABC):
 
         Stores the solution from a previous optimization cycle to be used as a reference
         or initialization for warm-start generation.
+
         Args:
             previous_solution (OCPResuls): The solution of the optimization problem.
         """

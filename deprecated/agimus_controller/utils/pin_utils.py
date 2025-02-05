@@ -8,12 +8,11 @@ import pinocchio as pin
 
 # Rotate placement
 def rotate(se3_placement, rpy=[0.0, 0.0, 0.0]):
-    """
-    Rotates se3_placement.rotation by rpy (LOCAL)
-     input :
-        se3_placement : pin.SE3
-        rpy           : RPY orientation in LOCAL frame
-                        RPY
+    """Rotates se3_placement.rotation by rpy (LOCAL)
+    input :
+       se3_placement : pin.SE3
+       rpy           : RPY orientation in LOCAL frame
+                       RPY
     """
     se3_placement_rotated = se3_placement.copy()
     R = pin.rpy.rpyToMatrix(rpy[0], rpy[1], rpy[2])
@@ -23,23 +22,20 @@ def rotate(se3_placement, rpy=[0.0, 0.0, 0.0]):
 
 # Get frame position
 def get_p(q, pin_robot, id_endeff):
-    """
-    Returns end-effector positions given q trajectory
-        q         : joint positions
-        robot     : pinocchio wrapper
-        id_endeff : id of EE frame
+    """Returns end-effector positions given q trajectory
+    q         : joint positions
+    robot     : pinocchio wrapper
+    id_endeff : id of EE frame
     """
     return get_p_(q, pin_robot.model, id_endeff)
 
 
 def get_p_(q, model, id_endeff):
+    """Returns end-effector positions given q trajectory
+    q         : joint positions
+    model     : pinocchio model
+    id_endeff : id of EE frame
     """
-    Returns end-effector positions given q trajectory
-        q         : joint positions
-        model     : pinocchio model
-        id_endeff : id of EE frame
-    """
-
     data = model.createData()
     if type(q) is np.ndarray and len(q.shape) == 1:
         pin.forwardKinematics(model, data, q)
@@ -57,23 +53,21 @@ def get_p_(q, model, id_endeff):
 
 # Get frame linear velocity
 def get_v(q, dq, pin_robot, id_endeff, ref=pin.LOCAL):
-    """
-    Returns end-effector velocities given q,dq trajectory
-        q         : joint positions
-        dq        : joint velocities
-        pin_robot : pinocchio wrapper
-        id_endeff : id of EE frame
+    """Returns end-effector velocities given q,dq trajectory
+    q         : joint positions
+    dq        : joint velocities
+    pin_robot : pinocchio wrapper
+    id_endeff : id of EE frame
     """
     return get_v_(q, dq, pin_robot.model, id_endeff, ref)
 
 
 def get_v_(q, dq, model, id_endeff, ref=pin.LOCAL):
-    """
-    Returns end-effector velocities given q,dq trajectory
-        q         : joint positions
-        dq        : joint velocities
-        model     : pinocchio model
-        id_endeff : id of EE frame
+    """Returns end-effector velocities given q,dq trajectory
+    q         : joint positions
+    dq        : joint velocities
+    model     : pinocchio model
+    id_endeff : id of EE frame
     """
     data = model.createData()
     if len(q) != len(dq):
@@ -98,18 +92,16 @@ def get_v_(q, dq, model, id_endeff, ref=pin.LOCAL):
 
 # Get frame orientation (rotation)
 def get_R(q, pin_robot, id_endeff):
-    """
-    Returns end-effector rotation matrices given q trajectory
-        q         : joint positions
-        pin_robot : pinocchio wrapper
-        id_endeff : id of EE frame
+    """Returns end-effector rotation matrices given q trajectory
+    q         : joint positions
+    pin_robot : pinocchio wrapper
+    id_endeff : id of EE frame
     """
     return get_R_(q, pin_robot.model, id_endeff)
 
 
 def get_R_(q, model, id_endeff):
-    """
-    Returns end-effector rotation matrices given q trajectory
+    """Returns end-effector rotation matrices given q trajectory
         q         : joint positions
         model     : pinocchio model
         id_endeff : id of EE frame
@@ -130,21 +122,19 @@ def get_R_(q, model, id_endeff):
 
 # Get frame orientation (RPY)
 def get_rpy(q, pin_robot, id_endeff):
-    """
-    Returns RPY angles of end-effector frame given q trajectory
-        q         : joint positions
-        model     : pinocchio wrapper
-        id_endeff : id of EE frame
+    """Returns RPY angles of end-effector frame given q trajectory
+    q         : joint positions
+    model     : pinocchio wrapper
+    id_endeff : id of EE frame
     """
     return get_rpy_(q, pin_robot.model, id_endeff)
 
 
 def get_rpy_(q, model, id_endeff):
-    """
-    Returns RPY angles of end-effector frame given q trajectory
-        q         : joint positions
-        model     : pinocchio model
-        id_endeff : id of EE frame
+    """Returns RPY angles of end-effector frame given q trajectory
+    q         : joint positions
+    model     : pinocchio model
+    id_endeff : id of EE frame
     """
     R = get_R_(q, model, id_endeff)
     if isinstance(R, list):
@@ -159,23 +149,21 @@ def get_rpy_(q, model, id_endeff):
 
 # Get frame angular velocity
 def get_w(q, dq, pin_robot, id_endeff, ref=pin.LOCAL):
-    """
-    Returns end-effector angular velocity given q,dq trajectory
-        q         : joint positions
-        dq        : joint velocities
-        pin_robot : pinocchio wrapper
-        id_endeff : id of EE frame
+    """Returns end-effector angular velocity given q,dq trajectory
+    q         : joint positions
+    dq        : joint velocities
+    pin_robot : pinocchio wrapper
+    id_endeff : id of EE frame
     """
     return get_w_(q, dq, pin_robot.model, id_endeff, ref)
 
 
 def get_w_(q, dq, model, id_endeff, ref=pin.LOCAL):
-    """
-    Returns end-effector  angular velocity given q,dq trajectory
-        q         : joint positions
-        dq        : joint velocities
-        pin_robot : pinocchio wrapper
-        id_endeff : id of EE frame
+    """Returns end-effector  angular velocity given q,dq trajectory
+    q         : joint positions
+    dq        : joint velocities
+    pin_robot : pinocchio wrapper
+    id_endeff : id of EE frame
     """
     data = model.createData()
     if len(q) != len(dq):
@@ -196,9 +184,7 @@ def get_w_(q, dq, model, id_endeff, ref=pin.LOCAL):
 
 # Get gravity joint torque
 def get_u_grav(q, model, armature):
-    """
-    Return gravity torque at q
-    """
+    """Return gravity torque at q"""
     data = model.createData()
     data.M += np.diag(armature)
     return pin.computeGeneralizedGravity(model, data, q)
@@ -218,6 +204,7 @@ def compute_distance_between_shapes(
 
     Returns:
         float: distance between the two given shapes
+
     """
     rdata = rmodel.createData()
     cdata = cmodel.createData()
@@ -251,6 +238,7 @@ def get_ee_pose_from_configuration(
 
     Returns:
         pin.SE3: SE3 of the position of the end effector of the robot.
+
     """
     pin.framesForwardKinematics(rmodel, rdata, q)
     pose = rdata.oMf[id_ee_frame_id]
@@ -267,8 +255,8 @@ def get_last_joint(rmodel) -> Tuple[str, int, int]:
 
     Returns:
         Tuple[str, int, int]: Name of the last joint, ID of the last joint, ID of the last joint in the frames list.
-    """
 
+    """
     if rmodel.existJointName("panda2_joint7"):
         last_joint_name = "panda2_joint7"
     elif rmodel.existJointName("panda_joint7"):

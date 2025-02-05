@@ -1,3 +1,5 @@
+"""Implement MPCSearch."""
+
 import time
 import numpy as np
 from agimus_controller.mpc import MPC
@@ -5,7 +7,10 @@ import pinocchio as pin
 
 
 class MPCSearch:
-    def __init__(self, mpc: MPC, rmodel, ee_frame_name):
+    """Search the best costs for an MPC problem."""
+
+    def __init__(self, mpc: MPC, rmodel: pin.Model, ee_frame_name: str):
+        """Construct a MPC line search."""
         self.mpc = mpc
         self.whole_x_plan = self.mpc.whole_x_plan
         self.whole_a_plan = self.mpc.whole_a_plan
@@ -24,7 +29,11 @@ class MPCSearch:
         self.results["combination"] = []
 
     def get_trajectory_difference(self, configuration_traj=True):
-        """Compute at each node the absolute difference in position either in cartesian or configuration space and sum it."""
+        """Compute the difference between two trajectories.
+
+        Compute at each node the absolute difference in position either in
+        cartesian or configuration space and sum it.
+        """
         if configuration_traj:
             traj_croco = self.croco_xs[:, : self.nq]
             traj_hpp = self.whole_x_plan[:, : self.nq]
@@ -37,7 +46,7 @@ class MPCSearch:
         return sum(diffs)
 
     def max_increase_us(self):
-        """Return control max increase"""
+        """Return control max increase."""
         increases = np.zeros([self.croco_us.shape[0] - 1, self.nq])
         for joint_idx in range(self.nq):
             for idx in range(self.croco_us.shape[0] - 1):
@@ -125,8 +134,21 @@ class MPCSearch:
         print("max torque ", np.max(np.abs(self.croco_us)))
 
     def get_cost_from_exponent(
-        self, grip_exponent, x_exponent, u_exponent, vel_exponent=0, xlim_exponent=0
+        self, grip_exponent, x_exponent, u_exponent, vel_exponent=0.0, xlim_exponent=0.0
     ):
+        """Construct the cost weight from exponents.
+
+        Args:
+            grip_exponent (float): Gripper exponent.
+            x_exponent (float): State exponent.
+            u_exponent (float): Control exponent.
+            vel_exponent (float, optional): End-effector velocity exponent. Defaults to 0.
+            xlim_exponent (float, optional): State limits exponents. Defaults to 0.
+
+        Returns:
+            tuple[float, float, float, float, float]: List of cost weights.
+
+        """
         return (
             10 ** (grip_exponent / 10),
             10 ** (x_exponent / 10),
@@ -165,10 +187,11 @@ class MPCSearch:
             self.best_croco_us = self.croco_us
 
     def _get_ee_pose_from_configuration(self, q: np.ndarray):
-        """Returns the SE3 describing the position of the end effector of the robot.
+        """Return the SE3 describing the position of the end effector of the robot.
 
         Args:
             q (np.ndarray): configuration of the robot
+
         """
         pin.framesForwardKinematics(self._rmodel, self._rdata, q)
         pose = self._rdata.oMf[self._id_ee_frame_name]

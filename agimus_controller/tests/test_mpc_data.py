@@ -1,3 +1,5 @@
+"""Implement TestMPCData."""
+
 from copy import deepcopy
 import numpy as np
 import numpy.typing as npt
@@ -8,18 +10,20 @@ import unittest
 from agimus_controller.mpc_data import MPCDebugData, OCPDebugData, OCPResults
 
 
-class TestOCPParamsCrocoBase(unittest.TestCase):
-    """
-    TestOCPParamsCrocoBase unittests parameters settters and getters of OCPParamsBaseCroco class.
-    """
+class TestMPCData(unittest.TestCase):
+    """TestMPCData unittests parameters settters and getters of OCPParamsBaseCroco class."""
 
     def __init__(self, methodName="runTest"):
+        """Create a test suite.
+
+        Args:
+            methodName (str, optional): Name of a test. Defaults to "runTest".
+
+        """
         super().__init__(methodName)
 
     def test_ocp_results(self):
-        """
-        Test the initialization of the OCPResults class.
-        """
+        """Test the initialization of the OCPResults class."""
         N = random.randint(10, 100)
         rows = random.randint(10, 20)
         cols = 2 * rows
@@ -43,9 +47,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
                 )
 
     def test_ocp_debug_data(self):
-        """
-        Test the initialization of the OCPDebugData class.
-        """
+        """Test the initialization of the OCPDebugData class."""
         params = {
             "result": list(),
             "references": list(),
@@ -63,9 +65,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
             )
 
     def test_mpc_debug_data(self):
-        """
-        Test the initialization of the MPCDebugData class.
-        """
+        """Test the initialization of the MPCDebugData class."""
         params = {
             "ocp": OCPDebugData(
                 **{

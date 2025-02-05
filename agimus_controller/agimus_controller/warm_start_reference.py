@@ -1,3 +1,5 @@
+"""Implement WarmStartReference."""
+
 import numpy as np
 import numpy.typing as npt
 
@@ -8,14 +10,14 @@ from agimus_controller.trajectory import TrajectoryPoint
 
 
 class WarmStartReference(WarmStartBase):
-    """
-    A class for generating warmstart values for trajectory optimization problem.
+    """A class for generating warmstart values for trajectory optimization problem.
 
     This class uses a reference trajectory and the robot model to compute the initial state,
     state vectors, and control inputs.
     """
 
     def __init__(self) -> None:
+        """Construct the WarmStartReference object."""
         super().__init__()
         # The robot's Pinocchio model, used for forward dynamics computations.
         self._rmodel: pin.Model | None = None
@@ -25,6 +27,12 @@ class WarmStartReference(WarmStartBase):
         self._nx: int = 0
 
     def setup(self, rmodel: pin.Model) -> None:
+        """Set up the warm start.
+
+        Args:
+            rmodel (pin.Model): Robot model.
+
+        """
         self._rmodel = rmodel
         self._rdata = self._rmodel.createData()
         self._nx = self._rmodel.nq + self._rmodel.nv
@@ -38,8 +46,8 @@ class WarmStartReference(WarmStartBase):
         list[npt.NDArray[np.float64]],
         list[npt.NDArray[np.float64]],
     ]:
-        """
-        Generate initial values for a warm-start of the optimization problem.
+        """Generate initial values for a warm-start of the optimization problem.
+
         The state vector is `[q, v]`, where:
             - `q` is the robot's joint configuration.
             - `v` is the robot's joint velocity.
