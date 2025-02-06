@@ -1,6 +1,7 @@
 import crocoddyl
 import numpy as np
 import pinocchio as pin
+from typing import Tuple
 
 from agimus_controller.ocp_base_croco import OCPBaseCroco
 from agimus_controller.trajectory import WeightedTrajectoryPoint
@@ -9,7 +10,14 @@ from colmpc import ActivationModelQuadExp, ResidualDistanceCollision
 
 
 class OCPCrocoTrajTrackCollAvoidance(OCPBaseCroco):
-    def create_residuals(self):
+    def create_residuals(
+        self,
+    ) -> Tuple[
+        crocoddyl.ResidualModelAbstract,
+        crocoddyl.ResidualModelAbstract,
+        crocoddyl.ResidualModelAbstract,
+    ]:
+        """Create state, control, and end-effector placement residuals."""
         x_residual = crocoddyl.ResidualModelState(
             self._state,
             np.concatenate(
