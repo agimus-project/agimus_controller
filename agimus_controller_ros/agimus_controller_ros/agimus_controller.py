@@ -30,7 +30,9 @@ from agimus_controller.mpc_data import OCPResults
 from agimus_controller.ocp.ocp_traj_tracking_collision_avoidance import (
     OCPCrocoTrajTrackCollAvoidance,
 )
-from agimus_controller.ocp_param_traj_tracking import OCPParamsTrajTracking
+from agimus_controller.ocp_param_traj_tracking_collisions import (
+    OCPParamsTrajTrackingCollisions,
+)
 from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
@@ -177,7 +179,7 @@ class AgimusController(Node):
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
 
-        ocp_params = OCPParamsTrajTracking(
+        ocp_params = OCPParamsTrajTrackingCollisions(
             dt=self.params.ocp.dt,
             collision_safety_margin=self.params.ocp.collision_safety_margin,
             activation_distance_threshold=self.params.ocp.activation_distance_threshold,

@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 @dataclass
 class DTFactorsNSeq:
+    """Time varying steps definition based on integration step of OCP."""
+
     factors: list[int]  # Number of dts between two time steps, the "factor".
     dts: list[int]  # Number of time steps, the "n".
 
