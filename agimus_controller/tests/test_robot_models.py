@@ -1,3 +1,5 @@
+"""Implement TestRobotModelParameters, TestRobotModelsAgainstExampleRobotData and TestRobotModelsAgainstFrankaDescription."""
+
 import coal
 from copy import deepcopy
 from os import environ, pathsep
@@ -42,7 +44,10 @@ from agimus_controller.factory.robot_model import RobotModelParameters, RobotMod
 
 
 class TestRobotModelParameters(unittest.TestCase):
+    """Test the creation and change of the parameters."""
+
     def setUp(self):
+        """Set up the parameters for testing."""
         robot = robex.load("panda")
         urdf_path = Path(robot.urdf)
         srdf_path = Path(robot.urdf.replace("urdf", "srdf"))
@@ -61,7 +66,6 @@ class TestRobotModelParameters(unittest.TestCase):
 
     def test_valid_initialization(self):
         """Test that the dataclass initializes correctly with valid input."""
-
         self.valid_args["collision_as_capsule"] = True
         self.valid_args["self_collision"] = True
 
@@ -114,10 +118,15 @@ class TestRobotModelParameters(unittest.TestCase):
 
 
 class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
+    """Test the robot models using the Panda robot in example-robot-data."""
+
     @classmethod
     def setUpClass(cls):
-        """
-        This method sets up the shared environment for all test cases in the class.
+        """Set up the shared environment for all test cases in the class.
+
+        Args:
+            cls (TestRobotModelsAgainstExampleRobotData): class method argument.
+
         """
         # Load the example robot model using example robot data to get the URDF path.
         robot = robex.load("panda")
@@ -141,7 +150,8 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         )
 
     def setUp(self):
-        """
+        """Set up the unit-tests.
+
         This method ensures that a fresh RobotModelParameters and RobotModels instance
         are created for each test case.
         """
@@ -149,6 +159,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         self.robot_models = RobotModels(self.params)
 
     def test_no_meshes(self):
+        """Test loading when no meshes are given."""
         self.params.urdf_meshes_dir = None
         # Clear paths where pinocchio searches for meshes
         if "ROS_PACKAGE_PATH" in environ:
@@ -167,6 +178,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         environ["AMENT_PREFIX_PATH"] = previous_ament_prefix_path
 
     def test_load_urdf_from_string(self):
+        """Test loading the model from a string."""
         params = deepcopy(self.params)
         with open(Path(robex.load("panda").urdf), "r") as file:
             params.urdf = file.read().replace("\n", "")
@@ -192,6 +204,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         )
 
     def test_initial_configuration(self):
+        """Test the initial configuration."""
         q0_test = self.params.q0.copy()
         np.testing.assert_array_equal(self.robot_models._q0, q0_test)
         self.params.q0 = np.array([], dtype=np.float64)
@@ -199,26 +212,29 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         np.testing.assert_array_equal(self.robot_models._q0, q0_test)
 
     def test_load_models_populates_models(self):
+        """Test the models constructed."""
         self.assertIsNotNone(self.robot_models.full_robot_model)
         self.assertIsNotNone(self.robot_models.visual_model)
         self.assertIsNotNone(self.robot_models.collision_model)
 
     def test_reduced_robot_model(self):
+        """Test the number of DoF of the reduced model."""
         self.assertTrue(
             self.robot_models.robot_model.nq == len(self.params.moving_joint_names)
         )
 
     def test_invalid_joint_name_raises_value_error(self):
-        # Modify a fresh instance of parameters for this test
+        """Modify a fresh instance of parameters for this test."""
         self.params.moving_joint_names = ["InvalidJoint"]
         with self.assertRaises(ValueError):
             self.robot_models._lock_joints()
 
     def test_armature_property(self):
+        """Test the armature loading."""
         np.testing.assert_array_equal(self.robot_models.armature, self.params.armature)
 
     def test_collision_pairs(self):
-        """Checking that the collision model has collision pairs."""
+        """Check that the collision model has collision pairs."""
         self.params.collision_as_capsule = False
         self.robot_models.load_models()
         self.assertEqual(
@@ -226,14 +242,15 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         )  # Number of collision pairs in the panda model
 
     def test_rnea(self):
-        """Checking that the RNEA method works."""
+        """Check that the RNEA method works."""
         q = np.zeros(self.robot_models.robot_model.nq)
         v = np.zeros(self.robot_models.robot_model.nv)
         a = np.zeros(self.robot_models.robot_model.nv)
         robot_data = self.robot_models.robot_model.createData()
         pin.rnea(self.robot_models.robot_model, robot_data, q, v, a)
 
-    def test_franka_description_collision_models(self):
+    def test_collision_models(self):
+        """Test the collision models."""
         geom_obj_names_test = [
             "panda_leftfinger_0",
             "panda_leftfinger_1",
@@ -277,11 +294,11 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
     f"ament_index_python (available ? {AMENT_AVAILABLE}) are not available",
 )
 class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
+    """Test the loading of the robot models using franka_description."""
+
     @classmethod
     def setUpClass(cls):
-        """
-        This method sets up the shared environment for all test cases in the class.
-        """
+        """Set up the shared environment for all test cases in the class."""
         # Load the example robot model using example robot data to get the URDF path.
         franka_description_path = Path(
             get_package_share_directory("franka_description")
@@ -321,14 +338,16 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
         )
 
     def setUp(self):
-        """
-        This method ensures that a fresh RobotModelParameters and RobotModels instance
-        are created for each test case.
+        """Set up the tests.
+
+        Ensure a fresh RobotModelParameters and RobotModels instances are
+        created for each test case.
         """
         self.params = deepcopy(self.params)
         self.robot_models = RobotModels(self.params)
 
     def test_no_meshes(self):
+        """Test when no mesh paths are given."""
         self.params.urdf_meshes_dir = None
         # Clear paths where pinocchio searches for meshes
         if "ROS_PACKAGE_PATH" in environ:
@@ -347,6 +366,7 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
         environ["AMENT_PREFIX_PATH"] = previous_ament_prefix_path
 
     def test_initial_configuration(self):
+        """Test if the loading when an initial configuration is given or not."""
         q0_test = self.params.q0.copy()
         np.testing.assert_array_equal(self.robot_models._q0, q0_test)
         self.params.q0 = np.array([], dtype=np.float64)
@@ -354,16 +374,19 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
         np.testing.assert_array_equal(self.robot_models._q0, q0_test)
 
     def test_load_models_populates_models(self):
+        """Test if the models are populated properly."""
         self.assertIsNotNone(self.robot_models.full_robot_model)
         self.assertIsNotNone(self.robot_models.visual_model)
         self.assertIsNotNone(self.robot_models.collision_model)
 
     def test_reduced_robot_model(self):
+        """Test the number of DoF of the reduced model."""
         self.assertTrue(
             self.robot_models.robot_model.nq == len(self.params.moving_joint_names)
         )
 
     def test_armature_property(self):
+        """Test if the armature is properly initialized."""
         np.testing.assert_array_equal(self.robot_models.armature, self.params.armature)
 
     def test_collision_pairs(self):
@@ -381,6 +404,7 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
         pin.rnea(self.robot_models.robot_model, robot_data, q, v, a)
 
     def test_franka_description_collision_models(self):
+        """Test the collision model loaded form the fer robot in franka_description."""
         geom_obj_names_test = [
             "fer_leftfinger_0",
             "fer_leftfinger_1",

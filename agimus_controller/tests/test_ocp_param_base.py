@@ -1,20 +1,24 @@
+"""Implement TestOCPParamsCrocoBase."""
+
 import unittest
 
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 
 
 class TestOCPParamsCrocoBase(unittest.TestCase):
-    """
-    TestOCPParamsCrocoBase unittests parameters settters and getters of OCPParamsBaseCroco class.
-    """
+    """TestOCPParamsCrocoBase unittests parameters settters and getters of OCPParamsBaseCroco class."""
 
     def __init__(self, methodName="runTest"):
+        """Create a test.
+
+        Args:
+            methodName (str, optional): Test name. Defaults to "runTest".
+
+        """
         super().__init__(methodName)
 
     def test_initialization(self):
-        """
-        Test the initialization of the OCPParamsBaseCroco class.
-        """
+        """Test the initialization of the OCPParamsBaseCroco class."""
         params = {
             "dt": 0.01,
             "horizon_size": 100,

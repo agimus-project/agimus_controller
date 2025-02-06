@@ -10,6 +10,7 @@
   matplotlib,
   numpy,
   pinocchio,
+  pip,
   #pytestCheckHook, # Uncomment to add tests.
   setuptools,
 }:
@@ -26,7 +27,7 @@ buildPythonPackage {
     ];
   };
 
-  build-system = [ setuptools ];
+  build-system = [ setuptools pip ];
 
   dependencies = [
     agimus-controller
@@ -46,6 +47,9 @@ buildPythonPackage {
   dontUseCmakeConfigure = true; # Something is propagating cmake…
   dontWrapQtApps = true;
 
+
+  dontWrapQtApps = true;
+  dontUseCmakeConfigure = true; # Something is propagating cmake…
 
   meta = {
     description = "agimus_controller_examples is a sandbox for the agimus_controller package.";

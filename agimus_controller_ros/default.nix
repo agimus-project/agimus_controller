@@ -7,6 +7,7 @@
   linear-feedback-controller-msgs,
   numpy,
   pinocchio,
+  pip,
   pytestCheckHook,
   rosPackages,
   setuptools,
@@ -26,7 +27,7 @@ buildPythonPackage {
     ];
   };
 
-  build-system = [ setuptools ];
+  build-system = [ setuptools pip ];
 
   dependencies = [
     agimus-controller
@@ -54,6 +55,12 @@ buildPythonPackage {
   pythonImportsCheck = [ "agimus_controller_ros" ];
   dontUseCmakeConfigure = true; # Something is propagating cmake…
   dontWrapQtApps = true;
+
+  dontWrapQtApps = true;
+  dontUseCmakeConfigure = true; # Something is propagating cmake…
+  pytestCheckPhase = ''
+    AMENT_PREFIX_PATH=${franka-description.out}:$AMENT_PREFIX_PATH pytest -v -rs
+  '';
 
   meta = {
     description = "The agimus_controller package";

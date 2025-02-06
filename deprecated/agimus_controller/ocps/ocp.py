@@ -82,8 +82,7 @@ class OCPPandaReachingColWithMultipleCol:
         assert self._endeff_frame <= len(self._rmodel.frames)
 
     def __call__(self) -> Any:
-        "Setting up croccodyl OCP"
-
+        """Setting up croccodyl OCP"""
         # Stat and actuation model
         self._state = crocoddyl.StateMultibody(self._rmodel)
         self._actuation = crocoddyl.ActuationModelFull(self._state)

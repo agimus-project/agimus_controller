@@ -1,3 +1,5 @@
+"""Implement Scene."""
+
 from pathlib import Path
 import numpy as np
 import pinocchio as pin
@@ -7,22 +9,25 @@ YELLOW_FULL = np.array([1, 1, 0, 1.0])
 
 
 class Scene:
+    """Represents a scene with obstacles and robot configurations."""
+
     def __init__(
         self,
         name_scene: str,
-        q_init,
-        obstacle_pose=None,
+        q_init: np.ndarray,
+        obstacle_pose: pin.SE3 | None = None,
     ) -> None:
-        """Create the scene that encapsulates the obstacles.
+        """Initialize the scene.
 
         Args:
-            name_scene (str): Name of the scene, among "box", "ball" and "wall".
-            obstacle_pose (pin.SE3, optional): Pose of the obstacles. The default one is adapted for each scene. Defaults to None.
+            name_scene (str): Name of the scene, among "box", "ball", and "wall".
+            q_init (np.ndarray): Initial robot configuration.
+            obstacle_pose (pin.SE3, optional): Pose of the obstacles. Defaults to None.
 
         Raises:
-            NotImplementedError: No scene of the given name.
-        """
+            NotImplementedError: If the scene name is not recognized.
 
+        """
         self._name_scene = name_scene
         self.obstacle_pose = obstacle_pose
         self._q0 = q_init
@@ -74,6 +79,7 @@ class Scene:
         Args:
             rmodel (pin.Model): robot model
             cmodel (pin.Model): collision model of the robot
+
         """
         obs_model, obs_cmodel, _ = self._load_obstacle_urdf(self.urdf_filename)
         self._rmodel, self._cmodel = pin.appendModel(
@@ -120,7 +126,8 @@ class Scene:
         """Load models for a given URDF in the obstacle directory.
 
         Args:
-            urdf_file_name (str): name of the URDF.
+            urdf_filename (str): name of the URDF.
+
         """
         obstacle_dir = (
             Path(__file__).resolve().parent.parent / "resources" / "obstacles"
@@ -147,6 +154,7 @@ class Scene:
 
         Returns:
             list: list of the shapes avoiding the collisions with the obstacles.
+
         """
         if self._name_scene == "box" or "wall":
             self.shapes_avoiding_collision = [

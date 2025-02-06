@@ -1,17 +1,22 @@
+"""Implement utilities for analyzing an OCP."""
+
+import crocoddyl
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-def return_state_vector(ddp):
-    """Creates an array containing the states along the horizon
+def return_state_vector(ddp: crocoddyl.SolverDDP):
+    """Create an array containing the states along the horizon.
 
-    Arguments:
-        dpp -- Crocoddyl object containing all solver related data
+    Args:
+        ddp (crocoddyl.SolverDDP): Crocoddyl object containing all solver-related data.
+
+    Returns:
+        dict: A dictionary with base and joint states.
+
     """
     raw_states = np.array(ddp.xs)
-
     nq = int((len(raw_states[0]) - 7) / 2 + 3)
-
     states = dict(
         base_position=raw_states[:, 0:3],
         base_linear_velocity=raw_states[:, nq : (nq + 3)],
@@ -20,25 +25,25 @@ def return_state_vector(ddp):
         joints_position=raw_states[:, 7:nq],
         joints_velocity=raw_states[:, (nq + 6) :],
     )
-
     return states
 
 
-def return_command_vector(ddp):
-    """Creates an array containing the commands along the horizon
+def return_command_vector(ddp: crocoddyl.SolverDDP):
+    """Create an array containing the commands along the horizon.
 
-    Arguments:
-        dpp -- Crocoddyl object containing all solver related data
+    Args:
+        ddp (Crocoddyl.DDP): Crocoddyl object containing all solver-related data.
+
+    Returns:
+        np.array: Command trajectory.
+
     """
     commands = np.array(ddp.us)
-
     return commands
 
 
 def return_cost_vectors(ddp, weighted=False, integrated=False):
-    """
-    Creates a dictionary with the costs along the horizon from the ddp object and returns it
-    """
+    """Create a dictionary with the costs along the horizon from the ddp object and returns it."""
     costs = {}
     for i in range(ddp.problem.T):
         for cost_tag in list(
@@ -108,9 +113,7 @@ def return_cost_vectors(ddp, weighted=False, integrated=False):
 
 
 def return_constraint_vector(solver):
-    """
-    Returns a dictionary with constraints along the horizon from the solver object.
-    """
+    """Return a dictionary with constraints along the horizon from the solver object."""
     constraints = {}
     for i in range(solver.problem.T):
         for constraint_tag, constraint_value in (
@@ -142,6 +145,7 @@ def return_constraint_vector(solver):
 
 
 def return_weights(ddp):
+    """Get the weights."""
     weights = {}
     for i in range(ddp.problem.T):
         for cost_tag in list(
@@ -168,8 +172,9 @@ def return_weights(ddp):
 
 
 def return_time_vector(ddp, t0=0):
-    """
-    Returns a vector with the time evolution related to a ddp problem,
+    """Get the time vector.
+
+    Return a vector with the time evolution related to a ddp problem,
     useful when plotting and dt changes from node to node
     """
     time = np.zeros(ddp.problem.T + 1)
@@ -181,9 +186,7 @@ def return_time_vector(ddp, t0=0):
 
 
 def plot_costs_from_dic(dic):
-    """
-    Plots dictionary tags
-    """
+    """Plot dictionary tags."""
     fig, ax_running = plt.subplots()
     ax_terminal = ax_running.twinx()
     runningCosts = []
@@ -205,8 +208,9 @@ def plot_costs_from_dic(dic):
 
 
 def plot_constraints_from_dic(dic, subplots_per_fig=6, nan_threshold=0.5, point_size=8):
-    """
-    Plots the constraints from the dictionary. If the data is sparse (i.e., contains many NaNs),
+    """Plot the constraints from the dictionary.
+
+    If the data is sparse (i.e., contains many NaNs),
     it uses scatter plots with large points instead of line plots.
 
     Args:
@@ -214,6 +218,7 @@ def plot_constraints_from_dic(dic, subplots_per_fig=6, nan_threshold=0.5, point_
     subplots_per_fig (int): Number of subplots per figure.
     nan_threshold (float): Proportion threshold of NaNs to switch from line plot to scatter plot.
     point_size (int): Size of the points in the scatter plot.
+
     """
     plot_count = 0
     keys = list(dic.keys())
@@ -269,6 +274,7 @@ def plot_constraints_from_dic(dic, subplots_per_fig=6, nan_threshold=0.5, point_
 
 
 def plot_state_from_dic(dic):
+    """Plot the state."""
     fig = plt.figure()
     for i in range(len(list(dic.keys()))):
         key = list(dic.keys())[i]
@@ -278,6 +284,7 @@ def plot_state_from_dic(dic):
 
 
 def plot_command(commands):
+    """Plot the MPC command."""
     plt.figure()
     plt.plot(commands)
     plt.title("Commands")

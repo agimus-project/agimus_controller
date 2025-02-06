@@ -1,3 +1,5 @@
+"""Debug an OCP via a main script."""
+
 from pathlib import Path
 import example_robot_data as robex
 import numpy as np
@@ -46,9 +48,7 @@ Q0 = weighted_trajectory_data[0].point.robot_configuration
 
 
 def generate_sinusoide_variation(q, t):
-    """
-    Generates a sinusoidal variation in the robot's configuration.
-    """
+    """Generate a sinusoidal variation in the robot's configuration."""
     for i in [2]:  # Apply sinusoidal variation to the 3rd joint
         q[i] = Q0[i] + SINUSOID_AMPLITUDE * np.sin(SINUSOID_FREQUENCY * t * DT)
     return q

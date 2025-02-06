@@ -49,8 +49,12 @@ buildPythonPackage {
   nativeCheckInputs = [ pytestCheckHook ];
   doCheck = true;
   pythonImportsCheck = [ "agimus_controller" ];
+
   dontWrapQtApps = true;
   dontUseCmakeConfigure = true; # Something is propagating cmake…
+  pytestCheckPhase = ''
+    AMENT_PREFIX_PATH=${franka-description.out}:$AMENT_PREFIX_PATH pytest -v -rs
+  '';
 
   meta = {
     description = "The agimus_controller package";

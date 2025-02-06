@@ -40,6 +40,7 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
                 that produces the previous solution. It is required that:
                 - timesteps[i] >= timesteps[0]
                 - timesteps matches the OCP nodes time steps.
+
         """
         self._timesteps = ocp_params.timesteps
         self._dt = self._timesteps[0]

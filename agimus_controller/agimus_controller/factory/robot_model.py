@@ -1,3 +1,5 @@
+"""Implement RobotModels and RobotModelParameters."""
+
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,6 +13,8 @@ import pinocchio as pin
 
 @dataclass
 class RobotModelParameters:
+    """Parameters ot the robot model."""
+
     q0: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )  # Initial full configuration of the robot
@@ -36,6 +40,7 @@ class RobotModelParameters:
     )  # Red color for the collision model
 
     def __post_init__(self):
+        """Handle special constructor case."""
         # Handle armature:
         if self.armature.size == 0:
             # Use a default armature filled with 0s,
@@ -79,6 +84,7 @@ class RobotModels:
 
         Args:
             param (RobotModelParameters): Parameters to load the robot models.
+
         """
         self._params = param
         self._full_robot_model = None
@@ -251,12 +257,15 @@ class RobotModels:
         )
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
-        """Generates a unique capsule name for a geometry object.
+        """Generate a unique capsule name for a geometry object.
+
         Args:
             base_name (str): The base name of the geometry object.
             existing_names (list): List of names already assigned to capsules.
+
         Returns:
             str: Unique capsule name.
+
         """
         i = 0
         while f"{base_name}_capsule_{i}" in existing_names:
@@ -266,7 +275,9 @@ class RobotModels:
     @property
     def armature(self) -> npt.NDArray[np.float64]:
         """Armature of the robot.
+
         Returns:
             npt.NDArray[np.float64]: Armature of the robot.
+
         """
         return self._params.armature

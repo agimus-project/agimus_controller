@@ -1,3 +1,5 @@
+"""Implement OCPCrocoGoalReaching."""
+
 import crocoddyl
 import numpy as np
 import pinocchio as pin
@@ -7,7 +9,10 @@ from agimus_controller.trajectory import WeightedTrajectoryPoint
 
 
 class OCPCrocoGoalReaching(OCPBaseCroco):
+    """Simple OCP computing a reaching trajectory."""
+
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
+        """Create the running models."""
         running_model_list = []
         for _ in range(self._ocp_params.horizon_size - 1):
             # Running cost model
@@ -72,6 +77,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
         return running_model_list
 
     def create_terminal_model(self) -> crocoddyl.ActionModelAbstract:
+        """Create the terminal model."""
         # Terminal cost models
         terminal_cost_model = crocoddyl.CostModelSum(self._state)
 
@@ -126,7 +132,6 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
         self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
     ):
         """Set the reference trajectory for the OCP."""
-
         # Modify running costs reference and weights
         for i in range(self.horizon_size - 1):
             # Modifying the state regularization cost
