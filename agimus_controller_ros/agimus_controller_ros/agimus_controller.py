@@ -10,7 +10,8 @@ from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
 from std_msgs.msg import String
-from agimus_msgs.msg import MpcInput
+
+from agimus_msgs.msg import MpcInput, MpcDebug
 import builtin_interfaces
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -19,6 +20,7 @@ import linear_feedback_controller_msgs_py.lfc_py_types as lfc_py_types
 from linear_feedback_controller_msgs_py.numpy_conversions import (
     sensor_msg_to_numpy,
     control_numpy_to_msg,
+    matrix_numpy_to_msg,
 )
 from linear_feedback_controller_msgs.msg import Control, Sensor
 from sensor_msgs.msg import JointState
@@ -161,6 +163,15 @@ class AgimusController(Node):
                     reliability=ReliabilityPolicy.BEST_EFFORT,
                 ),
             )
+
+            self.mpc_debug_pub = self.create_publisher(
+                MpcDebug,
+                "mpc_debug",
+                qos_profile=QoSProfile(
+                    depth=10,
+                    reliability=ReliabilityPolicy.BEST_EFFORT,
+                ),
+            )
         self.create_timer(1.0 / self.params.rate, self.run_callback)
 
     def setup_mpc(self):
@@ -253,6 +264,20 @@ class AgimusController(Node):
         )
         self.control_publisher.publish(control_numpy_to_msg(ctrl_msg))
 
+    def publish_mpc_debug_data(self, ocp_res: OCPResults) -> None:
+        """Publish the debug data of MPC."""
+        mpc_debug_data = self.mpc.mpc_debug_data
+        mpc_debug_msg = MpcDebug()
+        mpc_debug_msg.states_predictions = matrix_numpy_to_msg(np.array(ocp_res.states))
+        mpc_debug_msg.control_predictions = matrix_numpy_to_msg(
+            np.array(ocp_res.feed_forward_terms)
+        )
+        mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(
+            np.array(mpc_debug_data.ocp.collision_distance_residuals)
+        )
+        mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
+        self.mpc_debug_pub.publish(mpc_debug_msg)
+
     def run_callback(self, *args) -> None:
         """
         Timer callback that checks we can start solve before doing it,
@@ -301,6 +326,7 @@ class AgimusController(Node):
             compute_time = self.get_clock().now() - start_compute_time
             self.ocp_solve_time_pub.publish(compute_time.to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
+            self.publish_mpc_debug_data(ocp_res)
 
 
 def main(args=None) -> None:
