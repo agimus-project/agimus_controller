@@ -161,7 +161,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
             # setting running model goal tracking reference, weight and frame id
             # assuming exactly one end-effector tracking reference was passed to the trajectory
             ee_names = list(
-                iter(reference_weighted_trajectory[i].weights.w_end_effector_poses)
+                reference_weighted_trajectory[i].weights.w_end_effector_poses.keys()
             )
             if len(ee_names) > 1:
                 raise ValueError("Only one end-effector tracking reference is allowed.")
@@ -197,7 +197,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
         )
 
         ee_names = list(
-            iter(reference_weighted_trajectory[-1].weights.w_end_effector_poses)
+            reference_weighted_trajectory[i].weights.w_end_effector_poses.keys()
         )
         ee_name = ee_names[0]
         ee_cost = self._solver.problem.terminalModel.differential.costs.costs[

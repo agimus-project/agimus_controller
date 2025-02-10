@@ -4,7 +4,6 @@ import crocoddyl
 import mim_solvers
 import numpy as np
 import numpy.typing as npt
-from typing import Union
 
 from agimus_controller.trajectory import WeightedTrajectoryPoint
 from agimus_controller.factory.robot_model import RobotModels
@@ -61,7 +60,7 @@ class OCPBaseCroco(OCPBase):
             self._running_model_list,
             self._terminal_model,
         )
-        self._problem.nthreads = 6
+        self._problem.nthreads = self._params.nb_threads
 
         # Create solver + callbacks
         self._solver = mim_solvers.SolverCSQP(self._problem)
@@ -120,36 +119,6 @@ class OCPBaseCroco(OCPBase):
         """modify crocoddyl cost reference and weight."""
         model.differential.costs.costs[cost_name].cost.residual.reference = reference
         model.differential.costs.costs[cost_name].cost.activation.weights = weigths
-
-    def get_distance_collision_residuals(self) -> Union[npt.NDArray[np.float64], None]:
-        """Return distance collision residual if Crocoddyl's problem use it."""
-        nb_collision_pairs = len(self._collision_model.collisionPairs)
-        if (
-            nb_collision_pairs != 0
-            and self._solver.problem.runningDatas[0].differential.constraints
-            is not None
-        ):
-            coll_residuals = np.zeros((self._params.horizon_size, nb_collision_pairs))
-            for node_idx in range(self._params.horizon_size - 1):
-                constraints_residual_dict = self._solver.problem.runningDatas[
-                    node_idx
-                ].differential.constraints.constraints.todict()
-                for coll_pair_idx, constraint_key in enumerate(
-                    constraints_residual_dict.keys()
-                ):
-                    coll_residuals[node_idx, coll_pair_idx] = constraints_residual_dict[
-                        constraint_key
-                    ].residual.r[0]
-            constraints_residual_dict = self._solver.problem.terminalData.differential.constraints.constraints.todict()
-            for coll_pair_idx, constraint_key in enumerate(
-                constraints_residual_dict.keys()
-            ):
-                coll_residuals[self._params.horizon_size - 1, coll_pair_idx] = (
-                    constraints_residual_dict[constraint_key].residual.r[0]
-                )
-            return coll_residuals
-        else:
-            return None
 
     def solve(
         self,
