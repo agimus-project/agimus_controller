@@ -1,16 +1,17 @@
 import pinocchio as pin
 import numpy as np
 import numpy.typing as npt
-
+from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
 from geometry_msgs.msg import Pose
-from agimus_msgs.msg import MpcInput
+from agimus_msgs.msg import MpcInput, MpcDebug
 
 from agimus_controller.trajectory import (
     TrajectoryPoint,
     TrajectoryPointWeights,
     WeightedTrajectoryPoint,
 )
+from agimus_controller.mpc_data import OCPResults, MPCDebugData
 
 
 def ros_pose_to_array(pose: Pose) -> npt.NDArray[np.float64]:
@@ -51,3 +52,23 @@ def mpc_msg_to_weighted_traj_point(
     )
 
     return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
+
+
+def mpc_debug_data_to_msg(
+    ocp_res: OCPResults, mpc_debug_data: MPCDebugData
+) -> MpcDebug:
+    """Build MPC debug data message."""
+    mpc_debug_msg = MpcDebug()
+    mpc_debug_msg.states_predictions = matrix_numpy_to_msg(np.array(ocp_res.states))
+    mpc_debug_msg.control_predictions = matrix_numpy_to_msg(
+        np.array(ocp_res.feed_forward_terms)
+    )
+    if mpc_debug_data.ocp.collision_distance_residuals is not None:
+        mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(
+            np.array(mpc_debug_data.ocp.collision_distance_residuals)
+        )
+    else:
+        mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(np.zeros((1)))
+
+    mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
+    return mpc_debug_msg

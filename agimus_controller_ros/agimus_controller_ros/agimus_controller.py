@@ -20,7 +20,6 @@ import linear_feedback_controller_msgs_py.lfc_py_types as lfc_py_types
 from linear_feedback_controller_msgs_py.numpy_conversions import (
     sensor_msg_to_numpy,
     control_numpy_to_msg,
-    matrix_numpy_to_msg,
 )
 from linear_feedback_controller_msgs.msg import Control, Sensor
 from sensor_msgs.msg import JointState
@@ -37,7 +36,10 @@ from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
-from agimus_controller_ros.ros_utils import mpc_msg_to_weighted_traj_point
+from agimus_controller_ros.ros_utils import (
+    mpc_msg_to_weighted_traj_point,
+    mpc_debug_data_to_msg,
+)
 
 
 from agimus_controller.trajectory import TrajectoryBuffer, TrajectoryPoint
@@ -53,7 +55,20 @@ class AgimusController(Node):
         self.param_listener = agimus_controller_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.traj_buffer = TrajectoryBuffer([(1, self.params.ocp.horizon_size - 1)])
+        self.params.horizon_size_base_dt = 0
+        for factor, sn in zip(
+            self.params.ocp.dt_factor_n_seq.factors, self.params.ocp.dt_factor_n_seq.dts
+        ):
+            for _ in range(sn):
+                self.params.horizon_size_base_dt += factor
+        self.params.collision_pairs = [
+            [
+                self.params.get_entry(collision_pair_name).first,
+                self.params.get_entry(collision_pair_name).second,
+            ]
+            for collision_pair_name in self.params.collision_pairs_names
+        ]
+        self.traj_buffer = None
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
@@ -63,6 +78,7 @@ class AgimusController(Node):
         self.np_sensor_msg = None
         self.destroy_joint_sub = False
         self.environment_msg = None
+        self.buffer_got_twice_horizon_points = False
 
         self.initialize_ros_attributes()
         self.get_logger().info("Init done")
@@ -187,6 +203,7 @@ class AgimusController(Node):
             horizon_size=self.params.ocp.horizon_size,
             solver_iters=self.params.ocp.max_iter,
             callbacks=self.params.ocp.activate_callback,
+            nb_threads=self.params.ocp.nb_threads,
             qp_iters=self.params.ocp.max_qp_iter,
         )
 
@@ -194,6 +211,7 @@ class AgimusController(Node):
         ws = WarmStartReference()
         ws.setup(self.robot_models._robot_model)
         self.mpc = MPC()
+        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
         self.mpc.setup(ocp=ocp, warm_start=ws, buffer=self.traj_buffer)
 
     def sensor_callback(self, sensor_msg: Sensor) -> None:
@@ -254,7 +272,7 @@ class AgimusController(Node):
         Return true if buffer size has more than two times
         the horizon size and False otherwise.
         """
-        return len(self.traj_buffer) >= 2 * self.params.ocp.horizon_size
+        return len(self.traj_buffer) >= 2 * self.params.horizon_size_base_dt
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""
@@ -266,26 +284,11 @@ class AgimusController(Node):
         )
         self.control_publisher.publish(control_numpy_to_msg(ctrl_msg))
 
-    def publish_mpc_debug_data(self, ocp_res: OCPResults) -> None:
-        """Publish the debug data of MPC."""
-        mpc_debug_data = self.mpc.mpc_debug_data
-        mpc_debug_msg = MpcDebug()
-        mpc_debug_msg.states_predictions = matrix_numpy_to_msg(np.array(ocp_res.states))
-        mpc_debug_msg.control_predictions = matrix_numpy_to_msg(
-            np.array(ocp_res.feed_forward_terms)
-        )
-        mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(
-            np.array(mpc_debug_data.ocp.collision_distance_residuals)
-        )
-        mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
-        self.mpc_debug_pub.publish(mpc_debug_msg)
-
     def run_callback(self, *args) -> None:
         """
         Timer callback that checks we can start solve before doing it,
         then publish messages related to the OCP.
         """
-        # self.get_logger().info(f"environments msg  {str(self.environment_msg)}.")
         if self.sensor_msg is None:
             self.get_logger().warn(
                 "Waiting for sensor messages to arrive...",
@@ -300,7 +303,11 @@ class AgimusController(Node):
             return
         if self.mpc is None:
             self.setup_mpc()
-        if not self.buffer_has_twice_horizon_points():
+        if (
+            not self.buffer_has_twice_horizon_points()
+            and not self.buffer_got_twice_horizon_points
+        ):
+            self.buffer_got_twice_horizon_points = True
             self.get_logger().warn(
                 f"Waiting for buffer to be filled... Current size {len(self.traj_buffer)}",
                 throttle_duration_sec=5.0,
@@ -328,7 +335,10 @@ class AgimusController(Node):
             compute_time = self.get_clock().now() - start_compute_time
             self.ocp_solve_time_pub.publish(compute_time.to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
-            self.publish_mpc_debug_data(ocp_res)
+            mpc_debug_msg = mpc_debug_data_to_msg(
+                ocp_res=ocp_res, mpc_debug_data=self.mpc.mpc_debug_data
+            )
+            self.mpc_debug_pub.publish(mpc_debug_msg)
 
 
 def main(args=None) -> None:

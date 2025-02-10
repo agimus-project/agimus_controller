@@ -25,6 +25,7 @@ class OCPParamsBaseCroco:
     eps_abs: float = 1e-6  # Absolute tolerance of the solver.
     eps_rel: float = 0.0  # Relative tolerance of the solver.
     callbacks: bool = False  # Flag to enable/disable callbacks.
+    nb_threads: int = 1  # Number of threads used by OCP solver.
     use_filter_line_search = False  # Flag to enable/disable the filter line searchs.
 
     def __post_init__(self):
