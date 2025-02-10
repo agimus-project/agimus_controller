@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 from pinocchio import SE3, Force
+from agimus_controller.ocp_param_base import DTFactorsNSeq
 
 
 @dataclass
@@ -157,10 +158,10 @@ class WeightedTrajectoryPoint:
 class TrajectoryBuffer(object):
     """List of variable size in which the HPP trajectory nodes will be."""
 
-    def __init__(self, dt_factor_n_seq: list[tuple[int, int]]):
+    def __init__(self, dt_factor_n_seq: DTFactorsNSeq):
         self._buffer = []
         self.dt_factor_n_seq = deepcopy(dt_factor_n_seq)
-        self.horizon_indexes = self.compute_horizon_indexes(self.dt_factor_n_seq)
+        self.horizon_indexes = self.compute_horizon_indexes()
 
     def append(self, item):
         self._buffer.append(item)
@@ -172,14 +173,14 @@ class TrajectoryBuffer(object):
         if self._buffer:
             self._buffer.pop(0)
 
-    def compute_horizon_indexes(self, dt_factor_n_seq: list[tuple[int, int]]):
-        indexes = [0] * sum(sn for _, sn in dt_factor_n_seq)
+    def compute_horizon_indexes(self):
+        indexes = [0] * (sum(sn for sn in self.dt_factor_n_seq.dts) + 1)
         i = 0
-        for factor, sn in dt_factor_n_seq:
+        for factor, sn in zip(self.dt_factor_n_seq.factors, self.dt_factor_n_seq.dts):
             for _ in range(sn):
                 indexes[i] = 0 if i == 0 else factor + indexes[i - 1]
                 i += 1
-
+        indexes[-1] = indexes[-2] + self.dt_factor_n_seq.factors[-1]
         assert indexes[0] == 0, "First time step must be 0"
         assert all(t0 <= t1 for t0, t1 in zip(indexes[:-1], indexes[1:])), (
             "Time steps must be increasing"
