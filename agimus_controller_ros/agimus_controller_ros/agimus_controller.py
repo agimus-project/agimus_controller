@@ -47,7 +47,7 @@ class AgimusController(Node):
         self.param_listener = agimus_controller_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.traj_buffer = TrajectoryBuffer([(1, self.params.ocp.horizon_size)])
+        self.traj_buffer = TrajectoryBuffer([(1, self.params.ocp.horizon_size - 1)])
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
