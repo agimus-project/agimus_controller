@@ -79,13 +79,13 @@ class OCPBaseCroco(OCPBase):
             )
 
     @property
-    def horizon_size(self) -> int:
-        """Number of time steps in the horizon."""
-        return self._params.horizon_size
+    def n_controls(self) -> int:
+        """Number of controls in the OCP."""
+        return self._params.n_controls
 
     @property
     def dt(self) -> float:
-        """Integration step of the OCP."""
+        """Initial integration step of the OCP."""
         return self._params.dt
 
     @property
@@ -137,9 +137,7 @@ class OCPBaseCroco(OCPBase):
         # Set the initial state
         self._problem.x0 = x0
         # Solve the OCP
-        res = self._solver.solve(
-            [x0] + x_warmstart, u_warmstart, self._params.solver_iters
-        )
+        res = self._solver.solve(x_warmstart, u_warmstart, self._params.solver_iters)
         solution = [
             TrajectoryPoint(
                 time_ns=-1,

@@ -15,7 +15,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
         """
         Test the initialization of the OCPParamsBaseCroco class.
         """
-        params_dt_factor_n_seq = {"factors": [1], "dts": [99]}
+        params_dt_factor_n_seq = {"factors": [1], "dts": [100]}
         dt_factor_param = DTFactorsNSeq(**params_dt_factor_n_seq)
         params = {
             "dt": 0.01,
@@ -36,6 +36,8 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
                 val,
                 f"Value missmatch for parameter '{key}'. Expected: '{val}', got: '{res}'",
             )
+
+        self.assertEqual(params["horizon_size"], ocp_param_base_croco.n_controls)
 
 
 if __name__ == "__main__":

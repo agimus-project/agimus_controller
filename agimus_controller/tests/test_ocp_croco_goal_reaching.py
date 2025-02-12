@@ -51,7 +51,7 @@ class TestOCPGoalReaching(unittest.TestCase):
         horizon_size = 200
         solver_iters = 100
         callbacks = False
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[horizon_size - 1])
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[horizon_size])
         self._ocp_params = OCPParamsBaseCroco(
             dt=dt,
             horizon_size=horizon_size,
@@ -63,42 +63,33 @@ class TestOCPGoalReaching(unittest.TestCase):
     def test_ocp_solution(self):
         # Set initial state
         q0 = pin.neutral(self.robot_models.robot_model)
-        state_warmstart = []
-        control_warmstart = []
-        trajectory_points = []
-
         ee_pose = pin.SE3(np.eye(3), np.array([0.5, 0.2, 0.5]))
-        for i in range(1, self._ocp_params.horizon_size):
-            u_ref = np.zeros(self.robot_models.robot_model.nv)
-            trajectory_points.append(
-                WeightedTrajectoryPoint(
-                    TrajectoryPoint(
-                        robot_configuration=q0,
-                        robot_velocity=np.zeros(self.robot_models.robot_model.nv),
-                        robot_effort=u_ref,
-                        end_effector_poses={"panda_hand_tcp": ee_pose},
-                    ),
-                    TrajectoryPointWeights(
-                        w_robot_configuration=0.01
-                        * np.ones(self.robot_models.robot_model.nq),
-                        w_robot_velocity=0.01
-                        * np.ones(self.robot_models.robot_model.nv),
-                        w_robot_effort=0.0001
-                        * np.ones(self.robot_models.robot_model.nv),
-                        w_end_effector_poses={
-                            "panda_hand_tcp": (
-                                1e3 * np.ones(6)
-                                if i < self._ocp_params.horizon_size - 1
-                                else 1e3 * np.ones(6)
-                            )
-                        },
-                    ),
-                )
+
+        n_states = self._ocp_params.n_controls + 1
+
+        state_warmstart = [
+            np.concatenate((q0, np.zeros(self.robot_models.robot_model.nv)))
+        ] * n_states
+        control_warmstart = [
+            np.zeros(self.robot_models.robot_model.nv)
+        ] * self._ocp_params.n_controls
+        trajectory_points = [
+            WeightedTrajectoryPoint(
+                TrajectoryPoint(
+                    robot_configuration=q0,
+                    robot_velocity=np.zeros(self.robot_models.robot_model.nv),
+                    robot_effort=np.zeros(self.robot_models.robot_model.nv),
+                    end_effector_poses={"panda_hand_tcp": ee_pose},
+                ),
+                TrajectoryPointWeights(
+                    w_robot_configuration=0.01
+                    * np.ones(self.robot_models.robot_model.nq),
+                    w_robot_velocity=0.01 * np.ones(self.robot_models.robot_model.nv),
+                    w_robot_effort=0.0001 * np.ones(self.robot_models.robot_model.nv),
+                    w_end_effector_poses={"panda_hand_tcp": (1e3 * np.ones(6))},
+                ),
             )
-            state_warmstart.append(
-                np.concatenate((q0, np.zeros(self.robot_models.robot_model.nv)))
-            )
-            control_warmstart.append(u_ref)
+        ] * n_states
 
         # Solve OCP
         self._state_reg = np.concatenate(

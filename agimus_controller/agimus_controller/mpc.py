@@ -32,19 +32,26 @@ class MPC(object):
         assert self._ocp is not None
         assert self._warm_start is not None
         timer1 = time.perf_counter_ns()
-        self._buffer.clear_past()
-        if len(self._buffer) < self._ocp.horizon_size:
+
+        # Ensure that you have enough data in the buffer.
+        if len(self._buffer) < self._ocp.n_controls + 1:
             return None
         reference_trajectory = self._extract_horizon_from_buffer()
         self._ocp.set_reference_weighted_trajectory(reference_trajectory)
         timer2 = time.perf_counter_ns()
+
+        # TODO avoid building this list by making warm start classes use a reference trajectory with weights.
         reference_trajectory_points = [el.point for el in reference_trajectory]
         x0, x_init, u_init = self._warm_start.generate(
             initial_state, reference_trajectory_points
         )
+        assert len(x_init) == self._ocp.n_controls + 1
+        assert len(u_init) == self._ocp.n_controls
+
         timer3 = time.perf_counter_ns()
         self._ocp.solve(x0, x_init, u_init)
         self._warm_start.update_previous_solution(self._ocp.ocp_results)
+        self._buffer.clear_past()
         timer4 = time.perf_counter_ns()
 
         # Extract the solution.

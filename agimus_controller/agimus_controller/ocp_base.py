@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import warnings
 
 import numpy as np
 import numpy.typing as npt
@@ -23,22 +24,28 @@ class OCPBase(ABC):
         pass
 
     @property
+    def horizon_size(self) -> int:
+        """Deprecated. Use n_controls instead."""
+        warnings.warn("Use n_controls instead", DeprecationWarning)
+        return self.n_controls
+
+    @property
     @abstractmethod
-    def horizon_size() -> int:
-        """Returns the horizon size of the OCP.
+    def n_controls(self) -> int:
+        """Returns the number of controls of the OCP.
 
         Returns:
-            int: size of the horizon.
+            int: number of controls.
         """
         pass
 
     @property
     @abstractmethod
     def dt() -> float:
-        """Returns the time step of the OCP in seconds.
+        """Returns the initial time step of the OCP in seconds.
 
         Returns:
-            int: time step of the OCP.
+            int: initial time step of the OCP.
         """
         pass
 
@@ -54,8 +61,8 @@ class OCPBase(ABC):
 
         Args:
             x0 (npt.NDArray[np.float64]): current state of the robot.
-            x_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the state. This doesn't include the current state.
-            u_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the control inputs.
+            x_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the state. This should be of size `n_controls + 1`.
+            u_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the control inputs. This should be of size `n_controls`.
         """
         pass
 

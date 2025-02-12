@@ -55,7 +55,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
                 running_DAM,
             )
             running_model.differential.armature = self._robot_models.armature
-            running_model_list = [running_model] * (self._params.horizon_size - 1)
+            running_model_list = [running_model] * self._params.n_controls
             return running_model_list
 
         def create_terminal_model(self):
@@ -139,7 +139,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
         # Set mock parameters
         self.ocp_params = OCPParamsBaseCroco(
             dt=0.1,
-            horizon_size=10,
+            horizon_size=9,
             dt_factor_n_seq=DTFactorsNSeq(factors=[1], dts=[9]),
             solver_iters=100,
             callbacks=False,
@@ -148,15 +148,15 @@ class TestSimpleOCPCroco(unittest.TestCase):
             (pin.neutral(self.robot_model), np.zeros(self.robot_model.nv))
         )
         self.state_warmstart = [np.zeros(self.robot_model.nq + self.robot_model.nv)] * (
-            self.ocp_params.horizon_size - 1
+            self.ocp_params.n_controls + 1
         )  # The first state is the current state
         self.control_warmstart = [np.zeros(self.robot_model.nq)] * (
-            self.ocp_params.horizon_size - 1
+            self.ocp_params.n_controls
         )
         # Create a concrete implementation of OCPBaseCroco
         self.ocp = self.TestOCPCroco(self.robot_models, self.ocp_params)
         self.ocp.solve(self.state_reg, self.state_warmstart, self.control_warmstart)
-        # Uncomment to re-generate the simple_ocp_crocco_results.pkl
+        # Uncomment to re-generate the simple_ocp_croco_results.pkl
         # self.save_results()
 
     @classmethod
@@ -203,9 +203,9 @@ class TestSimpleOCPCroco(unittest.TestCase):
                 err_msg="Feed forward term are not equal",
             )
 
-    def test_horizon_size(self):
-        """Test the horizon_size property."""
-        self.assertEqual(self.ocp.horizon_size, self.ocp_params.horizon_size)
+    def test_n_controls(self):
+        """Test the n_controls property."""
+        self.assertEqual(self.ocp.n_controls, self.ocp_params.n_controls)
 
     def test_dt(self):
         """Test the dt property."""

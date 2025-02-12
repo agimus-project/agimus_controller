@@ -23,8 +23,8 @@ class TestTrajectoryBuffer(unittest.TestCase):
         self.nq = self.nv + 1  # Number of dof in the robot configuration
 
         self.trajectory_size = 100
-        self.horizon_size = 10
-        self.dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[self.horizon_size - 1])
+        self.n_controls = 10
+        self.dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[self.n_controls])
         self.dt = 0.01
         self.dt_ns = int(1e9 * self.dt)
 
@@ -83,11 +83,11 @@ class TestTrajectoryBuffer(unittest.TestCase):
         """
         Test computing the time indexes from dt_factor_n_seq.
         """
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2, 3, 4, 5], dts=[2, 2, 2, 2, 1])
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2, 3, 4, 5], dts=[2, 2, 2, 2, 2])
         obj = TrajectoryBuffer(dt_factor_n_seq)
 
         indexes_out = obj.compute_horizon_indexes()
-        indexes_test = [0, 1, 3, 5, 8, 11, 15, 19, 24, 29]
+        indexes_test = [0, 1, 2, 4, 6, 9, 12, 16, 20, 25, 30]
         np.testing.assert_equal(indexes_out, indexes_test)
 
     def test_horizon(self):
@@ -102,17 +102,18 @@ class TestTrajectoryBuffer(unittest.TestCase):
             obj.append(self.generate_random_weighted_states(time_ns))
 
         horizon = obj.horizon
+        self.assertEqual(len(horizon), self.n_controls + 1)
         np.testing.assert_array_equal(
             deepcopy(horizon),
-            obj[: len(horizon)],
+            obj[: self.n_controls + 1],
         )
 
     def test_horizon_with_more_complex_dt_factor_n_seq(self):
         """
         Test computing the horizon from complex dt_factor_n_seq.
         """
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2, 3, 4, 5], dts=[2, 2, 2, 2, 1])
-        horizon_indexes = [0, 1, 3, 5, 8, 11, 15, 19, 24, 29]
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2, 3, 4, 5], dts=[2, 2, 2, 2, 2])
+        horizon_indexes = [0, 1, 2, 4, 6, 9, 12, 16, 20, 25, 30]
 
         obj = TrajectoryBuffer(dt_factor_n_seq)
         self.assertEqual(horizon_indexes, obj.horizon_indexes)
@@ -125,6 +126,8 @@ class TestTrajectoryBuffer(unittest.TestCase):
             obj.append(self.generate_random_weighted_states(time_ns))
 
         # Get the horizon
+        horizon = obj.horizon
+        self.assertEqual(len(horizon), self.n_controls + 1)
         np.testing.assert_array_equal(
             deepcopy(obj.horizon),
             [obj[index] for index in horizon_indexes],

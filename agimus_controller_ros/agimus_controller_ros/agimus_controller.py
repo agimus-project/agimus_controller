@@ -205,6 +205,7 @@ class AgimusController(Node):
             nb_threads=self.params.ocp.nb_threads,
             qp_iters=self.params.ocp.max_qp_iter,
         )
+        self.ocp_params = ocp_params
 
         ocp = OCPCrocoTrajTrackCollAvoidance(self.robot_models, ocp_params)
         ws = WarmStartReference()
