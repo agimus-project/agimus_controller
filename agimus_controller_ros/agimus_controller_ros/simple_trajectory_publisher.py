@@ -79,8 +79,6 @@ class SimpleTrajectoryPublisher(Node):
 
     def load_models(self):
         """Callback to get robot description and store to object"""
-        if self.pin_model is not None:
-            return
         self.pin_model = pin.buildModelFromXML(self.robot_description_msg.data)
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
@@ -114,7 +112,11 @@ class SimpleTrajectoryPublisher(Node):
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
 
-        if self.robot_description_msg is not None and self.q0 is not None:
+        if (
+            self.robot_description_msg is not None
+            and self.q0 is not None
+            and self.pin_model is not None
+        ):
             self.load_models()
         else:
             return
