@@ -8,6 +8,7 @@
   numpy,
   pinocchio,
   pytestCheckHook,
+  python,
   rosPackages,
   setuptools,
 }:
@@ -35,9 +36,6 @@ buildPythonPackage {
     linear-feedback-controller-msgs
     numpy
     pinocchio
-    rosPackages.humble.ament-copyright
-    rosPackages.humble.ament-flake8
-    rosPackages.humble.ament-pep257
     rosPackages.humble.builtin-interfaces
     rosPackages.humble.generate-parameter-library-py
     rosPackages.humble.geometry-msgs
@@ -46,10 +44,23 @@ buildPythonPackage {
   ];
 
   doCheck = true;
-  nativeCheckInputs = [ pytestCheckHook ];
-  disabledTests = [
-    # ref. https://github.com/agimus-project/agimus_controller/issues/127
-    "test_pep257"
+  # Ensure ROS environment variables are set before running pytest
+  preCheck = ''
+    mkdir -p $TMPDIR/ros_logs
+    chmod 777 $TMPDIR/ros_logs
+    export ROS_LOG_DIR=$TMPDIR/ros_logs
+    export ROS_HOME=$TMPDIR/ros_home
+    export PYTHONPATH=$PYTHONPATH:${lib.getLib rosPackages.humble.rclpy}/${python.sitePackages}
+    export AMENT_PREFIX_PATH=$AMENT_PREFIX_PATH:${lib.getLib rosPackages.humble.rclpy}
+    export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:${lib.getLib rosPackages.humble.rclpy}
+    export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+  '';
+  nativeCheckInputs = [
+    pytestCheckHook
+    rosPackages.humble.rclpy
+    rosPackages.humble.ament-copyright
+    rosPackages.humble.ament-flake8
+    rosPackages.humble.ament-pep257
   ];
   pythonImportsCheck = [ "agimus_controller_ros" ];
   dontUseCmakeConfigure = true; # Something is propagating cmake…

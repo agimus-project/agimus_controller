@@ -43,4 +43,5 @@ setup(
             "agimus_controller_node = agimus_controller_ros.agimus_controller:main",
         ],
     },
+    tests_require=["pytest"],
 )

@@ -10,6 +10,8 @@ from sensor_msgs.msg import JointState
 
 
 class SimpleTrajectoryPublisher(Node):
+    """This is a simple trajectory publisher for a Panda robot."""
+
     def __init__(self):
         super().__init__("simple_trajectory_publisher")
 
@@ -23,26 +25,26 @@ class SimpleTrajectoryPublisher(Node):
         self.q = None
         self.dq = None
         self.ddq = None
-        self.delay_time = 500
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
         self.amp = 0.2
+        self.scale_amp = 0.0
+        self.scale_duration = 0.2
         self.w = 0.5 * np.pi
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
-        qos_profile = QoSProfile(
-            depth=1,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=ReliabilityPolicy.RELIABLE,
-        )
-        self.get_logger().info("CREATING subscriber_robot_description_")
+        # ros2 topic info -v /joint_states
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
             self.robot_description_callback,
-            qos_profile=qos_profile,
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
         )
         self.state_subscriber = self.create_subscription(
             JointState,
@@ -57,22 +59,23 @@ class SimpleTrajectoryPublisher(Node):
         self.timer = self.create_timer(
             0.01, self.publish_mpc_input
         )  # Publish at 100 Hz
-        self.get_logger().info("MPC Dummy Input Publisher Node started.")
+        self.get_logger().info("Simple trajectory publisher node started.")
 
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
-        if self.q0 is None:
-            jpos = np.array(joint_states_msg.position)
-            # TODO fix this, temp hac to work from sim
-            if jpos[0] != 0.0 and jpos[3] != 0.0:
-                # if not np.isclose(jpos, np.zeros_like(jpos)).all():
-                self.q0 = jpos
-                self.get_logger().warn(f"Set q0 to {[round(el, 2) for el in self.q0]}.")
-                self.load_models()
+        self.get_logger().warn("Received the joint states.")
+        jpos = np.array(joint_states_msg.position)
+        # TODO fix this, temp hac to work from sim
+        if np.linalg.norm(jpos) > 1e-2:
+            self.q0 = jpos
+            self.destroy_subscription(self.state_subscriber)
+            self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
     def robot_description_callback(self, msg: String) -> None:
         """Create the models of the robot from the urdf string."""
+        self.get_logger().warn("Received robot description.")
         self.robot_description_msg = msg
+        self.destroy_subscription(self.subscriber_robot_description_)
 
     def load_models(self):
         """Callback to get robot description and store to object"""
@@ -84,26 +87,48 @@ class SimpleTrajectoryPublisher(Node):
         self.ddq = np.zeros_like(self.q)
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
 
+    def quintic_trajectory(self, t):
+        """Computes a quintic polynomial trajectory from 0 to 1 over duration.
+
+        Args:
+            t (float): Current time in range [0, init_duration].
+            init_duration (float): Total duration of the trajectory.
+
+        Returns:
+            float: Position value at time t.
+        """
+        if t <= 0:
+            return 0.0
+        elif t >= self.scale_duration:
+            return 1.0
+
+        # Normalize time
+        s = t / self.scale_duration
+        return 10 * s**3 - 15 * s**4 + 6 * s**5  # Quintic polynomial
+
     def publish_mpc_input(self):
         """
         Main function to create a dummy mpc input
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
 
-        if self.pin_model is None:  # wait for model to be available
-            return
-        if self.q0 is None or self.q is None:
-            return
-        if self.delay_time > 0:
-            self.delay_time -= 1
+        if (
+            self.robot_description_msg is not None
+            and self.q0 is not None
+            and self.pin_model is not None
+        ):
+            self.load_models()
+        else:
             return
 
+        self.scale_amp = self.quintic_trajectory(self.t)
+        amp = self.scale_amp * self.amp
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
         for i in [2, 3]:
-            self.q[i] = self.q0[i] + self.amp * np.sin(self.w * self.t)
-            self.dq[i] = self.amp * self.w * np.cos(self.w * self.t)
-            self.ddq[i] = -self.amp * self.w * self.w * np.sin(self.w * self.t)
+            self.q[i] = self.q0[i] + amp * np.sin(self.w * self.t)
+            self.dq[i] = amp * self.w * np.cos(self.w * self.t)
+            self.ddq[i] = -amp * self.w * self.w * np.sin(self.w * self.t)
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
