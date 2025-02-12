@@ -55,12 +55,12 @@ class AgimusController(Node):
         self.param_listener = agimus_controller_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.params.horizon_size_base_dt = 0
+        self.params._trajectory_buffer_size_for_horizon = 0
         for factor, sn in zip(
             self.params.ocp.dt_factor_n_seq.factors, self.params.ocp.dt_factor_n_seq.dts
         ):
             for _ in range(sn):
-                self.params.horizon_size_base_dt += factor
+                self.params._trajectory_buffer_size_for_horizon += factor
         self.params.collision_pairs = [
             (
                 self.params.get_entry(collision_pair_name).first,
@@ -271,7 +271,9 @@ class AgimusController(Node):
         Return true if buffer size has more than two times
         the horizon size and False otherwise.
         """
-        return len(self.traj_buffer) >= 2 * self.params.horizon_size_base_dt
+        return (
+            len(self.traj_buffer) >= 2 * self.params._trajectory_buffer_size_for_horizon
+        )
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""
