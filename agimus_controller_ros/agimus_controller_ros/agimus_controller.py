@@ -68,7 +68,7 @@ class AgimusController(Node):
             ]
             for collision_pair_name in self.params.collision_pairs_names
         ]
-        self.traj_buffer = None
+        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
@@ -78,7 +78,6 @@ class AgimusController(Node):
         self.np_sensor_msg = None
         self.destroy_joint_sub = False
         self.environment_msg = None
-        self.buffer_got_twice_horizon_points = False
 
         self.initialize_ros_attributes()
         self.get_logger().info("Init done")
@@ -211,7 +210,6 @@ class AgimusController(Node):
         ws = WarmStartReference()
         ws.setup(self.robot_models._robot_model)
         self.mpc = MPC()
-        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
         self.mpc.setup(ocp=ocp, warm_start=ws, buffer=self.traj_buffer)
 
     def sensor_callback(self, sensor_msg: Sensor) -> None:
@@ -303,11 +301,8 @@ class AgimusController(Node):
             return
         if self.mpc is None:
             self.setup_mpc()
-        if (
-            not self.buffer_has_twice_horizon_points()
-            and not self.buffer_got_twice_horizon_points
-        ):
-            self.buffer_got_twice_horizon_points = True
+
+        if not self.buffer_has_twice_horizon_points():
             self.get_logger().warn(
                 f"Waiting for buffer to be filled... Current size {len(self.traj_buffer)}",
                 throttle_duration_sec=5.0,
