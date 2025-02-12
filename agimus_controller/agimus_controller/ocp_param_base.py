@@ -17,7 +17,9 @@ class OCPParamsBaseCroco:
     dt: float  # Integration step of the OCP
     horizon_size: int  # Number of time steps in the horizon
     solver_iters: int  # Number of solver iterations
-    dt_factor_n_seq: DTFactorsNSeq
+    dt_factor_n_seq: (
+        DTFactorsNSeq  # Time varying steps definition based on integration step of OCP
+    )
     qp_iters: int = 200  # Number of QP iterations (must be a multiple of 25).
     termination_tolerance: float = (
         1e-3  # Termination tolerance (norm of the KKT conditions).
@@ -37,6 +39,11 @@ class OCPParamsBaseCroco:
     @property
     def timesteps(self) -> tuple[float]:
         return sum(
-            ((self.dt * factor,) * number for factor, number in self.dt_factor_n_seq),
+            (
+                (self.dt * factor,) * dts
+                for factor, dts in zip(
+                    self.dt_factor_n_seq.factors, self.dt_factor_n_seq.dts
+                )
+            ),
             tuple(),
         )

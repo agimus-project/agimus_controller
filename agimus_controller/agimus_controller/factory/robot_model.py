@@ -1,7 +1,7 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import coal
 import numpy as np
@@ -37,7 +37,9 @@ class RobotModelParameters:
     collision_color: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.array([249.0, 136.0, 126.0, 125.0]) / 255.0
     )  # Red color for the collision model
-    collision_pairs: list[str] = field(default_factory=list)  # list of collision pairs
+    collision_pairs: list[Tuple[str, str]] = field(
+        default_factory=list
+    )  # list of collision pairs
 
     def __post_init__(self):
         # Handle armature:
@@ -63,9 +65,7 @@ class RobotModelParameters:
                 f"Robot URDF must be a valid file path. File: '{self.robot_urdf}' doesn't exist!"
             )
 
-        if not self.env_urdf:
-            raise ValueError("Environment URDF can not be an empty string.")
-        elif isinstance(self.env_urdf, Path) and not self.env_urdf.is_file():
+        if isinstance(self.env_urdf, Path) and not self.env_urdf.is_file():
             raise ValueError(
                 f"Environment URDF must be a valid file path. File: '{self.env_urdf}' doesn't exist!"
             )
@@ -192,27 +192,30 @@ class RobotModels:
                 self._params.robot_urdf, self._params.free_flyer, geometry_types
             )
         )
-        env_model, env_collision_model, env_visual_model = self._load_urdf(
-            self._params.env_urdf, use_free_flyer=False, geometry_types=geometry_types
-        )
+        if self._params.env_urdf is not None:
+            env_model, env_collision_model, env_visual_model = self._load_urdf(
+                self._params.env_urdf,
+                use_free_flyer=False,
+                geometry_types=geometry_types,
+            )
 
-        # make robot models append environment models
-        self._full_robot_model, self._collision_model = pin.appendModel(
-            self._full_robot_model,
-            env_model,
-            self._collision_model,
-            env_collision_model,
-            0,
-            pin.SE3.Identity(),
-        )
-        _, self._visual_model = pin.appendModel(
-            self._full_robot_model,
-            pin.Model(),
-            self.visual_model,
-            env_visual_model,
-            0,
-            pin.SE3.Identity(),
-        )
+            # make robot models append environment models
+            self._full_robot_model, self._collision_model = pin.appendModel(
+                self._full_robot_model,
+                env_model,
+                self._collision_model,
+                env_collision_model,
+                0,
+                pin.SE3.Identity(),
+            )
+            _, self._visual_model = pin.appendModel(
+                self._full_robot_model,
+                pin.Model(),
+                self.visual_model,
+                env_visual_model,
+                0,
+                pin.SE3.Identity(),
+            )
 
     def _lock_joints(self) -> None:
         """Apply locked joints."""

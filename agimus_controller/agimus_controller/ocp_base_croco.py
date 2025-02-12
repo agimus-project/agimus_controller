@@ -152,9 +152,6 @@ class OCPBaseCroco(OCPBase):
         self._debug_data.problem_solved = res
         self._debug_data.kkt_norm = self._solver.KKT
         self._debug_data.result = solution
-        self._debug_data.collision_distance_residuals = (
-            self.get_distance_collision_residuals()
-        )
 
         # Store the results
         self._ocp_results = OCPResults(

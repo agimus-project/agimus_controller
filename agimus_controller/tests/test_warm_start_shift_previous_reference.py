@@ -8,6 +8,7 @@ from agimus_controller.mpc_data import OCPResults
 from agimus_controller.warm_start_shift_previous_solution import (
     WarmStartShiftPreviousSolution,
 )
+from agimus_controller.ocp_param_base import DTFactorsNSeq
 from agimus_controller.trajectory import TrajectoryPoint
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
@@ -35,7 +36,8 @@ class TestWarmStart(unittest.TestCase):
             q0=q0,
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
-            urdf=urdf_path,
+            robot_urdf=urdf_path,
+            env_urdf=None,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,
@@ -53,14 +55,12 @@ class TestWarmStart(unittest.TestCase):
 
     def test_generate(self):
         ws = WarmStartShiftPreviousSolution()
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2], dts=[2, 1])
         ocp_params = OCPParamsBaseCroco(
             dt=0.1,
             solver_iters=1000,
             horizon_size=4,
-            dt_factor_n_seq=[
-                (1, 2),
-                (2, 1),
-            ],
+            dt_factor_n_seq=dt_factor_n_seq,
         )
         assert ocp_params.timesteps == (0.1, 0.1, 0.2)
         nu = 3

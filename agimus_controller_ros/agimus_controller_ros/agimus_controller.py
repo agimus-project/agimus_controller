@@ -62,10 +62,10 @@ class AgimusController(Node):
             for _ in range(sn):
                 self.params.horizon_size_base_dt += factor
         self.params.collision_pairs = [
-            [
+            (
                 self.params.get_entry(collision_pair_name).first,
                 self.params.get_entry(collision_pair_name).second,
-            ]
+            )
             for collision_pair_name in self.params.collision_pairs_names
         ]
         self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)

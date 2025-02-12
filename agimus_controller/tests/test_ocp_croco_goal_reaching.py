@@ -4,6 +4,7 @@ from pathlib import Path
 import example_robot_data as robex
 import pinocchio as pin
 
+from agimus_controller.ocp_param_base import DTFactorsNSeq
 from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
@@ -50,11 +51,11 @@ class TestOCPGoalReaching(unittest.TestCase):
         horizon_size = 200
         solver_iters = 100
         callbacks = False
-
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[horizon_size - 1])
         self._ocp_params = OCPParamsBaseCroco(
             dt=dt,
             horizon_size=horizon_size,
-            dt_factor_n_seq=[(1, horizon_size - 1)],
+            dt_factor_n_seq=dt_factor_n_seq,
             solver_iters=solver_iters,
             callbacks=callbacks,
         )

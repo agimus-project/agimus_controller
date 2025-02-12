@@ -263,3 +263,14 @@ class OCPCrocoTrajTrackCollAvoidance(OCPBaseCroco):
 
         ee_id = self._robot_models.robot_model.getFrameId(ee_name)
         model.differential.costs.costs["goalTracking"].cost.residual.id = ee_id
+
+    def solve(
+        self,
+        x0: npt.NDArray[np.float64],
+        x_warmstart: list[npt.NDArray[np.float64]],
+        u_warmstart: list[npt.NDArray[np.float64]],
+    ) -> None:
+        super().solve(x0, x_warmstart, u_warmstart)
+        self._debug_data.collision_distance_residuals = (
+            self.get_distance_collision_residuals()
+        )

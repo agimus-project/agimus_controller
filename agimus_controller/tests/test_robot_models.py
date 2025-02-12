@@ -48,7 +48,8 @@ class TestRobotModelParameters(unittest.TestCase):
         srdf_path = Path(robot.urdf.replace("urdf", "srdf"))
         self.valid_args = {
             "q0": np.array([0.0, 1.0, 2.0]),
-            "urdf": urdf_path,
+            "robot_urdf": urdf_path,
+            "env_urdf": None,
             "srdf": srdf_path,
             "urdf_meshes_dir": urdf_path.parent.parent.parent.parent.parent,
             "free_flyer": False,
@@ -70,7 +71,7 @@ class TestRobotModelParameters(unittest.TestCase):
         self.assertEqual(
             params.moving_joint_names, self.valid_args["moving_joint_names"]
         )
-        self.assertEqual(params.robot_urdf, self.valid_args["urdf"])
+        self.assertEqual(params.robot_urdf, self.valid_args["robot_urdf"])
         self.assertEqual(params.srdf, self.valid_args["srdf"])
         self.assertEqual(params.urdf_meshes_dir, self.valid_args["urdf_meshes_dir"])
         self.assertTrue(params.collision_as_capsule)
@@ -96,7 +97,7 @@ class TestRobotModelParameters(unittest.TestCase):
     def test_invalid_urdf_raises_error(self):
         """Test that an invalid URDF path raises a ValueError."""
         for val in [Path("invalid_path"), ""]:
-            self.valid_args["urdf"] = val
+            self.valid_args["robot_urdf"] = val
             with self.assertRaises(ValueError):
                 RobotModelParameters(**self.valid_args)
 
@@ -133,6 +134,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
             robot_urdf=urdf_path,
+            env_urdf=None,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,
@@ -312,7 +314,8 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             q0=np.zeros(model.nq),
             free_flyer=False,
             moving_joint_names=mpc_params["moving_joint_names"],
-            urdf=urdf_xml,
+            robot_urdf=urdf_xml,
+            env_urdf=None,
             srdf=srdf_path,
             collision_as_capsule=True,
             self_collision=True,
