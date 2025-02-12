@@ -173,13 +173,15 @@ class TrajectoryBuffer(object):
             self._buffer.pop(0)
 
     def compute_horizon_indexes(self, dt_factor_n_seq: list[tuple[int, int]]):
-        indexes = [0] * sum(sn for _, sn in dt_factor_n_seq)
-        i = 0
+        n_states = sum(sn for _, sn in dt_factor_n_seq) + 1
+        indexes = [0] * n_states
+        i = 1
         for factor, sn in dt_factor_n_seq:
             for _ in range(sn):
-                indexes[i] = 0 if i == 0 else factor + indexes[i - 1]
+                indexes[i] = factor + indexes[i - 1]
                 i += 1
 
+        assert i == len(indexes)
         assert indexes[0] == 0, "First time step must be 0"
         assert all(t0 <= t1 for t0, t1 in zip(indexes[:-1], indexes[1:])), (
             "Time steps must be increasing"

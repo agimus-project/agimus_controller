@@ -18,7 +18,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
         params = {
             "dt": 0.01,
             "horizon_size": 100,
-            "dt_factor_n_seq": [(1, 99)],
+            "dt_factor_n_seq": [(1, 100)],
             "solver_iters": 50,
             "qp_iters": 200,
             "termination_tolerance": 1e-3,
@@ -34,6 +34,8 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
                 val,
                 f"Value missmatch for parameter '{key}'. Expected: '{val}', got: '{res}'",
             )
+
+        self.assertEqual(params["horizon_size"], ocp_param_base_croco.n_controls)
 
 
 if __name__ == "__main__":

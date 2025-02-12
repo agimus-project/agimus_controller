@@ -161,6 +161,7 @@ class AgimusController(Node):
             qp_iters=self.params.ocp.max_qp_iter,
             dt_factor_n_seq=[(1, self.params.ocp.horizon_size)],
         )
+        self.ocp_params = ocp_params
 
         ocp = OCPCrocoGoalReaching(self.robot_models, ocp_params)
         ws = WarmStartReference()
@@ -221,7 +222,8 @@ class AgimusController(Node):
         Return true if buffer size has more than two times
         the horizon size and False otherwise.
         """
-        return len(self.traj_buffer) >= 2 * self.params.ocp.horizon_size
+        assert self.mpc is not None
+        return len(self.traj_buffer) >= 2 * (self.ocp_params.n_controls + 1)
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""

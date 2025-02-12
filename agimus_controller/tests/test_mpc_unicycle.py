@@ -43,9 +43,9 @@ class OCPUnicycle(OCPBase):
             self._ref_traj_callback(ref_w_traj)
 
     @property
-    def horizon_size(self):
-        # Horizon size is the number of running models + the terminal model
-        return self._problem.T + 1
+    def n_controls(self):
+        # n_controls is the number of running models
+        return self._problem.T
 
     @property
     def dt(self):
@@ -53,11 +53,7 @@ class OCPUnicycle(OCPBase):
 
     def solve(self, x0, x_init, u_init):
         self._problem.x0 = x0
-        xs = [x0] + x_init
-        if u_init is None:
-            self._debug_data.problem_solved = self._ddp.solve()
-        else:
-            self._debug_data.problem_solved = self._ddp.solve(xs, u_init)
+        self._debug_data.problem_solved = self._ddp.solve(x_init, u_init)
 
         self._results = OCPResults(
             list(self._ddp.xs), list(self._ddp.k), list(self._ddp.us)
@@ -97,11 +93,11 @@ class WarmStartUnicycle(WarmStartBase):
         x0 = initial_state.robot_configuration
         if self._previous_solution is None or len(self._previous_solution.states) == 0:
             # No previous solution. Use the reference trajectory.
-            x_init = [wpoint.robot_configuration for wpoint in reference_trajectory[1:]]
-            us = None
+            x_init = [wpoint.robot_configuration for wpoint in reference_trajectory]
+            us = [np.zeros(2) for _ in reference_trajectory[1:]]
         else:
             # Use the previous solution as warm start. For the last point, use the reference trajectory.
-            x_init = list(self._previous_solution.states[2:]) + [
+            x_init = list(self._previous_solution.states[1:]) + [
                 reference_trajectory[-1].robot_configuration
             ]
             us = self._previous_solution.feed_forward_terms
@@ -157,7 +153,7 @@ class TestMPCUnicycle(unittest.TestCase):
     def test_hoziron_and_dt(self):
         ocp = OCPUnicycle(100, 0.01)
 
-        assert ocp.horizon_size == 100
+        assert ocp.n_controls == 99
         assert ocp.dt == 0.01
 
     def test_reference_trajectory(self):
@@ -165,32 +161,26 @@ class TestMPCUnicycle(unittest.TestCase):
 
         warm_start = WarmStartUnicycle()
         mpc = MPC()
-        mpc.setup(
-            ocp,
-            warm_start,
-            TrajectoryBuffer(
-                [
-                    (
-                        1,
-                        100,
-                    ),
-                ]
-            ),
+        buffer = TrajectoryBuffer(
+            [
+                (
+                    1,
+                    ocp.n_controls,
+                ),
+            ]
         )
+        mpc.setup(ocp, warm_start, buffer)
 
         dt_ns = int(ocp.dt * 1e9)
 
         N_iter = 500
 
-        # TODO For some reasons, the current implementation of MPC.run first uses `clear_past`
-        # before solving the OCP.solve so the first element in the loop is removed.
-        # If the behavior is changed, the k-1 below can be replaced by k.
-        for k in range(N_iter + ocp.horizon_size):
+        for k in range(N_iter + ocp.n_controls + 1):
             mpc.append_trajectory_point(
                 WeightedTrajectoryPoint(
                     point=TrajectoryPoint(
                         time_ns=(k - 1) * dt_ns,
-                        robot_configuration=np.array([k - 1, 0.0, 0.0]),
+                        robot_configuration=np.array([k, 0.0, 0.0]),
                         robot_velocity=np.array([0.0, 0.0, 0.0]),
                     ),
                     weights=TrajectoryPointWeights(
@@ -224,24 +214,21 @@ class TestMPCUnicycle(unittest.TestCase):
 
         warm_start = WarmStartUnicycle()
         mpc = MPC()
-        mpc.setup(
-            ocp,
-            warm_start,
-            TrajectoryBuffer(
-                [
-                    (
-                        1,
-                        100,
-                    ),
-                ]
-            ),
+        buffer = TrajectoryBuffer(
+            [
+                (
+                    1,
+                    ocp.n_controls,
+                ),
+            ]
         )
+        mpc.setup(ocp, warm_start, buffer)
 
         dt_ns = int(ocp.dt * 1e9)
 
         N_iter = 500
         traj = []
-        for k in range(N_iter + ocp.horizon_size):
+        for k in range(N_iter + ocp.n_controls + 1):
             mpc.append_trajectory_point(
                 WeightedTrajectoryPoint(
                     point=TrajectoryPoint(
@@ -293,7 +280,7 @@ class TestMPCUnicycle(unittest.TestCase):
 
         N_iter = 500
         traj = []
-        for k in range(N_iter + ocp.horizon_size):
+        for k in range(N_iter + ocp.n_controls + 1):
             mpc.append_trajectory_point(
                 WeightedTrajectoryPoint(
                     point=TrajectoryPoint(
