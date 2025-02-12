@@ -24,7 +24,7 @@ class TestSimpleTrajectoryPublisher(unittest.TestCase):
             self.assertGreaterEqual(position, 0)
             self.assertLessEqual(position, 1)
 
-        if True:
+        if False:
             import matplotlib.pyplot as plt
 
             plt.plot(times, positions)
