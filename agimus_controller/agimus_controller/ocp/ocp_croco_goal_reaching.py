@@ -9,7 +9,7 @@ from agimus_controller.trajectory import WeightedTrajectoryPoint
 class OCPCrocoGoalReaching(OCPBaseCroco):
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         running_model_list = []
-        for dt in range(self._ocp_params.timesteps):
+        for dt in self._ocp_params.timesteps:
             # Running cost model
             running_cost_model = crocoddyl.CostModelSum(self._state)
 
