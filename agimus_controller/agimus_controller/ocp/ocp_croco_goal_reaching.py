@@ -197,7 +197,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
         )
 
         ee_names = list(
-            reference_weighted_trajectory[i].weights.w_end_effector_poses.keys()
+            reference_weighted_trajectory[-1].weights.w_end_effector_poses.keys()
         )
         ee_name = ee_names[0]
         ee_cost = self._solver.problem.terminalModel.differential.costs.costs[

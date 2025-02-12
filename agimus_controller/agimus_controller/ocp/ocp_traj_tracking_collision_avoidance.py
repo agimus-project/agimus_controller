@@ -153,13 +153,9 @@ class OCPCrocoTrajTrackCollAvoidance(OCPBaseCroco):
         return constraint_model_manager
 
     def get_distance_collision_residuals(self) -> Union[npt.NDArray[np.float64], None]:
-        """Return distance collision residual if Crocoddyl's problem use it."""
+        """Return distance collision residuals if Crocoddyl's problem use it."""
         nb_collision_pairs = len(self._collision_model.collisionPairs)
-        if (
-            nb_collision_pairs != 0
-            and self._solver.problem.runningDatas[0].differential.constraints
-            is not None
-        ):
+        if nb_collision_pairs != 0:
             coll_residuals = np.zeros((self._params.horizon_size, nb_collision_pairs))
             for node_idx in range(self._params.horizon_size - 1):
                 constraints_residual_dict = self._solver.problem.runningDatas[

@@ -17,7 +17,7 @@ class OCPResults:
 @dataclass
 class OCPDebugData:
     # Debug data
-    result: list[TrajectoryPoint]
+    result: OCPResults
     references: list[TrajectoryPoint]
     kkt_norm: np.float64
     collision_distance_residuals: list[dict[np.float64]]
