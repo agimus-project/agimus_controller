@@ -68,13 +68,13 @@ class OCPBaseCroco(OCPBase):
             )
 
     @property
-    def horizon_size(self) -> int:
-        """Number of time steps in the horizon."""
-        return self._ocp_params.horizon_size
+    def n_controls(self) -> int:
+        """Number of controls in the OCP."""
+        return self._ocp_params.n_controls
 
     @property
     def dt(self) -> float:
-        """Integration step of the OCP."""
+        """Initial integration step of the OCP."""
         return self._ocp_params.dt
 
     @property

@@ -35,6 +35,8 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
                 f"Value missmatch for parameter '{key}'. Expected: '{val}', got: '{res}'",
             )
 
+        self.assertEqual(params["horizon_size"], ocp_param_base_croco.n_controls)
+
 
 if __name__ == "__main__":
     unittest.main()
