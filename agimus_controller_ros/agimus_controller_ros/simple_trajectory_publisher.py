@@ -32,17 +32,16 @@ class SimpleTrajectoryPublisher(Node):
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
-        qos_profile = QoSProfile(
-            depth=1,
-            durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=ReliabilityPolicy.RELIABLE,
-        )
-        self.get_logger().info("CREATING subscriber_robot_description_")
+        # ros2 topic info -v /joint_states
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
             self.robot_description_callback,
-            qos_profile=qos_profile,
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
         )
         self.state_subscriber = self.create_subscription(
             JointState,
@@ -57,25 +56,28 @@ class SimpleTrajectoryPublisher(Node):
         self.timer = self.create_timer(
             0.01, self.publish_mpc_input
         )  # Publish at 100 Hz
-        self.get_logger().info("MPC Dummy Input Publisher Node started.")
+        self.get_logger().info("Simple trajectory publisher node started.")
 
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
-        if self.q0 is None:
-            jpos = np.array(joint_states_msg.position)
-            # TODO fix this, temp hac to work from sim
-            if jpos[0] != 0.0 and jpos[3] != 0.0:
-                # if not np.isclose(jpos, np.zeros_like(jpos)).all():
-                self.q0 = jpos
-                self.get_logger().warn(f"Set q0 to {[round(el, 2) for el in self.q0]}.")
-                self.load_models()
+        self.get_logger().warn("Received the joint states.")
+        jpos = np.array(joint_states_msg.position)
+        # TODO fix this, temp hac to work from sim
+        if np.linalg.norm(jpos) > 1e-2:
+            self.q0 = jpos
+            self.destroy_subscription(self.state_subscriber)
+            self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
     def robot_description_callback(self, msg: String) -> None:
         """Create the models of the robot from the urdf string."""
+        self.get_logger().warn("Received robot description.")
         self.robot_description_msg = msg
+        self.destroy_subscription(self.subscriber_robot_description_)
 
     def load_models(self):
         """Callback to get robot description and store to object"""
+        if self.pin_model is not None:
+            return
         self.pin_model = pin.buildModelFromXML(self.robot_description_msg.data)
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
@@ -90,12 +92,9 @@ class SimpleTrajectoryPublisher(Node):
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
 
-        if self.pin_model is None:  # wait for model to be available
-            return
-        if self.q0 is None or self.q is None:
-            return
-        if self.delay_time > 0:
-            self.delay_time -= 1
+        if self.robot_description_msg is not None and self.q0 is not None:
+            self.load_models()
+        else:
             return
 
         # Currently not changing the last two joints - fingers
