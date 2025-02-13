@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+import itertools
 
 import pinocchio as pin
 
@@ -47,6 +48,8 @@ class WarmStartReference(WarmStartBase):
         - `init_us`: A list of control inputs computed using inverse dynamics (RNEA)
             based on the reference trajectory.
         """
+        n_states = len(reference_trajectory)
+
         # Ensure the robot model (_rmodel) is initialized before proceeding
         assert self._rmodel is not None, (
             "Robot model is missing in warmstart. please use warmstart.setup(rmodel)"
@@ -61,14 +64,14 @@ class WarmStartReference(WarmStartBase):
 
         x_init = [
             np.hstack([point.robot_configuration, point.robot_velocity])
-            for point in reference_trajectory
+            for point in itertools.chain([initial_state], reference_trajectory[1:])
         ]
 
         assert np.array(x_init).shape == (
-            len(reference_trajectory),
+            n_states,
             self._nx,
         ), (
-            f"Expected x_init shape {(len(reference_trajectory), self._nx)}, "
+            f"Expected x_init shape {(n_states, self._nx)}, "
             f"from provided reference got {np.array(x_init).shape}"
         )
         u_init = [
@@ -80,13 +83,13 @@ class WarmStartReference(WarmStartBase):
                 point.robot_acceleration,
             )
             # reduce the size of control ref by one to fit Croco way of doing things
-            for point in reference_trajectory[:-1]
+            for point in itertools.chain([initial_state], reference_trajectory[1:-1])
         ]
         assert np.array(u_init).shape == (
-            len(reference_trajectory) - 1,
+            n_states - 1,
             self._rmodel.nv,
         ), (
-            f"Expected u_init shape {(len(reference_trajectory), self._rmodel.nv)}, "
+            f"Expected u_init shape {(n_states - 1, self._rmodel.nv)}, "
             f"from provided reference got {np.array(u_init).shape}"
         )
 
