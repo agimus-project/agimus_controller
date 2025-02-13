@@ -28,7 +28,7 @@ class OCPParamsBaseCroco:
     horizon_size: int
     qp_iters: int = 200  # Number of QP iterations (must be a multiple of 25).
     termination_tolerance: float = (
-        1e-3  # Termination tolerance (norm of the KKT conditions).
+        1e-4  # Termination tolerance (norm of the KKT conditions).
     )
     eps_abs: float = 1e-6  # Absolute tolerance of the solver.
     eps_rel: float = 0.0  # Relative tolerance of the solver.

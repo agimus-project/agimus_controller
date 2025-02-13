@@ -2,8 +2,10 @@
 import numpy as np
 
 from pathlib import Path
+import time
 
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rcl_interfaces.srv import GetParameters
@@ -312,7 +314,7 @@ class AgimusController(Node):
             )
             return
         if self.params.publish_debug_data:
-            start_compute_time = self.get_clock().now()
+            start_compute_time = time.perf_counter()
         self.np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
 
         x0_traj_point = TrajectoryPoint(
@@ -330,8 +332,8 @@ class AgimusController(Node):
 
         self.send_control_msg(ocp_res)
         if self.params.publish_debug_data:
-            compute_time = self.get_clock().now() - start_compute_time
-            self.ocp_solve_time_pub.publish(compute_time.to_msg())
+            compute_time = time.perf_counter() - start_compute_time
+            self.ocp_solve_time_pub.publish(Duration(seconds=compute_time).to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
             mpc_debug_msg = mpc_debug_data_to_msg(
                 ocp_res=ocp_res, mpc_debug_data=self.mpc.mpc_debug_data
