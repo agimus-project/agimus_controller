@@ -71,4 +71,6 @@ def mpc_debug_data_to_msg(
         mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(np.zeros((1)))
 
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
+    mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
+    mpc_debug_msg.nb_qp_iter = mpc_debug_data.ocp.nb_qp_iter
     return mpc_debug_msg

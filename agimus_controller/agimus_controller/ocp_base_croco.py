@@ -46,6 +46,8 @@ class OCPBaseCroco(OCPBase):
             references=None,
             kkt_norm=None,
             collision_distance_residuals=None,
+            nb_iter=None,
+            nb_qp_iter=None,
         )
 
         # Create the running models
@@ -150,6 +152,8 @@ class OCPBaseCroco(OCPBase):
         self._debug_data.problem_solved = res
         self._debug_data.kkt_norm = self._solver.KKT
         self._debug_data.result = solution
+        self._debug_data.nb_iter = int(self._solver.iter)
+        self._debug_data.nb_qp_iter = int(self._solver.qp_iters)
 
         # Store the results
         self._ocp_results = OCPResults(

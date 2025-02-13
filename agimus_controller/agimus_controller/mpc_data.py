@@ -19,9 +19,11 @@ class OCPDebugData:
     # Debug data
     result: OCPResults
     references: list[TrajectoryPoint]
-    kkt_norm: np.float64
     collision_distance_residuals: list[dict[np.float64]]
     # Solver infos
+    kkt_norm: np.float64
+    nb_iter: np.int64
+    nb_qp_iter: np.int64
     problem_solved: bool = False
 
 
