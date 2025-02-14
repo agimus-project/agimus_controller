@@ -28,12 +28,12 @@ from sensor_msgs.msg import JointState
 
 from agimus_controller.mpc import MPC
 from agimus_controller.mpc_data import OCPResults
-from agimus_controller.ocp.ocp_traj_tracking_collision_avoidance import (
-    OCPCrocoTrajTrackCollAvoidance,
-)
+from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
 from agimus_controller.ocp_param_traj_tracking_collisions import (
     OCPParamsTrajTrackingCollisions,
 )
+
+from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
@@ -196,10 +196,8 @@ class AgimusController(Node):
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
 
-        ocp_params = OCPParamsTrajTrackingCollisions(
+        ocp_params = OCPParamsBaseCroco(
             dt=self.params.ocp.dt,
-            collision_safety_margin=self.params.ocp.collision_safety_margin,
-            activation_distance_threshold=self.params.ocp.activation_distance_threshold,
             dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
             horizon_size=self.params.ocp.horizon_size,
             solver_iters=self.params.ocp.max_iter,
@@ -209,7 +207,7 @@ class AgimusController(Node):
         )
         self.ocp_params = ocp_params
 
-        ocp = OCPCrocoTrajTrackCollAvoidance(self.robot_models, ocp_params)
+        ocp = OCPCrocoGoalReaching(self.robot_models, ocp_params)
         ws = WarmStartReference()
         ws.setup(self.robot_models._robot_model)
         self.mpc = MPC()
