@@ -16,7 +16,7 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_model = None
         self.pin_data = None
         self.ee_frame_id = None
-        self.ee_frame_name = "fer_joint7"
+        self.ee_frame_name = "fer_link8"
         self.robot_description_msg = None
 
         self.q0 = None
@@ -53,7 +53,14 @@ class SimpleTrajectoryPublisher(Node):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
-        self.publisher_ = self.create_publisher(MpcInput, "mpc_input", 10)
+        self.publisher_ = self.create_publisher(
+            MpcInput,
+            "mpc_input",
+            qos_profile=QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+            ),
+        )
         self.timer = self.create_timer(
             0.01, self.publish_mpc_input
         )  # Publish at 100 Hz
@@ -101,9 +108,11 @@ class SimpleTrajectoryPublisher(Node):
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
         for i in [2, 3]:
-            self.q[i] = self.q0[i] + self.amp * np.sin(self.w * self.t)
-            self.dq[i] = self.amp * self.w * np.cos(self.w * self.t)
-            self.ddq[i] = -self.amp * self.w * self.w * np.sin(self.w * self.t)
+            self.q[i] = (
+                self.q0[i] - self.amp + self.amp * np.sin(self.w * self.t + self.w)
+            )
+            self.dq[i] = self.amp * self.w * np.cos(self.w * self.t + self.w)
+            self.ddq[i] = -self.amp * self.w * self.w * np.sin(self.w * self.t + self.w)
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
@@ -112,7 +121,7 @@ class SimpleTrajectoryPublisher(Node):
         ee_pose = self.pin_data.oMf[self.ee_frame_id]
         xyz_quatxyzw = pin.SE3ToXYZQUAT(ee_pose)
 
-        u = pin.computeGeneralizedGravity(self.pin_model, self.pin_data, self.q0)
+        u = pin.rnea(self.pin_model, self.pin_data, self.q, self.dq, self.ddq)
 
         # Create the message
         msg = MpcInput()
@@ -120,7 +129,7 @@ class SimpleTrajectoryPublisher(Node):
         msg.w_qdot = [1e-2] * self.croco_nq
         msg.w_qddot = [1e-6] * self.croco_nq
         msg.w_robot_effort = [1e-4] * self.croco_nq
-        msg.w_pose = [1e-10] * 6
+        msg.w_pose = [1e-2] * 6
 
         msg.q = list(self.q[: self.croco_nq])
         msg.qdot = list(self.dq[: self.croco_nq])
