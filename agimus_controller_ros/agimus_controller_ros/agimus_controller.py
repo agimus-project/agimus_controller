@@ -29,9 +29,6 @@ from sensor_msgs.msg import JointState
 from agimus_controller.mpc import MPC
 from agimus_controller.mpc_data import OCPResults
 from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
-from agimus_controller.ocp_param_traj_tracking_collisions import (
-    OCPParamsTrajTrackingCollisions,
-)
 
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference

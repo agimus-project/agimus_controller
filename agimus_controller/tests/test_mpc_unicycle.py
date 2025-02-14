@@ -192,9 +192,9 @@ class TestMPCUnicycle(unittest.TestCase):
         # The first joint of the robot configuration is set to the iteration number.
         # Note that for this to work, the time of the trajectory point and the time passed to mpc.run must be coherent.
         def ref_traj_callback(ref_traj):
-            assert (
-                ref_traj[0].point.robot_configuration[0] == iteration
-            ), f"{ref_traj[0].point.robot_configuration[0]} != {iteration}"
+            assert ref_traj[0].point.robot_configuration[0] == iteration, (
+                f"{ref_traj[0].point.robot_configuration[0]} != {iteration}"
+            )
 
         ocp.set_reference_horizon_callback(ref_traj_callback)
 
