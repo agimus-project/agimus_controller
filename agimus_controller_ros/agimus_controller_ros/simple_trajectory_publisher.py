@@ -112,14 +112,11 @@ class SimpleTrajectoryPublisher(Node):
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
 
-        if (
-            self.robot_description_msg is not None
-            and self.q0 is not None
-            and self.pin_model is not None
-        ):
-            self.load_models()
-        else:
+        if self.robot_description_msg is None or self.q0 is None:
             return
+
+        if self.pin_model is None:
+            self.load_models()
 
         self.scale_amp = self.quintic_trajectory(self.t)
         amp = self.scale_amp * self.amp
