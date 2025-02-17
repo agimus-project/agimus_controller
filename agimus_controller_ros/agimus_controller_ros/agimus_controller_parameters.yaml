@@ -5,6 +5,21 @@ agimus_controller_params:
       type: double
       default_value: 0.01
       description: "Step time of the OCP in seconds"
+    dt_factor_n_seq:
+      factors:
+        type: int_array
+        default_value: [1]
+        description: " Number of dts between two time steps, the factor."
+        validation:
+          not_empty<>: []
+          lower_element_bounds<>: [0]
+      dts:
+        type: int_array
+        default_value: [19]
+        description: "Number of time steps, the n."
+        validation:
+          not_empty<>: []
+          lower_element_bounds<>: [0]
     horizon_size:
       type: int
       default_value: 20
@@ -33,14 +48,24 @@ agimus_controller_params:
       type: int
       default_value: 10
       description: "Maximum number of iterations of the solver"
-    use_constraints:
-      type: bool
-      default_value: True
-      description: "if True we have Collisions constraints and we use CSQP solver, if False we use FDDP solver"
     activate_callback:
       type: bool
       default_value: False
       description: "Whether or not we want to use solver callbacks"
+    nb_threads:
+      type: int
+      default_value: 1
+      description: "number of threads used by OCP solver"
+      validation:
+        gt_eq<>: 1
+    collision_safety_margin:
+      type: double
+      default_value: 0.01
+      description: "Safety margin between collision pairs"
+    activation_distance_threshold:
+      type: double
+      default_value: 0.01
+      description: "Distance threshold used in the activation for collision costs"
   publish_debug_data:
     type: bool
     default_value: True
@@ -61,3 +86,19 @@ agimus_controller_params:
     type: bool
     default_value: True
     description: "Wether we account for self-collision"
+  collision_pairs_names:
+    type: string_array
+    default_value: [""]
+    description: List of names of collision pairs passed to the OCP.
+    read_only: true
+  __map_collision_pairs_names:
+    first:
+      type: string
+      description: First collision pair to map.
+      validation:
+        not_empty<>: []
+    second:
+      type: string
+      description: First collision pair to map.
+      validation:
+        not_empty<>: []

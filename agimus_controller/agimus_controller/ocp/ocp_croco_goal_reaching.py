@@ -9,7 +9,7 @@ from agimus_controller.trajectory import WeightedTrajectoryPoint
 class OCPCrocoGoalReaching(OCPBaseCroco):
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         running_model_list = []
-        for dt in self._ocp_params.timesteps:
+        for dt in self._params.timesteps:
             # Running cost model
             running_cost_model = crocoddyl.CostModelSum(self._state)
 
@@ -130,6 +130,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
         """Set the reference trajectory for the OCP."""
 
         assert len(reference_weighted_trajectory) == self.n_controls + 1
+        super().set_reference_weighted_trajectory(reference_weighted_trajectory)
 
         # Modify running costs reference and weights
         for i, ref_weighted_pt in enumerate(reference_weighted_trajectory[:-1]):
@@ -162,7 +163,7 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
 
             # setting running model goal tracking reference, weight and frame id
             # assuming exactly one end-effector tracking reference was passed to the trajectory
-            ee_names = list(iter(ref_weighted_pt.weights.w_end_effector_poses))
+            ee_names = list(ref_weighted_pt.weights.w_end_effector_poses.keys())
             if len(ee_names) > 1:
                 raise ValueError("Only one end-effector tracking reference is allowed.")
             ee_name = ee_names[0]
@@ -197,9 +198,8 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
                 ref_weighted_pt.weights.w_robot_velocity,
             )
         )
-        # Modify end effector frame cost
 
-        ee_names = list(iter(ref_weighted_pt.weights.w_end_effector_poses))
+        ee_names = list(ref_weighted_pt.weights.w_end_effector_poses.keys())
         ee_name = ee_names[0]
         ee_cost = self._solver.problem.terminalModel.differential.costs.costs[
             "goalTracking"

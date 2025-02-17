@@ -2,15 +2,18 @@
 import numpy as np
 
 from pathlib import Path
+import time
 
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
 from std_msgs.msg import String
-from agimus_msgs.msg import MpcInput
+
+from agimus_msgs.msg import MpcInput, MpcDebug
 import builtin_interfaces
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -26,12 +29,16 @@ from sensor_msgs.msg import JointState
 from agimus_controller.mpc import MPC
 from agimus_controller.mpc_data import OCPResults
 from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
+
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
-from agimus_controller_ros.ros_utils import mpc_msg_to_weighted_traj_point
+from agimus_controller_ros.ros_utils import (
+    mpc_msg_to_weighted_traj_point,
+    mpc_debug_data_to_msg,
+)
 
 
 from agimus_controller.trajectory import TrajectoryBuffer, TrajectoryPoint
@@ -47,7 +54,20 @@ class AgimusController(Node):
         self.param_listener = agimus_controller_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.traj_buffer = TrajectoryBuffer([(1, self.params.ocp.horizon_size - 1)])
+        self.params._trajectory_buffer_size_for_horizon = 0
+        for factor, sn in zip(
+            self.params.ocp.dt_factor_n_seq.factors, self.params.ocp.dt_factor_n_seq.dts
+        ):
+            for _ in range(sn):
+                self.params._trajectory_buffer_size_for_horizon += factor
+        self.params.collision_pairs = [
+            (
+                self.params.get_entry(collision_pair_name).first,
+                self.params.get_entry(collision_pair_name).second,
+            )
+            for collision_pair_name in self.params.collision_pairs_names
+        ]
+        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
@@ -56,6 +76,7 @@ class AgimusController(Node):
         self.robot_description_msg = None
         self.np_sensor_msg = None
         self.destroy_joint_sub = False
+        self.environment_msg = None
 
         self.initialize_ros_attributes()
         self.get_logger().info("Init done")
@@ -97,8 +118,18 @@ class AgimusController(Node):
         )
         self.subscriber_robot_description = self.create_subscription(
             String,
-            "/robot_description",
+            "/robot_description_with_collision",
             self.robot_description_callback,
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
+        )
+        self.subscriber_environment_description = self.create_subscription(
+            String,
+            "/environment_description",
+            self.environment_description_callback,
             qos_profile=QoSProfile(
                 depth=1,
                 durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -107,7 +138,7 @@ class AgimusController(Node):
         )
         self.subscriber_mpc_input = self.create_subscription(
             MpcInput,
-            "mpc_input",
+            "/mpc_input",
             self.mpc_input_callback,
             qos_profile=QoSProfile(
                 depth=10,
@@ -148,6 +179,15 @@ class AgimusController(Node):
                     reliability=ReliabilityPolicy.BEST_EFFORT,
                 ),
             )
+
+            self.mpc_debug_pub = self.create_publisher(
+                MpcDebug,
+                "mpc_debug",
+                qos_profile=QoSProfile(
+                    depth=10,
+                    reliability=ReliabilityPolicy.BEST_EFFORT,
+                ),
+            )
         self.create_timer(1.0 / self.params.rate, self.run_callback)
 
     def setup_mpc(self):
@@ -155,11 +195,12 @@ class AgimusController(Node):
 
         ocp_params = OCPParamsBaseCroco(
             dt=self.params.ocp.dt,
+            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
             horizon_size=self.params.ocp.horizon_size,
             solver_iters=self.params.ocp.max_iter,
             callbacks=self.params.ocp.activate_callback,
+            nb_threads=self.params.ocp.nb_threads,
             qp_iters=self.params.ocp.max_qp_iter,
-            dt_factor_n_seq=[(1, self.params.ocp.horizon_size)],
         )
         self.ocp_params = ocp_params
 
@@ -175,7 +216,7 @@ class AgimusController(Node):
 
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
-        if self.robot_description_msg is None:
+        if self.robot_description_msg is None or self.environment_msg is None:
             return
         if self.q0 is None:
             self.q0 = np.array(joint_states_msg.position)
@@ -191,8 +232,12 @@ class AgimusController(Node):
         self.effector_frame_name = msg.ee_frame_name
 
     def robot_description_callback(self, msg: String) -> None:
-        """Create the models of the robot from the urdf string."""
+        """Set robot description xml msg."""
         self.robot_description_msg = msg
+
+    def environment_description_callback(self, msg: String) -> None:
+        """Set environment description xml msg."""
+        self.environment_msg = msg
 
     def create_robot_models(self) -> None:
         # TODO: fix, just hardcoded the thing: should exist in the demo folder?
@@ -201,15 +246,16 @@ class AgimusController(Node):
             get_package_share_directory("franka_description"),
             "robots/fer/fer.srdf",
         )
-
         params = RobotModelParameters(
-            urdf=self.robot_description_msg.data,
+            robot_urdf=self.robot_description_msg.data,
+            env_urdf=self.environment_msg.data,
             srdf=Path(temp_srdf_path),
             free_flyer=self.params.free_flyer,
             collision_as_capsule=self.params.collision_as_capsule,
             self_collision=self.params.self_collision,
             armature=self.params.ocp.armature,
             moving_joint_names=self.moving_joint_names,
+            collision_pairs=self.params.collision_pairs,
         )
 
         self.robot_models = RobotModels(params)
@@ -222,8 +268,9 @@ class AgimusController(Node):
         Return true if buffer size has more than two times
         the horizon size and False otherwise.
         """
-        assert self.mpc is not None
-        return len(self.traj_buffer) >= 2 * (self.ocp_params.n_controls + 1)
+        return (
+            len(self.traj_buffer) >= 2 * self.params._trajectory_buffer_size_for_horizon
+        )
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""
@@ -254,6 +301,7 @@ class AgimusController(Node):
             return
         if self.mpc is None:
             self.setup_mpc()
+
         if not self.buffer_has_twice_horizon_points():
             self.get_logger().warn(
                 f"Waiting for buffer to be filled... Current size {len(self.traj_buffer)}",
@@ -261,7 +309,7 @@ class AgimusController(Node):
             )
             return
         if self.params.publish_debug_data:
-            start_compute_time = self.get_clock().now()
+            start_compute_time = time.perf_counter()
         self.np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
 
         x0_traj_point = TrajectoryPoint(
@@ -279,9 +327,13 @@ class AgimusController(Node):
 
         self.send_control_msg(ocp_res)
         if self.params.publish_debug_data:
-            compute_time = self.get_clock().now() - start_compute_time
-            self.ocp_solve_time_pub.publish(compute_time.to_msg())
+            compute_time = time.perf_counter() - start_compute_time
+            self.ocp_solve_time_pub.publish(Duration(seconds=compute_time).to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
+            mpc_debug_msg = mpc_debug_data_to_msg(
+                ocp_res=ocp_res, mpc_debug_data=self.mpc.mpc_debug_data
+            )
+            self.mpc_debug_pub.publish(mpc_debug_msg)
 
 
 def main(args=None) -> None:

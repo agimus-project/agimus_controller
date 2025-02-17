@@ -1,7 +1,7 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import coal
 import numpy as np
@@ -16,8 +16,11 @@ class RobotModelParameters:
     )  # Initial full configuration of the robot
     free_flyer: bool = False  # True if the robot has a free flyer
     moving_joint_names: list[str] = field(default_factory=list)
-    urdf: Union[Path, str] = (
-        ""  # Path to the URDF file or string containing URDF as an XML
+    robot_urdf: Union[Path, str] = (
+        ""  # Path to the robot URDF file or string containing URDF as an XML
+    )
+    env_urdf: Union[None, Path, str] = (
+        None  # Path to the environment URDF file or string containing URDF as an XML
     )
     srdf: Path = Path()  # Path to the SRDF file
     urdf_meshes_dir: Optional[Path] = (
@@ -34,6 +37,9 @@ class RobotModelParameters:
     collision_color: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.array([249.0, 136.0, 126.0, 125.0]) / 255.0
     )  # Red color for the collision model
+    collision_pairs: list[Tuple[str, str]] = field(
+        default_factory=list
+    )  # list of collision pairs
 
     def __post_init__(self):
         # Handle armature:
@@ -52,11 +58,16 @@ class RobotModelParameters:
             )
 
         # Ensure URDF and SRDF are valid
-        if not self.urdf:
-            raise ValueError("URDF can not be an empty string.")
-        elif isinstance(self.urdf, Path) and not self.urdf.is_file():
+        if not self.robot_urdf:
+            raise ValueError("Robot URDF can not be an empty string.")
+        elif isinstance(self.robot_urdf, Path) and not self.robot_urdf.is_file():
             raise ValueError(
-                f"URDF must be a valid file path. File: '{self.urdf}' doesn't exist!"
+                f"Robot URDF must be a valid file path. File: '{self.robot_urdf}' doesn't exist!"
+            )
+
+        if isinstance(self.env_urdf, Path) and not self.env_urdf.is_file():
+            raise ValueError(
+                f"Environment URDF must be a valid file path. File: '{self.env_urdf}' doesn't exist!"
             )
 
         if not self.srdf.is_file():
@@ -123,51 +134,87 @@ class RobotModels:
         """Load and prepare robot models based on parameters."""
         self._q0 = deepcopy(self._params.q0)
         self._load_full_pinocchio_models()
+
         self._lock_joints()
+
         if self._params.collision_as_capsule:
             self._update_collision_model_to_capsules()
         if self._params.self_collision:
             self._update_collision_model_to_self_collision()
+        self._add_collision_pairs()
 
-    def _load_full_pinocchio_models(self) -> None:
-        """Load the full robot model, the visual model and the collision model."""
+    def _load_urdf(
+        self,
+        urdf: Path | str,
+        use_free_flyer: bool,
+        geometry_types: list[pin.GeometryType],
+    ) -> tuple[pin.Model, pin.CollisionGeometry]:
+        """Build pinocchio's models from URDF."""
         try:
-            if isinstance(self._params.urdf, Path):
-                with open(self._params.urdf, "r") as file:
+            # load robot models
+            if isinstance(urdf, Path):
+                with open(urdf, "r") as file:
                     urdf = file.read().replace("\n", "")
             else:
-                urdf = self._params.urdf
-
-            if self._params.free_flyer:
-                self._full_robot_model = pin.buildModelFromXML(
-                    urdf, pin.JointModelFreeFlyer()
-                )
+                urdf = urdf
+            if use_free_flyer:
+                robot_model = pin.buildModelFromXML(urdf, pin.JointModelFreeFlyer())
             else:
-                self._full_robot_model = pin.buildModelFromXML(urdf)
-
+                robot_model = pin.buildModelFromXML(urdf)
             package_dirs = (
                 self._params.urdf_meshes_dir.absolute().as_posix()
                 if self._params.urdf_meshes_dir is not None
                 else None
             )
-            self._collision_model, self._visual_model = [
+            geometry_type_models = [
                 (
                     pin.buildGeomFromUrdfString(
-                        self._full_robot_model,
+                        robot_model,
                         urdf,
                         geometry_type,
                         package_dirs=package_dirs,
                     )
                 )
-                for geometry_type in [
-                    pin.GeometryType.COLLISION,
-                    pin.GeometryType.VISUAL,
-                ]
+                for geometry_type in geometry_types
             ]
-
         except Exception as e:
-            raise ValueError(
-                f"Failed to load URDF models from {self._params.urdf}: {e}"
+            raise ValueError(f"Failed to load URDF models from {urdf}: {e}")
+        return (robot_model, *geometry_type_models)
+
+    def _load_full_pinocchio_models(self) -> None:
+        """Load the full robot model, the visual model and the collision model."""
+        geometry_types = [
+            pin.GeometryType.COLLISION,
+            pin.GeometryType.VISUAL,
+        ]
+        self._full_robot_model, self._collision_model, self._visual_model = (
+            self._load_urdf(
+                self._params.robot_urdf, self._params.free_flyer, geometry_types
+            )
+        )
+        if self._params.env_urdf is not None:
+            env_model, env_collision_model, env_visual_model = self._load_urdf(
+                self._params.env_urdf,
+                use_free_flyer=False,
+                geometry_types=geometry_types,
+            )
+
+            # make robot models append environment models
+            self._full_robot_model, self._collision_model = pin.appendModel(
+                self._full_robot_model,
+                env_model,
+                self._collision_model,
+                env_collision_model,
+                0,
+                pin.SE3.Identity(),
+            )
+            _, self._visual_model = pin.appendModel(
+                self._full_robot_model,
+                pin.Model(),
+                self.visual_model,
+                env_visual_model,
+                0,
+                pin.SE3.Identity(),
             )
 
     def _lock_joints(self) -> None:
@@ -249,6 +296,23 @@ class RobotModels:
             self._collision_model,
             str(self._params.srdf.absolute()),
         )
+
+    def _add_collision_pairs(self) -> None:
+        """Add collision pairs to the collision model."""
+
+        for collision_pair in self._params.collision_pairs:
+            try:
+                geom1_name = collision_pair[0]
+                geom2_name = collision_pair[1]
+                geom1_id = self.collision_model.getGeometryId(geom1_name)
+                geom2_id = self.collision_model.getGeometryId(geom2_name)
+                self.collision_model.addCollisionPair(
+                    pin.CollisionPair(geom1_id, geom2_id)
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Invalid collision pair with names {geom1_name} {geom2_name} got error : {e}"
+                )
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
         """Generates a unique capsule name for a geometry object.

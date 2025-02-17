@@ -6,7 +6,7 @@ import numpy as np
 import pinocchio as pin
 import pickle
 from agimus_controller.ocp_base_croco import OCPBaseCroco
-from agimus_controller.ocp_param_base import OCPParamsBaseCroco
+from agimus_controller.ocp_param_base import OCPParamsBaseCroco, DTFactorsNSeq
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
@@ -55,7 +55,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
                 running_DAM,
             )
             running_model.differential.armature = self._robot_models.armature
-            running_model_list = [running_model] * self._ocp_params.n_controls
+            running_model_list = [running_model] * self._params.n_controls
             return running_model_list
 
         def create_terminal_model(self):
@@ -124,7 +124,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
             q0=q0,
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
-            urdf=urdf_path,
+            robot_urdf=urdf_path,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,
@@ -140,7 +140,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
         self.ocp_params = OCPParamsBaseCroco(
             dt=0.1,
             horizon_size=9,
-            dt_factor_n_seq=[(1, 9)],
+            dt_factor_n_seq=DTFactorsNSeq(factors=[1], dts=[9]),
             solver_iters=100,
             callbacks=False,
         )
