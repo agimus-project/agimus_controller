@@ -56,8 +56,9 @@ class SimpleTrajectoryPublisher(Node):
             ),
         )
         self.publisher_ = self.create_publisher(
-            MpcInput, 
-            "mpc_input", qos_profile=QoSProfile(
+            MpcInput,
+            "mpc_input",
+            qos_profile=QoSProfile(
                 depth=10,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),

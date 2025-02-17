@@ -288,7 +288,6 @@ class AgimusController(Node):
             compute_time = self.get_clock().now() - start_compute_time
             self.ocp_solve_time_pub.publish(compute_time.to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
-            
 
 
 def main(args=None) -> None:
