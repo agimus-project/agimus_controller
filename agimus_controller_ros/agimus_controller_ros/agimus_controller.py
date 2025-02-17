@@ -47,7 +47,12 @@ class AgimusController(Node):
         self.param_listener = agimus_controller_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.traj_buffer = TrajectoryBuffer([(1, self.params.ocp.horizon_size - 1)])
+        self.params._trajectory_buffer_size_for_horizon = 0
+        for factor, sn in zip(
+            self.params.ocp.dt_factor_n_seq.factors, self.params.ocp.dt_factor_n_seq.dts
+        ):
+            self.params._trajectory_buffer_size_for_horizon += sn * factor
+        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
@@ -155,11 +160,11 @@ class AgimusController(Node):
 
         ocp_params = OCPParamsBaseCroco(
             dt=self.params.ocp.dt,
+            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
             horizon_size=self.params.ocp.horizon_size,
             solver_iters=self.params.ocp.max_iter,
             callbacks=self.params.ocp.activate_callback,
             qp_iters=self.params.ocp.max_qp_iter,
-            dt_factor_n_seq=[(1, self.params.ocp.horizon_size)],
         )
         self.ocp_params = ocp_params
 
@@ -191,7 +196,7 @@ class AgimusController(Node):
         self.effector_frame_name = msg.ee_frame_name
 
     def robot_description_callback(self, msg: String) -> None:
-        """Create the models of the robot from the urdf string."""
+        """Set robot description xml msg."""
         self.robot_description_msg = msg
 
     def create_robot_models(self) -> None:
@@ -201,7 +206,6 @@ class AgimusController(Node):
             get_package_share_directory("franka_description"),
             "robots/fer/fer.srdf",
         )
-
         params = RobotModelParameters(
             urdf=self.robot_description_msg.data,
             srdf=Path(temp_srdf_path),
@@ -222,8 +226,9 @@ class AgimusController(Node):
         Return true if buffer size has more than two times
         the horizon size and False otherwise.
         """
-        assert self.mpc is not None
-        return len(self.traj_buffer) >= 2 * (self.ocp_params.n_controls + 1)
+        return (
+            len(self.traj_buffer) >= 2 * self.params._trajectory_buffer_size_for_horizon
+        )
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""
@@ -254,6 +259,7 @@ class AgimusController(Node):
             return
         if self.mpc is None:
             self.setup_mpc()
+
         if not self.buffer_has_twice_horizon_points():
             self.get_logger().warn(
                 f"Waiting for buffer to be filled... Current size {len(self.traj_buffer)}",
@@ -282,6 +288,7 @@ class AgimusController(Node):
             compute_time = self.get_clock().now() - start_compute_time
             self.ocp_solve_time_pub.publish(compute_time.to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
+            
 
 
 def main(args=None) -> None:
