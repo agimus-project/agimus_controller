@@ -129,10 +129,10 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
     ):
         """Set the reference trajectory for the OCP."""
 
-        assert len(reference_weighted_trajectory) == self.n_controls + 1
+        assert len(reference_weighted_trajectory) == self.n_controls
 
         # Modify running costs reference and weights
-        for i, ref_weighted_pt in enumerate(reference_weighted_trajectory[:-1]):
+        for i, ref_weighted_pt in enumerate(reference_weighted_trajectory[:]):
             # Modifying the state regularization cost
             state_reg = self._solver.problem.runningModels[i].differential.costs.costs[
                 "stateReg"
