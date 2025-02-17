@@ -44,16 +44,20 @@ class TestWarmStart(unittest.TestCase):
         ]
 
         # Create the expected stacked array
+        # WarmStartReference discard the first ref state in favor of the current state
         expected_x0 = np.concatenate([initial_q, initial_v])
-        expected_x_init = np.hstack((random_qs, random_vs))
+        expected_x_init = np.hstack((random_qs[1:], random_vs[1:]))
         expected_x_init = np.vstack([expected_x0, expected_x_init])
         expected_u_init = np.array(
             [pin.rnea(rmodel, rdata, initial_q, initial_v, initial_a)]
             + [
                 pin.rnea(rmodel, rdata, q, v, a)
-                for q, v, a in zip(random_qs, random_vs, random_acs)
-            ][:-1]
+                for q, v, a in zip(random_qs[1:-1], random_vs[1:-1], random_acs[1:-1])
+            ]
         )
+        self.assertEqual(expected_u_init.shape[0] + 1, expected_x_init.shape[0])
+        self.assertEqual(expected_u_init.shape[1], rmodel.nv)
+        self.assertEqual(expected_x_init.shape[1], rmodel.nq + rmodel.nv)
 
         # Act
         x0, x_init, u_init = ws.generate(initial_state, reference_trajectory)
