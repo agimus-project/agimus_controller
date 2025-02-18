@@ -58,7 +58,7 @@ class TestWarmStart(unittest.TestCase):
             dt=0.1,
             solver_iters=1000,
             horizon_size=3,
-            dt_factor_n_seq=DTFactorsNSeq(factors=[1, 2], dts=[2, 1]),
+            dt_factor_n_seq=DTFactorsNSeq(factors=[1, 2], n_steps=[2, 1]),
         )
         assert ocp_params.n_controls == 3
         assert ocp_params.timesteps == (0.1, 0.1, 0.2)

@@ -15,7 +15,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
         """
         Test the initialization of the OCPParamsBaseCroco class.
         """
-        params_dt_factor_n_seq = {"factors": [1], "dts": [100]}
+        params_dt_factor_n_seq = {"factors": [1], "n_steps": [100]}
         dt_factor_param = DTFactorsNSeq(**params_dt_factor_n_seq)
         params = {
             "dt": 0.01,

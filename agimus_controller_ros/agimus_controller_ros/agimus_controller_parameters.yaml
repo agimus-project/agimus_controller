@@ -9,11 +9,11 @@ agimus_controller_params:
       factors:
         type: int_array
         default_value: [1]
-        description: " Number of dts between two time steps, the factor."
+        description: " Number of steps between two time steps, the factor."
         validation:
           not_empty<>: []
           lower_element_bounds<>: [0]
-      dts:
+      n_steps:
         type: int_array
         default_value: [19]
         description: "Number of time steps, the n."

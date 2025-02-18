@@ -55,7 +55,7 @@ class TestOCPGoalReaching(unittest.TestCase):
         self._ocp_params = OCPParamsBaseCroco(
             dt=dt,
             horizon_size=horizon_size,
-            dt_factor_n_seq=DTFactorsNSeq(factors=[1], dts=[horizon_size]),
+            dt_factor_n_seq=DTFactorsNSeq(factors=[1], n_steps=[horizon_size]),
             solver_iters=solver_iters,
             callbacks=callbacks,
         )

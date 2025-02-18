@@ -174,10 +174,12 @@ class TrajectoryBuffer(object):
             self._buffer.pop(0)
 
     def compute_horizon_indexes(self):
-        n_states = sum(sn for sn in self.dt_factor_n_seq.dts) + 1
+        n_states = sum(sn for sn in self.dt_factor_n_seq.n_steps) + 1
         indexes = [0] * n_states
         i = 1
-        for factor, sn in zip(self.dt_factor_n_seq.factors, self.dt_factor_n_seq.dts):
+        for factor, sn in zip(
+            self.dt_factor_n_seq.factors, self.dt_factor_n_seq.n_steps
+        ):
             for _ in range(sn):
                 indexes[i] = factor + indexes[i - 1]
                 i += 1

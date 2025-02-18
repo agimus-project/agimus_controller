@@ -162,7 +162,7 @@ class TestMPCUnicycle(unittest.TestCase):
 
         warm_start = WarmStartUnicycle()
         mpc = MPC()
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[ocp.n_controls])
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1], n_steps=[ocp.n_controls])
         mpc.setup(
             ocp,
             warm_start,
@@ -212,7 +212,7 @@ class TestMPCUnicycle(unittest.TestCase):
 
         warm_start = WarmStartUnicycle()
         mpc = MPC()
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[ocp.n_controls])
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1], n_steps=[ocp.n_controls])
         mpc.setup(
             ocp,
             warm_start,

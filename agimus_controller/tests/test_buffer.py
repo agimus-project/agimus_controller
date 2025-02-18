@@ -24,7 +24,7 @@ class TestTrajectoryBuffer(unittest.TestCase):
 
         self.trajectory_size = 100
         self.n_controls = 10
-        self.dt_factor_n_seq = DTFactorsNSeq(factors=[1], dts=[self.n_controls])
+        self.dt_factor_n_seq = DTFactorsNSeq(factors=[1], n_steps=[self.n_controls])
         self.dt = 0.01
         self.dt_ns = int(1e9 * self.dt)
 
@@ -83,7 +83,9 @@ class TestTrajectoryBuffer(unittest.TestCase):
         """
         Test computing the time indexes from dt_factor_n_seq.
         """
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2, 3, 4, 5], dts=[2, 2, 2, 2, 2])
+        dt_factor_n_seq = DTFactorsNSeq(
+            factors=[1, 2, 3, 4, 5], n_steps=[2, 2, 2, 2, 2]
+        )
         obj = TrajectoryBuffer(dt_factor_n_seq)
 
         indexes_out = obj.compute_horizon_indexes()
@@ -112,7 +114,9 @@ class TestTrajectoryBuffer(unittest.TestCase):
         """
         Test computing the horizon from complex dt_factor_n_seq.
         """
-        dt_factor_n_seq = DTFactorsNSeq(factors=[1, 2, 3, 4, 5], dts=[2, 2, 2, 2, 2])
+        dt_factor_n_seq = DTFactorsNSeq(
+            factors=[1, 2, 3, 4, 5], n_steps=[2, 2, 2, 2, 2]
+        )
         horizon_indexes = [0, 1, 2, 4, 6, 9, 12, 16, 20, 25, 30]
 
         obj = TrajectoryBuffer(dt_factor_n_seq)
