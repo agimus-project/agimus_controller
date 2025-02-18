@@ -149,7 +149,7 @@ class SimpleTrajectoryPublisher(Node):
         msg.w_qdot = [1e-2] * self.croco_nq
         msg.w_qddot = [1e-6] * self.croco_nq
         msg.w_robot_effort = [1e-4] * self.croco_nq
-        msg.w_pose = [1e-2] * 6
+        msg.w_pose = [1e-10] * 6
 
         msg.q = list(self.q[: self.croco_nq])
         msg.qdot = list(self.dq[: self.croco_nq])
