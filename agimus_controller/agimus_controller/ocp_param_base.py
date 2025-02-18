@@ -16,7 +16,9 @@ class OCPParamsBaseCroco:
     # Data relevant to solve the OCP
     dt: float  # Integration step of the OCP
     solver_iters: int  # Number of solver iterations
-    dt_factor_n_seq: DTFactorsNSeq  # Time varying steps definition based on integration step of OCP
+    dt_factor_n_seq: (
+        DTFactorsNSeq  # Time varying steps definition based on integration step of OCP
+    )
     # Number of controls that the OCP uses.
     # It is derived from `dt_factor_n_seq` and not have to be passed.
     _n_controls: int = field(init=False)
