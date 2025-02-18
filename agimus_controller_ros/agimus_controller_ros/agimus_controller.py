@@ -47,11 +47,6 @@ class AgimusController(Node):
         self.param_listener = agimus_controller_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.params._trajectory_buffer_size_for_horizon = 0
-        for factor, sn in zip(
-            self.params.ocp.dt_factor_n_seq.factors, self.params.ocp.dt_factor_n_seq.dts
-        ):
-            self.params._trajectory_buffer_size_for_horizon += sn * factor
         self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
         self.last_point = None
         self.first_run_done = False
@@ -227,7 +222,7 @@ class AgimusController(Node):
         the horizon size and False otherwise.
         """
         return (
-            len(self.traj_buffer) >= 2 * self.params._trajectory_buffer_size_for_horizon
+            len(self.traj_buffer) >= 2 * self.params.ocp.total_time
         )
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:

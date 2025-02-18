@@ -20,12 +20,18 @@ class OCPParamsBaseCroco:
         DTFactorsNSeq  # Time varying steps definition based on integration step of OCP
     )
     # Number of controls that the OCP uses.
-    # It is derived from `dt_factor_n_seq` and not have to be passed.
+    # It is derived from `dt_factor_n_seq` and does not have to be passed.
     _n_controls: int = field(init=False)
     # Number of time steps in the horizon must be equal to:
     #     sum(sn for _, sn in dt_factor_n_seq).
     # This is for sanity check.
     horizon_size: int
+    # Time steps that are used by OCP
+    # It is derived from `dt_factor_n_seq` and does not have to be passed.
+    timesteps: tuple[float] = field(init=False)
+    # Total time for OCP problem
+    # It is derived from `dt_factor_n_seq` and does not have to be passed.
+    total_time: float = field(init=False)
     qp_iters: int = 200  # Number of QP iterations (must be a multiple of 25).
     termination_tolerance: float = (
         1e-3  # Termination tolerance (norm of the KKT conditions).
@@ -37,13 +43,7 @@ class OCPParamsBaseCroco:
 
     def __post_init__(self):
         self._n_controls = sum(sn for sn in self.dt_factor_n_seq.dts)
-        assert self.horizon_size == self._n_controls, (
-            f"The horizon size {self.horizon_size} must be equal to the sum of the time steps {self._n_controls}."
-        )
-
-    @property
-    def timesteps(self) -> tuple[float]:
-        return sum(
+        self.timesteps = sum(
             (
                 (self.dt * factor,) * dts
                 for factor, dts in zip(
@@ -51,6 +51,10 @@ class OCPParamsBaseCroco:
                 )
             ),
             tuple(),
+        )
+        self.total_time = sum(self.timesteps)
+        assert self.horizon_size == self._n_controls, (
+            f"The horizon size {self.horizon_size} must be equal to the sum of the time steps {self._n_controls}."
         )
 
     @property
