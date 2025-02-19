@@ -73,9 +73,6 @@ class ActivationModelWeightedQuad(ActivationModel):
     class_: T.ClassVar[str] = "ActivationModelWeightedQuad"
     weights: T.Union[None, float, npt.NDArray[np.float64]] = None
 
-    def set(self, obj: crocoddyl.ActivationModelWeightedQuad, what: str, value):
-        obj.weights = value
-
     def update(self, data, obj, weights):
         obj.weights = weights
 
@@ -85,7 +82,7 @@ class ActivationModelWeightedQuad(ActivationModel):
         else:
             try:
                 weights = float(self.weights) * np.ones(residual.nr)
-            except ValueError:
+            except (ValueError, TypeError):
                 weights = np.asarray(self.weights)
                 assert weights.size == residual.nr
         return crocoddyl.ActivationModelWeightedQuad(weights)
@@ -97,7 +94,8 @@ class ActivationModelQuadExp(ActivationModel):
     alpha: float = 1.0
 
     def build(self, data: BuildData, residual: crocoddyl.CostModelResidual):
-        return colmpc.ActivationModelQuadExp(residual.nr, self.alpha)
+        # float() is required to allow parsing a float in scientific notation.
+        return colmpc.ActivationModelQuadExp(residual.nr, float(self.alpha))
 
 
 @dataclasses.dataclass
@@ -110,22 +108,9 @@ class ResidualModelState(ResidualModel):
     class_: T.ClassVar[str] = "ResidualModelState"
     xref: T.Optional[npt.NDArray[np.float64]] = None
 
-    def set(self, obj: crocoddyl.ResidualModelState, what: str, value):
-        obj.reference = value
-
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
-        obj.reference = np.concatenate(
-            (
-                pt.point.robot_configuration,
-                pt.point.robot_velocity,
-            )
-        )
-        return np.concatenate(
-            (
-                pt.weights.w_robot_configuration,
-                pt.weights.w_robot_velocity,
-            )
-        )
+        obj.reference = pt.point.robot_state
+        return pt.weights.w_robot_state
 
     def build(self, data: BuildData):
         if self.xref is None:
@@ -138,9 +123,6 @@ class ResidualModelState(ResidualModel):
 class ResidualModelControl(ResidualModel):
     class_: T.ClassVar[str] = "ResidualModelControl"
     uref: T.Optional[npt.NDArray[np.float64]] = None
-
-    def set(self, obj: crocoddyl.ResidualModelControl, what: str, value):
-        obj.reference = value
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         obj.reference = pt.point.robot_effort
@@ -158,12 +140,6 @@ class ResidualModelFramePlacement(ResidualModel):
     class_: T.ClassVar[str] = "ResidualModelFramePlacement"
     id: T.Union[str, int]
     pref: T.Optional[npt.NDArray[np.float64]] = None
-
-    def set(self, obj: crocoddyl.ResidualModelFramePlacement, what: str, value):
-        if what == "reference":
-            obj.reference = value
-        elif what == "id":
-            obj.id = self._get_id(obj.state, value)
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_poses) == 1
@@ -194,13 +170,24 @@ class ResidualModelFramePlacement(ResidualModel):
 @dataclasses.dataclass
 class ResidualDistanceCollision(ResidualModel):
     class_: T.ClassVar[str] = "ResidualDistanceCollision"
-    # TODO make it a pair of strings
-    collision_pair_id: int = 0
+    collision_pair: T.Tuple[str, str]
 
     def build(self, data: BuildData):
-        assert self.collision_pair_id < len(data.collision_model.collisionPairs)
+        assert len(self.collision_pair) == 2
+        cmodel = data.collision_model
+        # Check that the collision pair exist in the collision model
+        # and find its index in the list of collision pairs.
+        cp = []
+        for name in self.collision_pair:
+            assert cmodel.existGeometryName(name), f"Geometry object {name} not found."
+            cp.append(cmodel.getGeometryId(name))
+        cp = pinocchio.CollisionPair(*cp)
+        assert cmodel.existCollisionPair(cp)
+        id = cmodel.findCollisionPair(cp)
+        assert id < len(data.collision_model.collisionPairs)
+        # Build the residual
         return colmpc.ResidualDistanceCollision(
-            data.state, data.state.nu, data.collision_model, self.collision_pair_id
+            data.state, data.actuation.nu, cmodel, id
         )
 
 
@@ -257,7 +244,7 @@ class ConstraintModelResidual(ConstraintModel):
         else:
             try:
                 lower = float(self.lower) * np.ones(residual.nr)
-            except ValueError:
+            except (ValueError, TypeError):
                 lower = np.asarray(self.lower)
                 assert lower.size == residual.nr
         if self.upper is None:
@@ -265,12 +252,32 @@ class ConstraintModelResidual(ConstraintModel):
         else:
             try:
                 upper = float(self.upper) * np.ones(residual.nr)
-            except ValueError:
+            except (ValueError, TypeError):
                 upper = np.asarray(self.upper)
                 assert upper.size == residual.nr
         return crocoddyl.ConstraintModelResidual(
             data.state, residual, lower, upper, self.active_on_terminal_node
         )
+
+
+@dataclasses.dataclass
+class ConstraintModelControlLimit(ConstraintModelResidual):
+    class_: T.ClassVar[str] = "ConstraintModelControlLimit"
+    residual: T.Optional[ResidualModel] = dataclasses.field(default=None, init=False)
+    lower: T.Optional[npt.NDArray[np.float64]] = dataclasses.field(
+        default=None, init=False
+    )
+    upper: T.Optional[npt.NDArray[np.float64]] = dataclasses.field(
+        default=None, init=False
+    )
+
+    def __post_init__(self):
+        self.residual = ResidualModelControl()
+
+    def build(self, data: BuildData):
+        self.lower = -data.state.pinocchio.effortLimit
+        self.upper = data.state.pinocchio.effortLimit
+        return super().build(data)
 
 
 @dataclasses.dataclass
@@ -298,6 +305,11 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
             for v in kwargs.get("costs", [])
         ]
         kwargs["costs"] = costs
+        constraints = [
+            create_nested_dataclass(ConstraintListItem, v)
+            for v in kwargs.get("constraints", [])
+        ]
+        kwargs["constraints"] = constraints
         return DifferentialActionModelFreeFwdDynamics(**kwargs)
 
     def build(self, data: BuildData):
@@ -313,7 +325,7 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
             manager = crocoddyl.ConstraintModelManager(data.state)
             for constraint in self.constraints:
                 c = constraint.constraint.build(data)
-                manager.add(constraint.name, c, constraint.active)
+                manager.addConstraint(constraint.name, c, constraint.active)
             return crocoddyl.DifferentialActionModelFreeFwdDynamics(
                 data.state, data.actuation, costs, manager
             )
@@ -322,6 +334,8 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
         for cost in self.costs:
             if cost.update:
                 cost.cost.update(data, obj.costs.costs[cost.name].cost, pt)
+        # At the moment, we do not need to add support for
+        # updating the constraints
 
 
 @dataclasses.dataclass
@@ -367,24 +381,29 @@ class OCPCrocoGeneric(OCPBaseCroco):
         self._data = ShootingProblem(**data)
         super().__init__(robot_models, params)
 
-    def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
-        build_data = BuildData(self._state, self._actuation, self._collision_model)
+    @property
+    def _build_data(self) -> BuildData:
+        if not hasattr(self, "_build_data_obj"):
+            self._build_data_obj = BuildData(
+                self._state, self._actuation, self._collision_model
+            )
+        return self._build_data_obj
 
+    def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         running_model_list = []
         for dt in self._params.timesteps:
-            running_model = self._data.running_model.build(build_data)
+            running_model = self._data.running_model.build(self._build_data)
             running_model.differential.armature = self._robot_models.armature
-            running_model.step_time = dt
+            running_model.dt = dt
             running_model_list.append(running_model)
 
         assert len(running_model_list) == self.n_controls
         return running_model_list
 
     def create_terminal_model(self) -> crocoddyl.ActionModelAbstract:
-        build_data = BuildData(self._state, self._actuation, self._collision_model)
-        terminal_model = self._data.terminal_model.build(build_data)
+        terminal_model = self._data.terminal_model.build(self._build_data)
         terminal_model.differential.armature = self._robot_models.armature
-        terminal_model.step_time = 0.0
+        terminal_model.dt = 0.0
         return terminal_model
 
     def set_reference_weighted_trajectory(
@@ -395,17 +414,18 @@ class OCPCrocoGeneric(OCPBaseCroco):
         assert len(reference_weighted_trajectory) == self.n_controls + 1
         super().set_reference_weighted_trajectory(reference_weighted_trajectory)
 
-        build_data = BuildData(self._state, self._actuation, self._collision_model)
         problem = self._solver.problem
 
         # Modify running costs reference and weights
         for running_model, ref_weighted_pt in zip(
             problem.runningModels, reference_weighted_trajectory[:-1]
         ):
-            self._data.running_model.update(build_data, running_model, ref_weighted_pt)
+            self._data.running_model.update(
+                self._build_data, running_model, ref_weighted_pt
+            )
 
         self._data.terminal_model.update(
-            build_data, problem.terminalModel, reference_weighted_trajectory[-1]
+            self._build_data, problem.terminalModel, reference_weighted_trajectory[-1]
         )
 
 
