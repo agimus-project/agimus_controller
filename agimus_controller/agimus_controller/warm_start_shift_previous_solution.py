@@ -78,7 +78,7 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
             [initial_state.robot_configuration, initial_state.robot_velocity]
         )
         # TODO is copy needed ?
-        xinit = self._previous_solution.states[1:].copy()
+        xinit = self._previous_solution.states.copy()
         uinit = self._previous_solution.feed_forward_terms.copy()
         return x0, xinit, uinit
 
