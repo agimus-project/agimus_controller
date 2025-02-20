@@ -18,6 +18,10 @@ class TrajectoryPoint:
     forces: dict[Force] | None = None  # Dictionary of pinocchio.Force
     end_effector_poses: dict[SE3] | None = None  # Dictionary of pinocchio.SE3
 
+    @property
+    def robot_state(self) -> npt.NDArray[np.float64]:
+        return np.concatenate(self.robot_configuration, self.robot_velocity)
+
     def __eq__(self, other):
         if not isinstance(other, TrajectoryPoint):
             return False
@@ -79,6 +83,10 @@ class TrajectoryPointWeights:
     w_robot_effort: npt.NDArray[np.float64] | None = None
     w_forces: dict[npt.NDArray[np.float64]] | None = None
     w_end_effector_poses: dict[npt.NDArray[np.float64]] | None = None
+
+    @property
+    def w_robot_state(self) -> npt.NDArray[np.float64]:
+        return np.concatenate(self.w_robot_configuration, self.w_robot_velocity)
 
     def __eq__(self, other):
         if not isinstance(other, TrajectoryPointWeights):

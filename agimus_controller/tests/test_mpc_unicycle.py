@@ -77,6 +77,9 @@ class OCPUnicycle(OCPBase):
             )
         )
 
+    def integrate(self, state, control):
+        return unicycle_integrate(state, control, self.dt)
+
     @property
     def ocp_results(self):
         return self._results

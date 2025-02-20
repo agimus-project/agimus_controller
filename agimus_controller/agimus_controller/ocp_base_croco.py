@@ -137,6 +137,13 @@ class OCPBaseCroco(OCPBase):
             feed_forward_terms=self._solver.us,
         )
 
+    def integrate(
+        self, state: npt.NDArray[np.float64], control: npt.NDArray
+    ) -> npt.NDArray[np.float64]:
+        data = self._problem.runningDatas[0]
+        self._problem.runningModels[0].calc(data, state, control)
+        return data.xnext
+
     @property
     def ocp_results(self) -> OCPResults:
         """Output data structure of the OCP.
