@@ -45,6 +45,10 @@ agimus_controller_params:
     type: bool
     default_value: True
     description: "Wether we publish debug data or not"
+  constant_delay:
+    type: bool
+    default_value: False
+    description: "When True, the OCP result is always published with a delay of dt but OCP uses a delay compensation. When False, the result is published as soon as possible."
   rate:
     type: double
     default_value: 100.0

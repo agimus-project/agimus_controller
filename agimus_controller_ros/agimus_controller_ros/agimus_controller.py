@@ -56,6 +56,9 @@ class AgimusController(Node):
         self.robot_description_msg = None
         self.np_sensor_msg = None
         self.destroy_joint_sub = False
+        # Stores the OCP result to be able to publish it
+        # at next iteration, when using a constant delay
+        self._ocp_result = None
 
         self.initialize_ros_attributes()
         self.get_logger().info("Init done")
@@ -240,6 +243,14 @@ class AgimusController(Node):
         Timer callback that checks we can start solve before doing it,
         then publish messages related to the OCP.
         """
+        if self.params.constant_delay:
+            if self._ocp_res is not None:
+                # Publish the result from previous OCP.
+                self.send_control_msg(self._ocp_res)
+                control = self._ocp_res.feed_forward_terms[0].copy()
+                self._ocp_res = None
+            else:
+                control = None
         if self.sensor_msg is None:
             self.get_logger().warn(
                 "Waiting for sensor messages to arrive...",
@@ -270,14 +281,25 @@ class AgimusController(Node):
             robot_velocity=self.np_sensor_msg.joint_state.velocity,
             robot_acceleration=np.zeros_like(self.np_sensor_msg.joint_state.velocity),
         )
+        if self.params.constant_delay and control is not None:
+            # Compensate for delay by estimating the future state.
+            x0_traj_point = self.mpc.integrate(x0_traj_point, control)
+            # Update np_sensor_msg so that the published message contains the correct initial state
+            self.np_sensor_msg.joint_state.position = x0_traj_point.robot_configuration
+            self.np_sensor_msg.joint_state.velocity = x0_traj_point.velocity
         ocp_res = self.mpc.run(
             initial_state=x0_traj_point,
-            current_time_ns=self.get_clock().now().nanoseconds,
+            # Use x0_traj_point time so that this corresponds to time in the future
+            # when using delay compensation.
+            current_time_ns=x0_traj_point.time_ns,
         )
         if ocp_res is None:
             return
 
-        self.send_control_msg(ocp_res)
+        if self.constant_delay:
+            self._ocp_res = ocp_res
+        else:
+            self.send_control_msg(ocp_res)
         if self.params.publish_debug_data:
             compute_time = self.get_clock().now() - start_compute_time
             self.ocp_solve_time_pub.publish(compute_time.to_msg())

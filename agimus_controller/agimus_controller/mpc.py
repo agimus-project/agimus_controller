@@ -1,4 +1,5 @@
 import time
+import numpy.typing as npt
 
 from agimus_controller.mpc_data import OCPResults, MPCDebugData
 from agimus_controller.ocp_base import OCPBase
@@ -62,6 +63,20 @@ class MPC(object):
         self._mpc_debug_data.duration_ocp_solve_ns = timer4 - timer3
 
         return self._ocp.ocp_results
+
+    def integrate(
+        self, state: TrajectoryPoint, control: npt.NDArray
+    ) -> TrajectoryPoint:
+        """Integrate the control starting from state during duration dt.
+
+        Returns:
+            the same TrajectoryPoint object, where robot_configuration and robot_velocity have been modified.
+        """
+        x = self._ocp.integrate(state.robot_state, control)
+        state.time_ns += int(self.ocp.dt * 1e-9)
+        state.robot_configuration = x[: len(state.robot_configuration)]
+        state.robot_velocity = x[len(state.robot_configuration) :]
+        return state
 
     @property
     def mpc_debug_data(self) -> MPCDebugData:
