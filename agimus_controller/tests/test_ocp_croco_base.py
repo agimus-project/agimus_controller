@@ -6,7 +6,7 @@ import numpy as np
 import pinocchio as pin
 import pickle
 from agimus_controller.ocp_base_croco import OCPBaseCroco
-from agimus_controller.ocp_param_base import OCPParamsBaseCroco
+from agimus_controller.ocp_param_base import OCPParamsBaseCroco, DTFactorsNSeq
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
@@ -140,7 +140,7 @@ class TestSimpleOCPCroco(unittest.TestCase):
         self.ocp_params = OCPParamsBaseCroco(
             dt=0.1,
             horizon_size=9,
-            dt_factor_n_seq=[(1, 9)],
+            dt_factor_n_seq=DTFactorsNSeq(factors=[1], n_steps=[9]),
             solver_iters=100,
             callbacks=False,
         )

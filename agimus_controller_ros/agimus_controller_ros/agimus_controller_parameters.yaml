@@ -5,9 +5,24 @@ agimus_controller_params:
       type: double
       default_value: 0.01
       description: "Step time of the OCP in seconds"
+    dt_factor_n_seq:
+      factors:
+        type: int_array
+        default_value: [1]
+        description: " Number of steps between two time steps, the factor."
+        validation:
+          not_empty<>: []
+          lower_element_bounds<>: [0]
+      n_steps:
+        type: int_array
+        default_value: [19]
+        description: "Number of time steps, the n."
+        validation:
+          not_empty<>: []
+          lower_element_bounds<>: [0]
     horizon_size:
       type: int
-      default_value: 20
+      default_value: 19
       description: "Number of nodes of the OCP"
     armature:
       type: double_array

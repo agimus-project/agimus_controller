@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 from pinocchio import SE3, Force
+from agimus_controller.ocp_param_base import DTFactorsNSeq
 
 
 @dataclass
@@ -157,10 +158,10 @@ class WeightedTrajectoryPoint:
 class TrajectoryBuffer(object):
     """List of variable size in which the HPP trajectory nodes will be."""
 
-    def __init__(self, dt_factor_n_seq: list[tuple[int, int]]):
+    def __init__(self, dt_factor_n_seq: DTFactorsNSeq):
         self._buffer = []
         self.dt_factor_n_seq = deepcopy(dt_factor_n_seq)
-        self.horizon_indexes = self.compute_horizon_indexes(self.dt_factor_n_seq)
+        self.horizon_indexes = self.compute_horizon_indexes()
 
     def append(self, item):
         self._buffer.append(item)
@@ -172,11 +173,13 @@ class TrajectoryBuffer(object):
         if self._buffer:
             self._buffer.pop(0)
 
-    def compute_horizon_indexes(self, dt_factor_n_seq: list[tuple[int, int]]):
-        n_states = sum(sn for _, sn in dt_factor_n_seq) + 1
+    def compute_horizon_indexes(self):
+        n_states = sum(sn for sn in self.dt_factor_n_seq.n_steps) + 1
         indexes = [0] * n_states
         i = 1
-        for factor, sn in dt_factor_n_seq:
+        for factor, sn in zip(
+            self.dt_factor_n_seq.factors, self.dt_factor_n_seq.n_steps
+        ):
             for _ in range(sn):
                 indexes[i] = factor + indexes[i - 1]
                 i += 1

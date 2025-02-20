@@ -5,6 +5,7 @@ from agimus_controller.mpc import MPC
 import crocoddyl
 import numpy as np
 from agimus_controller.ocp_base import OCPBase, OCPDebugData, OCPResults
+from agimus_controller.ocp_param_base import DTFactorsNSeq
 from agimus_controller.trajectory import (
     TrajectoryPoint,
     WeightedTrajectoryPoint,
@@ -161,15 +162,12 @@ class TestMPCUnicycle(unittest.TestCase):
 
         warm_start = WarmStartUnicycle()
         mpc = MPC()
-        buffer = TrajectoryBuffer(
-            [
-                (
-                    1,
-                    ocp.n_controls,
-                ),
-            ]
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1], n_steps=[ocp.n_controls])
+        mpc.setup(
+            ocp,
+            warm_start,
+            TrajectoryBuffer(dt_factor_n_seq),
         )
-        mpc.setup(ocp, warm_start, buffer)
 
         dt_ns = int(ocp.dt * 1e9)
 
@@ -214,15 +212,12 @@ class TestMPCUnicycle(unittest.TestCase):
 
         warm_start = WarmStartUnicycle()
         mpc = MPC()
-        buffer = TrajectoryBuffer(
-            [
-                (
-                    1,
-                    ocp.n_controls,
-                ),
-            ]
+        dt_factor_n_seq = DTFactorsNSeq(factors=[1], n_steps=[ocp.n_controls])
+        mpc.setup(
+            ocp,
+            warm_start,
+            TrajectoryBuffer(dt_factor_n_seq),
         )
-        mpc.setup(ocp, warm_start, buffer)
 
         dt_ns = int(ocp.dt * 1e9)
 

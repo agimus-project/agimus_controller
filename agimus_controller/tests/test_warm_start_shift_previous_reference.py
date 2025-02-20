@@ -8,6 +8,7 @@ from agimus_controller.mpc_data import OCPResults
 from agimus_controller.warm_start_shift_previous_solution import (
     WarmStartShiftPreviousSolution,
 )
+from agimus_controller.ocp_param_base import DTFactorsNSeq
 from agimus_controller.trajectory import TrajectoryPoint
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
@@ -57,10 +58,7 @@ class TestWarmStart(unittest.TestCase):
             dt=0.1,
             solver_iters=1000,
             horizon_size=3,
-            dt_factor_n_seq=[
-                (1, 2),
-                (2, 1),
-            ],
+            dt_factor_n_seq=DTFactorsNSeq(factors=[1, 2], n_steps=[2, 1]),
         )
         assert ocp_params.n_controls == 3
         assert ocp_params.timesteps == (0.1, 0.1, 0.2)
