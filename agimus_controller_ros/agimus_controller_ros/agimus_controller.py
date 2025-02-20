@@ -221,7 +221,9 @@ class AgimusController(Node):
         Return true if buffer size has more than two times
         the horizon size and False otherwise.
         """
-        return len(self.traj_buffer) * self.ocp_params.dt >= 2 * self.ocp_params.total_time
+        return (
+            len(self.traj_buffer) * self.ocp_params.dt >= 2 * self.ocp_params.total_time
+        )
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""
