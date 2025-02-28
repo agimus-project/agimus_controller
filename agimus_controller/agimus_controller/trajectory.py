@@ -19,7 +19,7 @@ class TrajectoryPoint:
 
     @property
     def robot_state(self) -> npt.NDArray[np.float64]:
-        return np.concatenate(self.robot_configuration, self.robot_velocity)
+        return np.concatenate((self.robot_configuration, self.robot_velocity))
 
     def __eq__(self, other):
         if not isinstance(other, TrajectoryPoint):
@@ -85,7 +85,7 @@ class TrajectoryPointWeights:
 
     @property
     def w_robot_state(self) -> npt.NDArray[np.float64]:
-        return np.concatenate(self.w_robot_configuration, self.w_robot_velocity)
+        return np.concatenate((self.w_robot_configuration, self.w_robot_velocity))
 
     def __eq__(self, other):
         if not isinstance(other, TrajectoryPointWeights):

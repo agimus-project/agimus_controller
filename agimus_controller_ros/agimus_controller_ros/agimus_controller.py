@@ -58,7 +58,7 @@ class AgimusController(Node):
         self.destroy_joint_sub = False
         # Stores the OCP result to be able to publish it
         # at next iteration, when using a constant delay
-        self._ocp_result = None
+        self._ocp_res = None
 
         self.initialize_ros_attributes()
         self.get_logger().info("Init done")
@@ -286,7 +286,7 @@ class AgimusController(Node):
             x0_traj_point = self.mpc.integrate(x0_traj_point, control)
             # Update np_sensor_msg so that the published message contains the correct initial state
             self.np_sensor_msg.joint_state.position = x0_traj_point.robot_configuration
-            self.np_sensor_msg.joint_state.velocity = x0_traj_point.velocity
+            self.np_sensor_msg.joint_state.velocity = x0_traj_point.robot_velocity
         ocp_res = self.mpc.run(
             initial_state=x0_traj_point,
             # Use x0_traj_point time so that this corresponds to time in the future
@@ -296,7 +296,7 @@ class AgimusController(Node):
         if ocp_res is None:
             return
 
-        if self.constant_delay:
+        if self.params.constant_delay:
             self._ocp_res = ocp_res
         else:
             self.send_control_msg(ocp_res)
