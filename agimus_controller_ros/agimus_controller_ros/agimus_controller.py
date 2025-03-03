@@ -22,7 +22,7 @@ from sensor_msgs.msg import JointState
 
 from agimus_controller.mpc import MPC
 from agimus_controller.mpc_data import OCPResults
-from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
+from agimus_controller.ocp.ocp_croco_generic import OCPCrocoGeneric
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
@@ -204,7 +204,10 @@ class AgimusController(Node):
         )
         self.ocp_params = ocp_params
 
-        ocp = OCPCrocoGoalReaching(self.robot_models, ocp_params)
+        yaml_file = self.params.ocp.definition_yaml_file
+        if yaml_file == "":
+            yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
+        ocp = OCPCrocoGeneric(self.robot_models, ocp_params, yaml_file)
         ws = WarmStartReference()
         ws.setup(self.robot_models._robot_model)
         self.mpc = MPC()

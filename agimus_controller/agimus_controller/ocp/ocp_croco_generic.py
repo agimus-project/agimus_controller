@@ -1,3 +1,4 @@
+import pathlib
 import crocoddyl
 import numpy as np
 import numpy.typing as npt
@@ -391,7 +392,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
 
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         running_model_list = []
-        for dt in self._params.timesteps:
+        for dt in self._ocp_params.timesteps:
             running_model = self._data.running_model.build(self._build_data)
             running_model.differential.armature = self._robot_models.armature
             running_model.dt = dt
@@ -427,6 +428,11 @@ class OCPCrocoGeneric(OCPBaseCroco):
         self._data.terminal_model.update(
             self._build_data, problem.terminalModel, reference_weighted_trajectory[-1]
         )
+
+    @staticmethod
+    def get_default_yaml_file(basename: str):
+        file = pathlib.Path(__file__).parent / basename
+        return file
 
 
 if __name__ == "__main__":

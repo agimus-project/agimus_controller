@@ -7,6 +7,8 @@ setup(
     name=PACKAGE_NAME,
     version="0.0.0",
     packages=find_packages(exclude=["tests"]),
+    package_dir={"agimus_controller": "agimus_controller"},
+    package_data={"agimus_controller": ["ocp/*.yaml"]},
     python_requires=REQUIRES_PYTHON,
     install_requires=[
         "crocoddyl",
