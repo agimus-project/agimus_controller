@@ -66,6 +66,13 @@ class OCPBase(ABC):
         """
         pass
 
+    @abstractmethod
+    def integrate(
+        self, state: npt.NDArray[np.float64], control: npt.NDArray
+    ) -> npt.NDArray[np.float64]:
+        """Integrate the control starting from state during duration dt."""
+        pass
+
     @property
     @abstractmethod
     def ocp_results(self) -> OCPResults:
