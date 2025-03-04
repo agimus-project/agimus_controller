@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="pandas">
+    <xacro:include filename="$(find franka_description)/robots/common/utils.xacro" />
+
+    <material name="grey">
+        <color rgba=".5 .5 .5 1" />
+    </material>
+    <link name="obstacle1">
+        <inertial>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
+            <mass value="0.6" />
+            <inertia ixx="0.001" ixy="0.0" ixz="0.0"
+                iyy="0.001" iyz="0.0"
+                izz="0.001" />
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0.0155" rpy="0 0 0" />
+            <geometry>
+                <box size="0.597 0.397 0.001" />
+            </geometry>
+            <color name="grey" />
+        </visual>
+        <xacro:collision_capsule xyz="1.535 0 0.43" direction="x" radius="0.1"
+            length="0.4" />
+    </link>
+</robot>
