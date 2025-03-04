@@ -22,7 +22,9 @@ class RobotModelParameters:
     env_urdf: Union[None, Path, str] = (
         None  # Path to the environment URDF file or string containing URDF as an XML
     )
-    srdf: Path = Path()  # Path to the SRDF file
+    srdf: Union[None, Path, str] = (
+        None  # Path to the SRDF file or string containing SRDF as an XML
+    )
     urdf_meshes_dir: Optional[Path] = (
         None  # Path to the directory containing the meshes and the URDF file.
     )
@@ -69,7 +71,7 @@ class RobotModelParameters:
             raise ValueError(
                 f"Environment URDF must be a valid file path. File: '{self.env_urdf}' doesn't exist!"
             )
-        if not self.srdf.is_file():
+        if isinstance(self.srdf, Path) and not self.srdf.is_file():
             raise ValueError(
                 f"SRDF must be a valid file path. File: '{self.srdf}' doesn't exist!"
             )
@@ -288,11 +290,18 @@ class RobotModels:
     def _update_collision_model_to_self_collision(self) -> None:
         """Update the collision model to self collision."""
         self._collision_model.addAllCollisionPairs()
-        pin.removeCollisionPairs(
-            self._robot_model,
-            self._collision_model,
-            str(self._params.srdf.absolute()),
-        )
+        if isinstance(self._params.srdf, Path):
+            pin.removeCollisionPairs(
+                self._robot_model,
+                self._collision_model,
+                str(self._params.srdf.absolute()),
+            )
+        elif isinstance(self._params.srdf, str):
+            pin.removeCollisionPairsFromXML(
+                self._robot_model,
+                self._collision_model,
+                self._params.srdf,
+            )
 
     def _add_collision_pairs(self) -> None:
         """Add collision pairs to the collision model."""
