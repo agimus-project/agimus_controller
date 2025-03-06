@@ -9,7 +9,7 @@ from agimus_controller.factory.robot_model import RobotModels
 from agimus_controller.mpc_data import OCPResults, OCPDebugData
 from agimus_controller.ocp_base import OCPBase
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
-from agimus_controller.trajectory import TrajectoryPoint
+from agimus_controller.trajectory import WeightedTrajectoryPoint
 
 
 class OCPBaseCroco(OCPBase):
@@ -37,7 +37,7 @@ class OCPBaseCroco(OCPBase):
         self._ocp_params = ocp_params
         self._solver = None
         self._ocp_results: OCPResults = None
-        self._debug_data: OCPDebugData = None
+        self._debug_data: OCPDebugData = OCPDebugData()
 
         # Create the running models
         self._running_model_list = self.create_running_model_list()
@@ -91,6 +91,16 @@ class OCPBaseCroco(OCPBase):
         """Create the terminal model."""
         pass
 
+    def set_reference_weighted_trajectory(
+        self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
+    ):
+        """Set the reference trajectory for the OCP."""
+        if self._ocp_params.use_debug_data:
+            reference_trajectory_points = [
+                el.point for el in reference_weighted_trajectory
+            ]
+            self._debug_data.references = reference_trajectory_points
+
     def solve(
         self,
         x0: npt.NDArray[np.float64],
@@ -111,31 +121,20 @@ class OCPBaseCroco(OCPBase):
         res = self._solver.solve(
             x_warmstart, u_warmstart, self._ocp_params.solver_iters
         )
-        solution = [
-            TrajectoryPoint(
-                time_ns=-1,
-                robot_configuration=state[: self._robot_models.robot_model.nq],
-                robot_velocity=state[self._robot_models.robot_model.nq :],
-                robot_acceleration=np.zeros_like(
-                    state[self._robot_models.robot_model.nq :]
-                ),
-            )
-            for state in self._solver.xs
-        ]
-        self._debug_data = OCPDebugData(
-            problem_solved=res,
-            result=solution,
-            references=None,
-            kkt_norms=None,
-            collision_distance_residuals=None,
-        )
-
-        # Store the results
-        self._ocp_results = OCPResults(
+        ocp_results = OCPResults(
             states=self._solver.xs,
             ricatti_gains=self._solver.K,
             feed_forward_terms=self._solver.us,
         )
+        if self._ocp_params.use_debug_data:
+            self._debug_data.problem_solved = res
+            self._debug_data.result = ocp_results
+            self._debug_data.kkt_norm = self._solver.KKT
+            self._debug_data.nb_iter = int(self._solver.iter)
+            self._debug_data.nb_qp_iter = int(self._solver.qp_iters)
+
+        # Store the results
+        self._ocp_results = ocp_results
 
     def integrate(
         self, state: npt.NDArray[np.float64], control: npt.NDArray

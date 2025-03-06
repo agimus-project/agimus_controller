@@ -56,6 +56,7 @@ class OCPParamsBaseCroco:
     eps_abs: float = 1e-6  # Absolute tolerance of the solver.
     eps_rel: float = 0.0  # Relative tolerance of the solver.
     callbacks: bool = False  # Flag to enable/disable callbacks.
+    use_debug_data: bool = True  # Flag to enable/disable the filling of the debug data.
     use_filter_line_search = False  # Flag to enable/disable the filter line searchs.
 
     def __post_init__(self):
