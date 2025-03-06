@@ -126,7 +126,7 @@ class AgimusController(Node):
         )
         self.subscriber_robot_srdf_description = self.create_subscription(
             String,
-            "/environment_description",
+            "/robot_srdf_description",
             self.robot_srdf_description_callback,
             qos_profile=QoSProfile(
                 depth=1,
