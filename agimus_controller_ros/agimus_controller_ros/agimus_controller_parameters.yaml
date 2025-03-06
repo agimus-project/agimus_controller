@@ -88,11 +88,11 @@ agimus_controller_params:
   __map_collision_pairs_names:
     first:
       type: string
-      description: First collision pair to map.
+      description: Name of the first collision geometry of the collision pair.
       validation:
         not_empty<>: []
     second:
       type: string
-      description: First collision pair to map.
+      description: Name of the second collision geometry of the collision pair.
       validation:
         not_empty<>: []
