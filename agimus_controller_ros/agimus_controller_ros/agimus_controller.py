@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
 
-from pathlib import Path
 
 import rclpy
 from rclpy.node import Node
@@ -12,8 +11,6 @@ from rcl_interfaces.msg import ParameterValue
 from std_msgs.msg import String
 from agimus_msgs.msg import MpcInput
 import builtin_interfaces
-import os
-from ament_index_python.packages import get_package_share_directory
 
 import linear_feedback_controller_msgs_py.lfc_py_types as lfc_py_types
 from linear_feedback_controller_msgs_py.numpy_conversions import (
@@ -48,6 +45,13 @@ class AgimusController(Node):
         self.params = self.param_listener.get_params()
         self.params.ocp.armature = np.array(self.params.ocp.armature)
         self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
+        self.params.collision_pairs = [
+            (
+                self.params.get_entry(collision_pair_name).first,
+                self.params.get_entry(collision_pair_name).second,
+            )
+            for collision_pair_name in self.params.collision_pairs_names
+        ]
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
@@ -55,6 +59,8 @@ class AgimusController(Node):
         self.q0 = None
         self.robot_description_msg = None
         self.np_sensor_msg = None
+        self.environment_msg = None
+        self.robot_srdf_description_msg = None
         self.destroy_joint_sub = False
         # Stores the OCP result to be able to publish it
         # at next iteration, when using a constant delay
@@ -102,6 +108,26 @@ class AgimusController(Node):
             String,
             "/robot_description",
             self.robot_description_callback,
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
+        )
+        self.subscriber_environment_description = self.create_subscription(
+            String,
+            "/environment_description",
+            self.environment_description_callback,
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
+        )
+        self.subscriber_robot_srdf_description = self.create_subscription(
+            String,
+            "/robot_srdf_description",
+            self.robot_srdf_description_callback,
             qos_profile=QoSProfile(
                 depth=1,
                 durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -178,7 +204,11 @@ class AgimusController(Node):
 
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
-        if self.robot_description_msg is None:
+        if (
+            self.robot_description_msg is None
+            or self.environment_msg is None
+            or self.robot_srdf_description_msg is None
+        ):
             return
         if self.q0 is None:
             self.q0 = np.array(joint_states_msg.position)
@@ -197,23 +227,26 @@ class AgimusController(Node):
         """Set robot description xml msg."""
         self.robot_description_msg = msg
 
+    def environment_description_callback(self, msg: String) -> None:
+        """Set environment description xml msg."""
+        self.environment_msg = msg
+
+    def robot_srdf_description_callback(self, msg: String) -> None:
+        """Set robot srdf description xml msg."""
+        self.robot_srdf_description_msg = msg
+
     def create_robot_models(self) -> None:
-        # TODO: fix, just hardcoded the thing: should exist in the demo folder?
-        # add as a ros parameter in the yaml file srdf_path
-        temp_srdf_path = os.path.join(
-            get_package_share_directory("franka_description"),
-            "robots/fer/fer.srdf",
-        )
         params = RobotModelParameters(
-            urdf=self.robot_description_msg.data,
-            srdf=Path(temp_srdf_path),
+            robot_urdf=self.robot_description_msg.data,
+            env_urdf=self.environment_msg.data,
+            srdf=self.robot_srdf_description_msg.data,
             free_flyer=self.params.free_flyer,
             collision_as_capsule=self.params.collision_as_capsule,
             self_collision=self.params.self_collision,
             armature=self.params.ocp.armature,
             moving_joint_names=self.moving_joint_names,
+            collision_pairs=self.params.collision_pairs,
         )
-
         self.robot_models = RobotModels(params)
         self.rmodel = self.robot_models._robot_model
 

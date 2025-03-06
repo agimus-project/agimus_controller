@@ -48,7 +48,7 @@ class TestRobotModelParameters(unittest.TestCase):
         srdf_path = Path(robot.urdf.replace("urdf", "srdf"))
         self.valid_args = {
             "q0": np.array([0.0, 1.0, 2.0]),
-            "urdf": urdf_path,
+            "robot_urdf": urdf_path,
             "srdf": srdf_path,
             "urdf_meshes_dir": urdf_path.parent.parent.parent.parent.parent,
             "free_flyer": False,
@@ -70,7 +70,7 @@ class TestRobotModelParameters(unittest.TestCase):
         self.assertEqual(
             params.moving_joint_names, self.valid_args["moving_joint_names"]
         )
-        self.assertEqual(params.urdf, self.valid_args["urdf"])
+        self.assertEqual(params.robot_urdf, self.valid_args["robot_urdf"])
         self.assertEqual(params.srdf, self.valid_args["srdf"])
         self.assertEqual(params.urdf_meshes_dir, self.valid_args["urdf_meshes_dir"])
         self.assertTrue(params.collision_as_capsule)
@@ -96,7 +96,7 @@ class TestRobotModelParameters(unittest.TestCase):
     def test_invalid_urdf_raises_error(self):
         """Test that an invalid URDF path raises a ValueError."""
         for val in [Path("invalid_path"), ""]:
-            self.valid_args["urdf"] = val
+            self.valid_args["robot_urdf"] = val
             with self.assertRaises(ValueError):
                 RobotModelParameters(**self.valid_args)
 
@@ -122,6 +122,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         # Load the example robot model using example robot data to get the URDF path.
         robot = robex.load("panda")
         urdf_path = Path(robot.urdf)
+        env_urdf = Path(__file__).parent / "resources" / "environment.xacro"
         srdf_path = Path(robot.urdf.replace("urdf", "srdf"))
         urdf_meshes_dir = urdf_path.parent.parent.parent.parent.parent
         free_flyer = False
@@ -132,7 +133,8 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
             q0=q0,
             free_flyer=free_flyer,
             moving_joint_names=moving_joint_names,
-            urdf=urdf_path,
+            robot_urdf=urdf_path,
+            env_urdf=env_urdf,
             srdf=srdf_path,
             urdf_meshes_dir=urdf_meshes_dir,
             collision_as_capsule=True,
@@ -169,7 +171,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
     def test_load_urdf_from_string(self):
         params = deepcopy(self.params)
         with open(Path(robex.load("panda").urdf), "r") as file:
-            params.urdf = file.read().replace("\n", "")
+            params.robot_urdf = file.read().replace("\n", "")
 
         robot_models_str = RobotModels(params)
         self.assertEqual(
@@ -287,9 +289,12 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             get_package_share_directory("franka_description")
         )
         srdf_path = franka_description_path / "robots" / "fer" / "fer.srdf"
-        xacro_path = str(
+        with open(srdf_path, "r") as srdf_file:
+            srdf_xml = srdf_file.read()
+        robot_xacro_path = str(
             franka_description_path / "robots" / "fer" / "fer.urdf.xacro",
         )
+        env_xacro_path = Path(__file__).parent / "resources" / "environment.xacro"
         params_path = str(
             Path(__file__).parent / "resources" / "agimus_controller_params.yaml"
         )
@@ -297,12 +302,13 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             mpc_params = yaml.safe_load(file)["agimus_controller_node"][
                 "ros__parameters"
             ]
-        urdf_xml = xacro.process_file(
-            xacro_path,
+        robot_urdf_xml = xacro.process_file(
+            robot_xacro_path,
             mappings={"with_sc": "true"},
         ).toxml()
+        env_urdf_xml = xacro.process_file(env_xacro_path).toxml()
         # Hack for the moving joint name
-        model = pin.buildModelFromXML(urdf_xml)
+        model = pin.buildModelFromXML(robot_urdf_xml)
         cls.locked_joint_names = [
             jn
             for jn in model.names
@@ -312,8 +318,9 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             q0=np.zeros(model.nq),
             free_flyer=False,
             moving_joint_names=mpc_params["moving_joint_names"],
-            urdf=urdf_xml,
-            srdf=srdf_path,
+            robot_urdf=robot_urdf_xml,
+            env_urdf=env_urdf_xml,
+            srdf=srdf_xml,
             collision_as_capsule=True,
             self_collision=True,
             urdf_meshes_dir=franka_description_path,
@@ -369,7 +376,7 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
     def test_collision_pairs(self):
         """Checking that the collision model has collision pairs."""
         self.assertEqual(
-            len(self.robot_models.collision_model.collisionPairs), 123
+            len(self.robot_models.collision_model.collisionPairs), 142
         )  # Number of collision pairs in the panda model
 
     def test_rnea(self):
@@ -390,23 +397,25 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             "fer_rightfinger_1",
             "fer_rightfinger_2",
             "fer_rightfinger_3",
+            "fer_link0_sc_capsule_0",
+            "fer_link1_sc_capsule_0",
+            "fer_link2_sc_capsule_0",
+            "fer_link3_sc_capsule_0",
+            "fer_link4_sc_capsule_0",
+            "fer_link5_sc_capsule_0",
+            "fer_link5_sc_capsule_1",
+            "fer_link6_sc_capsule_0",
             "fer_hand_sc_capsule_0",
             "fer_hand_sc_capsule_1",
             "fer_link7_sc_capsule_0",
             "fer_link7_sc_capsule_1",
-            "fer_link6_sc_capsule_0",
-            "fer_link5_sc_capsule_0",
-            "fer_link5_sc_capsule_1",
-            "fer_link4_sc_capsule_0",
-            "fer_link3_sc_capsule_0",
-            "fer_link2_sc_capsule_0",
-            "fer_link1_sc_capsule_0",
-            "fer_link0_sc_capsule_0",
+            "obstacle1_capsule_0",
         ]
         geom_obj_names = [
             geom_obj.name
             for geom_obj in self.robot_models.collision_model.geometryObjects
         ]
+
         for geom_obj_name, geom_obj_name_test in zip(
             geom_obj_names, geom_obj_names_test
         ):
