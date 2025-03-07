@@ -14,8 +14,6 @@ from agimus_controller.ocp_base_croco import (
     OCPParamsBaseCroco,
 )
 from agimus_controller.trajectory import (
-    TrajectoryPoint,
-    TrajectoryPointWeights,
     WeightedTrajectoryPoint,
 )
 
@@ -430,6 +428,6 @@ class OCPCrocoGeneric(OCPBaseCroco):
         )
 
     @staticmethod
-    def get_default_yaml_file(basename: str):
+    def get_default_yaml_file(basename: str) -> pathlib.Path:
         file = pathlib.Path(__file__).parent / basename
         return file
