@@ -9,7 +9,7 @@ from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
 from std_msgs.msg import String
-from agimus_msgs.msg import MpcInput
+from agimus_msgs.msg import MpcInput, MpcDebug
 import builtin_interfaces
 
 import linear_feedback_controller_msgs_py.lfc_py_types as lfc_py_types
@@ -28,7 +28,10 @@ from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
-from agimus_controller_ros.ros_utils import mpc_msg_to_weighted_traj_point
+from agimus_controller_ros.ros_utils import (
+    mpc_msg_to_weighted_traj_point,
+    mpc_debug_data_to_msg,
+)
 
 
 from agimus_controller.trajectory import TrajectoryBuffer, TrajectoryPoint
@@ -177,6 +180,14 @@ class AgimusController(Node):
                     reliability=ReliabilityPolicy.BEST_EFFORT,
                 ),
             )
+            self.mpc_debug_pub = self.create_publisher(
+                MpcDebug,
+                "mpc_debug",
+                qos_profile=QoSProfile(
+                    depth=10,
+                    reliability=ReliabilityPolicy.BEST_EFFORT,
+                ),
+            )
         self.create_timer(1.0 / self.params.rate, self.run_callback)
 
     def setup_mpc(self):
@@ -189,6 +200,7 @@ class AgimusController(Node):
             solver_iters=self.params.ocp.max_iter,
             callbacks=self.params.ocp.activate_callback,
             qp_iters=self.params.ocp.max_qp_iter,
+            use_debug_data=self.params.publish_debug_data,
         )
         self.ocp_params = ocp_params
 
@@ -338,6 +350,8 @@ class AgimusController(Node):
             compute_time = self.get_clock().now() - start_compute_time
             self.ocp_solve_time_pub.publish(compute_time.to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
+            mpc_debug_msg = mpc_debug_data_to_msg(self.mpc.mpc_debug_data)
+            self.mpc_debug_pub.publish(mpc_debug_msg)
 
 
 def main(args=None) -> None:
