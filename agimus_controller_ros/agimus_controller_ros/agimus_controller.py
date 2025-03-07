@@ -203,6 +203,7 @@ class AgimusController(Node):
             use_debug_data=self.params.publish_debug_data,
         )
         self.ocp_params = ocp_params
+        self.get_logger().info(f"Horizon total time is {ocp_params.total_time}")
 
         yaml_file = self.params.ocp.definition_yaml_file
         if yaml_file == "":
