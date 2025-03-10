@@ -1,10 +1,10 @@
 import numpy as np
 import unittest
 import rclpy
-from agimus_controller_ros.simple_trajectory_publisher import SimpleTrajectoryPublisher
+from agimus_controller_ros.simple_trajectory_publisher import QuinticTrajectory
 
 
-class TestSimpleTrajectoryPublisher(unittest.TestCase):
+class TestQunintTrajectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         rclpy.init()
@@ -16,13 +16,15 @@ class TestSimpleTrajectoryPublisher(unittest.TestCase):
         return super().tearDownClass()
 
     def test_quintic_trajectory(self):
-        obj = SimpleTrajectoryPublisher()
+        amp = 0.5
+        scale_duration = 0.7
+        obj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
         times = np.linspace(0, obj.scale_duration, 200)
-        positions = [obj.quintic_trajectory(t) for t in times]
+        positions = [obj.get_value_at_t(t)[0] for t in times]
 
         for position in positions:
             self.assertGreaterEqual(position, 0)
-            self.assertLessEqual(position, 1)
+            self.assertLessEqual(position, obj.amp)
 
         if False:
             import matplotlib.pyplot as plt
