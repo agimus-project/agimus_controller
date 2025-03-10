@@ -1,0 +1,22 @@
+---
+trajectory_weights_params:
+  w_q:
+    type: double_array
+    default_value: [1.0]
+    description: "Weights for joint configuration cost."
+  w_qdot:
+    type: double_array
+    default_value: [0.1]
+    description: "Weights for joint velocity cost."
+  w_qddot:
+    type: double_array
+    default_value: [0.0001]
+    description: "Weights for joint acceleration cost."
+  w_robot_effort:
+    type: double_array
+    default_value: [0.001]
+    description: "Weights for control cost."
+  w_pose:
+    type: double_array
+    default_value: [0.1]
+    description: "Weights for end-effector position cost."

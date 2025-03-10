@@ -28,18 +28,6 @@ agimus_controller_params:
       type: double_array
       default_value: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
       description: "Armature for each OCP node"
-    gripper_weight:
-      type: double
-      default_value: 500.0
-      description: "Scalar weight for the end-effector pose cost"
-    state_weight:
-      type: double
-      default_value: 5.0
-      description: "Scalar weight for the state cost"
-    control_weight:
-      type: double
-      default_value: 0.001
-      description: "Scalar weight for the control cost"
     max_qp_iter:
       type: int
       default_value: 100
