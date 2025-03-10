@@ -4,7 +4,7 @@ import rclpy
 from agimus_controller_ros.simple_trajectory_publisher import QuinticTrajectory
 
 
-class TestQunintTrajectory(unittest.TestCase):
+class TestQuinticTrajectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         rclpy.init()
@@ -16,15 +16,31 @@ class TestQunintTrajectory(unittest.TestCase):
         return super().tearDownClass()
 
     def test_quintic_trajectory(self):
-        amp = 0.5
+        amp = 1.5
         scale_duration = 0.7
         obj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
-        times = np.linspace(0, obj.scale_duration, 200)
-        positions = [obj.get_value_at_t(t)[0] for t in times]
+        dt = 1e-5
+        precision = 1e-3  # precision for finite difference
+        times = np.linspace(0, obj.scale_duration, int(scale_duration / dt))
+        positions = [obj.get_value_at_t(t) for t in times]
 
-        for position in positions:
-            self.assertGreaterEqual(position, 0)
-            self.assertLessEqual(position, obj.amp)
+        for idx, position in enumerate(positions):
+            polynom, d_polynom, dd_polynom = position
+            self.assertGreaterEqual(polynom, 0)
+            self.assertLessEqual(polynom, obj.amp)
+
+            # test derivatives by finite difference
+            if idx < len(positions) - 1:
+                next_position = positions[idx + 1]
+                next_polynom, d_next_polynom, dd_next_polynom = next_position
+                self.assertLessEqual(
+                    (next_polynom - polynom) / dt - d_next_polynom,
+                    precision,
+                )
+                self.assertLessEqual(
+                    (d_next_polynom - d_polynom) / dt - dd_next_polynom,
+                    precision,
+                )
 
         if False:
             import matplotlib.pyplot as plt
