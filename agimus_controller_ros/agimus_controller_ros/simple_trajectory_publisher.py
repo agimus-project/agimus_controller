@@ -1,23 +1,31 @@
+from typing import List, Tuple
+import numpy as np
+import pinocchio as pin
+
 from agimus_msgs.msg import MpcInput
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
 from rclpy.node import Node
 import rclpy
-import pinocchio as pin
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
-import numpy as np
 from sensor_msgs.msg import JointState
+
+from agimus_controller_ros.trajectory_weights_parameters import (
+    trajectory_weights_params,
+)
 
 
 class QuinticTrajectory:
     """Computes a quintic polynomial trajectory with desired amplitude and duration."""
 
-    def __init__(self, scale_duration, amp):
+    def __init__(self, scale_duration: np.float64, amp: np.float64):
         """Initialize polynomial attributes."""
         self.amp = amp
         self.scale_duration = scale_duration
 
-    def get_value_at_t(self, t):
+    def get_value_at_t(
+        self, t: np.float64
+    ) -> Tuple[np.float64, np.float64, np.float64]:
         """Return polynomial value and his derivatives at time t."""
         if t <= 0:
             return 0.0, 0.0, 0.0
@@ -28,8 +36,12 @@ class QuinticTrajectory:
         s = t / self.scale_duration
 
         polynomial = self.amp * (10 * s**3 - 15 * s**4 + 6 * s**5)
-        d_polynomial = self.amp * (30 * s**2 - 60 * s**3 + 30 * s**4)
-        dd_polynomial = self.amp * (60 * s - 180 * s**2 + 120 * s**3)
+        d_polynomial = (
+            self.amp * (30 * s**2 - 60 * s**3 + 30 * s**4) / self.scale_duration
+        )
+        dd_polynomial = (
+            self.amp * (60 * s - 180 * s**2 + 120 * s**3) / (self.scale_duration**2)
+        )
         return polynomial, d_polynomial, dd_polynomial
 
 
@@ -43,6 +55,8 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_data = None
         self.ee_frame_id = None
         self.ee_frame_name = "fer_link8"
+        self.param_listener = trajectory_weights_params.ParamListener(self)
+        self.params = self.param_listener.get_params()
         self.robot_description_msg = None
 
         self.q0 = None
@@ -117,6 +131,18 @@ class SimpleTrajectoryPublisher(Node):
         self.ddq = np.zeros_like(self.q)
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
 
+    def get_weights(
+        self, weights: List[np.float64], size: np.float64
+    ) -> List[np.float64]:
+        """
+        Return weights with right size if user sent only one value, otherwise
+        directly returns weights.
+        """
+        if len(weights) == 1:
+            return weights * size
+        else:
+            return weights
+
     def publish_mpc_input(self):
         """
         Main function to create a dummy mpc input
@@ -153,12 +179,12 @@ class SimpleTrajectoryPublisher(Node):
 
         # Create the message
         msg = MpcInput()
-        msg.w_q = [1.0] * self.croco_nq
-        msg.w_qdot = [1e-1] * self.croco_nq
-        msg.w_qddot = [1e-6] * self.croco_nq
-        msg.w_robot_effort = [3e-4] * self.croco_nq
-        msg.w_pose = [1e-1] * 6
 
+        msg.w_q = self.get_weights(self.params.w_q, self.croco_nq)
+        msg.w_qdot = self.get_weights(self.params.w_qdot, self.croco_nq)
+        msg.w_qddot = self.get_weights(self.params.w_qddot, self.croco_nq)
+        msg.w_robot_effort = self.get_weights(self.params.w_robot_effort, self.croco_nq)
+        msg.w_pose = self.get_weights(self.params.w_pose, 6)
         msg.q = list(self.q[: self.croco_nq])
         msg.qdot = list(self.dq[: self.croco_nq])
         msg.qddot = list(self.ddq[: self.croco_nq])
