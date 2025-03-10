@@ -9,6 +9,30 @@ import numpy as np
 from sensor_msgs.msg import JointState
 
 
+class QuinticTrajectory:
+    """Computes a quintic polynomial trajectory with desired amplitude and duration."""
+
+    def __init__(self, scale_duration, amp):
+        """Initialize polynomial attributes."""
+        self.amp = amp
+        self.scale_duration = scale_duration
+
+    def get_value_at_t(self, t):
+        """Return polynomial value and his derivatives at time t."""
+        if t <= 0:
+            return 0.0, 0.0, 0.0
+        elif t >= self.scale_duration:
+            return self.amp, 0.0, 0.0
+
+        # Normalize time
+        s = t / self.scale_duration
+
+        polynomial = self.amp * (10 * s**3 - 15 * s**4 + 6 * s**5)
+        d_polynomial = self.amp * (30 * s**2 - 60 * s**3 + 30 * s**4)
+        dd_polynomial = self.amp * (60 * s - 180 * s**2 + 120 * s**3)
+        return polynomial, d_polynomial, dd_polynomial
+
+
 class SimpleTrajectoryPublisher(Node):
     """This is a simple trajectory publisher for a Panda robot."""
 
@@ -28,9 +52,7 @@ class SimpleTrajectoryPublisher(Node):
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
-        self.amp = 0.2
-        self.scale_amp = 0.0
-        self.scale_duration = 0.2
+        self.quint_traj = QuinticTrajectory(scale_duration=0.8, amp=0.2)
         self.w = 0.5 * np.pi
 
         # Obtained by checking "QoS profile" values in out of:
@@ -89,29 +111,11 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_model = pin.buildModelFromXML(self.robot_description_msg.data)
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
+
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
-
-    def quintic_trajectory(self, t):
-        """Computes a quintic polynomial trajectory from 0 to 1 over duration.
-
-        Args:
-            t (float): Current time in range [0, init_duration].
-            init_duration (float): Total duration of the trajectory.
-
-        Returns:
-            float: Position value at time t.
-        """
-        if t <= 0:
-            return 0.0
-        elif t >= self.scale_duration:
-            return 1.0
-
-        # Normalize time
-        s = t / self.scale_duration
-        return 10 * s**3 - 15 * s**4 + 6 * s**5  # Quintic polynomial
 
     def publish_mpc_input(self):
         """
@@ -124,15 +128,19 @@ class SimpleTrajectoryPublisher(Node):
 
         if self.pin_model is None:
             self.load_models()
-
-        self.scale_amp = self.quintic_trajectory(self.t)
-        amp = self.scale_amp * self.amp
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
+        amp, damp, ddamp = self.quint_traj.get_value_at_t(self.t)
         for i in [2, 3]:
             self.q[i] = self.q0[i] + amp * np.sin(self.w * self.t)
-            self.dq[i] = amp * self.w * np.cos(self.w * self.t)
-            self.ddq[i] = -amp * self.w * self.w * np.sin(self.w * self.t)
+            self.dq[i] = damp * np.sin(self.w * self.t) + amp * self.w * np.cos(
+                self.w * self.t
+            )
+            self.ddq[i] = (
+                ddamp * np.sin(self.w * self.t)
+                + 2 * damp * self.w * np.cos(self.w * self.t)
+                - amp * self.w * self.w * np.sin(self.w * self.t)
+            )
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
@@ -146,10 +154,10 @@ class SimpleTrajectoryPublisher(Node):
         # Create the message
         msg = MpcInput()
         msg.w_q = [1.0] * self.croco_nq
-        msg.w_qdot = [1e-2] * self.croco_nq
+        msg.w_qdot = [1e-1] * self.croco_nq
         msg.w_qddot = [1e-6] * self.croco_nq
-        msg.w_robot_effort = [1e-4] * self.croco_nq
-        msg.w_pose = [1e-10] * 6
+        msg.w_robot_effort = [3e-4] * self.croco_nq
+        msg.w_pose = [1e-1] * 6
 
         msg.q = list(self.q[: self.croco_nq])
         msg.qdot = list(self.dq[: self.croco_nq])
@@ -177,6 +185,7 @@ class SimpleTrajectoryPublisher(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SimpleTrajectoryPublisher()
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
