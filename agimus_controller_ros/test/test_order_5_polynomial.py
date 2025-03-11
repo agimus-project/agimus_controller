@@ -34,7 +34,7 @@ class TestQuinticTrajectory(unittest.TestCase):
                 next_position = positions[idx + 1]
                 next_polynom, d_next_polynom, dd_next_polynom = next_position
                 self.assertLessEqual(
-                    (next_polynom - polynom) / dt - d_next_polynom,
+                    np.abs((next_polynom - polynom) / dt - d_next_polynom),
                     precision,
                 )
                 self.assertLessEqual(
