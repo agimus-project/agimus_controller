@@ -9,9 +9,17 @@ package_name = "agimus_controller_ros"
 project_source_dir = Path(__file__).parent
 
 
-module_name = "agimus_controller_parameters"
-yaml_file = "agimus_controller_ros/agimus_controller_parameters.yaml"
-generate_parameter_module(module_name, yaml_file)
+for module_name, yaml_file in [
+    (
+        "agimus_controller_parameters",
+        "agimus_controller_ros/agimus_controller_parameters.yaml",
+    ),
+    (
+        "trajectory_weights_parameters",
+        "agimus_controller_ros/trajectory_weights_parameters.yaml",
+    ),
+]:
+    generate_parameter_module(module_name, yaml_file)
 
 
 def get_files(dir: Path, pattern: str) -> List[str]:
