@@ -159,13 +159,14 @@ class SimpleTrajectoryPublisher(Node):
         amp, damp, ddamp = self.quint_traj.get_value_at_t(self.t)
         for i in [2, 3]:
             self.q[i] = self.q0[i] + amp * np.sin(self.w * self.t)
-            self.dq[i] = damp * np.sin(self.w * self.t) + amp * self.w * np.cos(
-                self.w * self.t
-            )
+            w = self.w
+            sin_wt = np.sin(w * self.t)
+            cos_wt = np.cos(w * self.t)
+            self.dq[i] = damp * sin_wt + amp * w * cos_wt
             self.ddq[i] = (
-                ddamp * np.sin(self.w * self.t)
-                + 2 * damp * self.w * np.cos(self.w * self.t)
-                - amp * self.w * self.w * np.sin(self.w * self.t)
+                ddamp * sin_wt
+                + 2 * damp * w * cos_wt
+                - amp * w * w * sin_wt
             )
 
         # Extract the end-effector position and orientation
