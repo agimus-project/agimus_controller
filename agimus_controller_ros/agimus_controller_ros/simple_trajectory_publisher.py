@@ -163,11 +163,7 @@ class SimpleTrajectoryPublisher(Node):
             sin_wt = np.sin(w * self.t)
             cos_wt = np.cos(w * self.t)
             self.dq[i] = damp * sin_wt + amp * w * cos_wt
-            self.ddq[i] = (
-                ddamp * sin_wt
-                + 2 * damp * w * cos_wt
-                - amp * w * w * sin_wt
-            )
+            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
