@@ -4,7 +4,7 @@ import numpy.typing as npt
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
 from geometry_msgs.msg import Pose
-from agimus_msgs.msg import MpcInput, MpcDebug
+from agimus_msgs.msg import MpcInput, MpcDebug, Residual
 
 from agimus_controller.trajectory import (
     TrajectoryPoint,
@@ -63,12 +63,10 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
     mpc_debug_msg.control_predictions = matrix_numpy_to_msg(
         np.array(mpc_debug_data.ocp.result.feed_forward_terms)
     )
-    if mpc_debug_data.ocp.collision_distance_residuals is not None:
-        mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(
-            np.array(mpc_debug_data.ocp.collision_distance_residuals)
+    for name, data in mpc_debug_data.ocp.residuals.items():
+        mpc_debug_msg.residuals.append(
+            Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
-    else:
-        mpc_debug_msg.collision_distance_residuals = matrix_numpy_to_msg(np.zeros((1)))
 
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
     mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
