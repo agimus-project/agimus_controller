@@ -188,7 +188,8 @@ class AgimusController(Node):
                     reliability=ReliabilityPolicy.BEST_EFFORT,
                 ),
             )
-        self.create_timer(1.0 / self.params.rate, self.run_callback)
+
+        self._init_timer = self.create_timer(0.1, self.initialization_callback)
 
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
@@ -207,8 +208,12 @@ class AgimusController(Node):
         ocp = OCPCrocoGoalReaching(self.robot_models, ocp_params)
         ws = WarmStartReference()
         ws.setup(self.robot_models._robot_model)
-        self.mpc = MPC()
-        self.mpc.setup(ocp=ocp, warm_start=ws, buffer=self.traj_buffer)
+
+        mpc = MPC()
+        mpc.setup(ocp=ocp, warm_start=ws, buffer=self.traj_buffer)
+        # Keep this as the last line for multithreading reasons.
+        # `self.mpc is None` is used to know when MPC is fully initialized.
+        self.mpc = mpc
 
     def sensor_callback(self, sensor_msg: Sensor) -> None:
         """Update the sensor_msg attribute of the class."""
@@ -224,7 +229,13 @@ class AgimusController(Node):
             return
         if self.q0 is None:
             self.q0 = np.array(joint_states_msg.position)
-            self.create_robot_models()
+            self.destroy_subscription(self.state_subscriber)
+
+            self.initialize_robot_and_mpc()
+
+    def initialize_robot_and_mpc(self):
+        self.create_robot_models()
+        self.setup_mpc()
 
     def mpc_input_callback(self, msg: MpcInput) -> None:
         """Fill the new point msg in the trajectory buffer."""
@@ -264,13 +275,14 @@ class AgimusController(Node):
 
         self.get_logger().info("Robot Models initialized")
 
-    def buffer_has_twice_horizon_points(self) -> bool:
+    def buffer_has_enough_data(self, ratio: float) -> bool:
         """
-        Return true if buffer size has more than two times
+        Return True if buffer size is more than `ratio` times
         the horizon size and False otherwise.
         """
         return (
-            len(self.traj_buffer) * self.ocp_params.dt >= 2 * self.ocp_params.total_time
+            len(self.traj_buffer) * self.ocp_params.dt
+            >= ratio * self.ocp_params.total_time
         )
 
     def send_control_msg(self, ocp_res: OCPResults) -> None:
@@ -282,6 +294,38 @@ class AgimusController(Node):
             initial_state=self.np_sensor_msg,
         )
         self.control_publisher.publish(control_numpy_to_msg(ctrl_msg))
+
+    def initialization_callback(self) -> None:
+        if self.sensor_msg is None:
+            self.get_logger().warn(
+                f"Waiting for sensor messages to arrive...",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        # If MPC object has been initialized
+        # but MPC is not running (i.e. timer is None)
+        if self.mpc is None:
+            self.get_logger().warn(
+                f"Waiting for MPC to be initialized...",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        # Wait for enough data in buffer
+        if not self.buffer_has_enough_data(2):
+            self.get_logger().warn(
+                f"MPC is waiting for the buffer to be filled... Current size {len(self.traj_buffer)}",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        self.get_logger().info(
+            "MPC is initialized and buffer has enough data. Starting to compute controls."
+        )
+        # TODO Make a first resolution of the MPC.
+        self.create_timer(1.0 / self.params.rate, self.run_callback)
+        self.destroy_timer(self._init_timer)
 
     def run_callback(self, *args) -> None:
         """
@@ -296,27 +340,23 @@ class AgimusController(Node):
                 self._ocp_res = None
             else:
                 control = None
-        if self.sensor_msg is None:
-            self.get_logger().warn(
-                "Waiting for sensor messages to arrive...",
-                throttle_duration_sec=5.0,
-            )
-            return
-        if self.rmodel is None:
-            self.get_logger().warn(
-                "Waiting for robot model to arrive...",
-                throttle_duration_sec=5.0,
-            )
-            return
-        if self.mpc is None:
-            self.setup_mpc()
 
-        if not self.buffer_has_twice_horizon_points():
-            self.get_logger().warn(
-                f"Waiting for buffer to be filled... Current size {len(self.traj_buffer)}",
-                throttle_duration_sec=5.0,
-            )
-            return
+        # Check the buffer size.
+        # If size is inferior to `1.5 * required size`, send a warning message. Note that the
+        # ratio here must be strictly inferior to the ratio that triggers starting.
+        # If size is inferior to the required size, send an error message and return.
+        if not self.buffer_has_enough_data(1.5):
+            if self.buffer_has_enough_data(1):
+                self.get_logger().warn(
+                    f"MPC is running and the buffer size becomes low. Current size {len(self.traj_buffer)}",
+                    throttle_duration_sec=1.0,
+                )
+            else:
+                self.get_logger().error(
+                    f"MPC is running but the buffer does not have enough data. Current size {len(self.traj_buffer)}",
+                    throttle_duration_sec=1.0,
+                )
+                return
         if self.params.publish_debug_data:
             start_compute_time = self.get_clock().now()
         self.np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
