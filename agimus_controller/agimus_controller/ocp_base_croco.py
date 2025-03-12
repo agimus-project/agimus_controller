@@ -58,6 +58,8 @@ class OCPBaseCroco(OCPBase):
         self._solver.use_filter_line_search = self._ocp_params.use_filter_line_search
 
         # Parameters of the solver
+        if self._ocp_params.max_solve_time is not None:
+            self._solver.max_solve_time = self._ocp_params.max_solve_time
         self._solver.termination_tolerance = self._ocp_params.termination_tolerance
         self._solver.max_qp_iters = self._ocp_params.qp_iters
         self._solver.eps_abs = self._ocp_params.eps_abs
@@ -106,6 +108,7 @@ class OCPBaseCroco(OCPBase):
         x0: npt.NDArray[np.float64],
         x_warmstart: list[npt.NDArray[np.float64]],
         u_warmstart: list[npt.NDArray[np.float64]],
+        use_iteration_limits_and_timeout: bool = True,
     ) -> None:
         """Solves the OCP.
         The results can be accessed through the ocp_results property.
@@ -118,9 +121,20 @@ class OCPBaseCroco(OCPBase):
         # Set the initial state
         self._problem.x0 = x0
         # Solve the OCP
-        res = self._solver.solve(
-            x_warmstart, u_warmstart, self._ocp_params.solver_iters
+        max_iters = (
+            self._ocp_params.solver_iters if use_iteration_limits_and_timeout else 1000
         )
+        # If mim_solvers is at the latest state
+        has_max_solve_time = hasattr(self._solver, "max_solve_time")
+        if use_iteration_limits_and_timeout and has_max_solve_time:
+            self._solver.max_solve_time = float("inf")
+        res = self._solver.solve(x_warmstart, u_warmstart, max_iters)
+        if (
+            use_iteration_limits_and_timeout
+            and has_max_solve_time
+            and self._ocp_params.max_solve_time is not None
+        ):
+            self._solver.max_solve_time = self._ocp_params.max_solve_time
         ocp_results = OCPResults(
             states=self._solver.xs,
             ricatti_gains=self._solver.K,

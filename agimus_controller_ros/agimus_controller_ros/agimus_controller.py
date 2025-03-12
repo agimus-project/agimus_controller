@@ -225,7 +225,7 @@ class AgimusController(Node):
         x0, x_init, u_init = ws_ref.generate(
             initial_state, reference_trajectory_points
         )
-        ocp.solve(x0, x_init, u_init)
+        ocp.solve(x0, x_init, u_init, use_iteration_limits_and_timeout=False)
         ws_shift.update_previous_solution(ocp.ocp_results)
 
         self.mpc = MPC()
