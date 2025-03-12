@@ -20,7 +20,9 @@ class OCPDebugData:
     # Debug data
     result: OCPResults = OCPResults()
     references: list[TrajectoryPoint] = field(default_factory=list)
-    residuals: T.Dict[str, T.List[npt.NDArray[np.float64]]] = field(default_factory=dict)
+    residuals: T.Dict[str, T.List[npt.NDArray[np.float64]]] = field(
+        default_factory=dict
+    )
 
     # Solver infos
     kkt_norm: np.float64 = 0.0

@@ -54,7 +54,9 @@ class OCPParamsBaseCroco:
     termination_tolerance: float = (
         1e-3  # Termination tolerance (norm of the KKT conditions).
     )
-    max_solve_time: T.Optional[float] = None # timeout of the OCP solve function. Set it to None to skip using it.
+    max_solve_time: T.Optional[float] = (
+        None  # timeout of the OCP solve function. Set it to None to skip using it.
+    )
     eps_abs: float = 1e-6  # Absolute tolerance of the solver.
     eps_rel: float = 0.0  # Relative tolerance of the solver.
     callbacks: bool = False  # Flag to enable/disable callbacks.

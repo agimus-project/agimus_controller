@@ -25,7 +25,9 @@ from agimus_controller.mpc_data import OCPResults
 from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference
-from agimus_controller.warm_start_shift_previous_solution import WarmStartShiftPreviousSolution
+from agimus_controller.warm_start_shift_previous_solution import (
+    WarmStartShiftPreviousSolution,
+)
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
@@ -222,9 +224,7 @@ class AgimusController(Node):
         ocp.set_reference_weighted_trajectory(reference_trajectory)
 
         reference_trajectory_points = [el.point for el in reference_trajectory]
-        x0, x_init, u_init = ws_ref.generate(
-            initial_state, reference_trajectory_points
-        )
+        x0, x_init, u_init = ws_ref.generate(initial_state, reference_trajectory_points)
         ocp.solve(x0, x_init, u_init, use_iteration_limits_and_timeout=False)
         ws_shift.update_previous_solution(ocp.ocp_results)
 
@@ -308,14 +308,14 @@ class AgimusController(Node):
     def initialization_callback(self) -> None:
         if self.sensor_msg is None:
             self.get_logger().warn(
-                f"Waiting for sensor messages to arrive...",
+                "Waiting for sensor messages to arrive...",
                 throttle_duration_sec=5.0,
             )
             return
 
         if self.q0 is None:
             self.get_logger().warn(
-                f"Waiting for robot descriptions...",
+                "Waiting for robot descriptions...",
                 throttle_duration_sec=5.0,
             )
             return
