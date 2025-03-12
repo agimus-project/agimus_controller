@@ -25,6 +25,7 @@ from agimus_controller.mpc_data import OCPResults
 from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference
+from agimus_controller.warm_start_shift_previous_solution import WarmStartShiftPreviousSolution
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 
 
@@ -55,6 +56,15 @@ class AgimusController(Node):
             )
             for collision_pair_name in self.params.collision_pairs_names
         ]
+        self.ocp_params = OCPParamsBaseCroco(
+            dt=self.params.ocp.dt,
+            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
+            horizon_size=self.params.ocp.horizon_size,
+            solver_iters=self.params.ocp.max_iter,
+            callbacks=self.params.ocp.activate_callback,
+            qp_iters=self.params.ocp.max_qp_iter,
+            use_debug_data=self.params.publish_debug_data,
+        )
         self.last_point = None
         self.first_run_done = False
         self.rmodel = None
@@ -193,27 +203,33 @@ class AgimusController(Node):
 
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
+        ocp = OCPCrocoGoalReaching(self.robot_models, self.ocp_params)
+        ws_shift = WarmStartShiftPreviousSolution()
+        ws_shift.setup(self.robot_models, self.ocp_params)
 
-        ocp_params = OCPParamsBaseCroco(
-            dt=self.params.ocp.dt,
-            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
-            horizon_size=self.params.ocp.horizon_size,
-            solver_iters=self.params.ocp.max_iter,
-            callbacks=self.params.ocp.activate_callback,
-            qp_iters=self.params.ocp.max_qp_iter,
-            use_debug_data=self.params.publish_debug_data,
+        # Use WarmStartReference for initialization
+        ws_ref = WarmStartReference()
+        ws_ref.setup(self.robot_models._robot_model)
+
+        np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
+        initial_state = TrajectoryPoint(
+            time_ns=self.get_clock().now().nanoseconds,
+            robot_configuration=np_sensor_msg.joint_state.position,
+            robot_velocity=np_sensor_msg.joint_state.velocity,
+            robot_acceleration=np.zeros_like(np_sensor_msg.joint_state.velocity),
         )
-        self.ocp_params = ocp_params
+        reference_trajectory = self.traj_buffer.horizon
+        ocp.set_reference_weighted_trajectory(reference_trajectory)
 
-        ocp = OCPCrocoGoalReaching(self.robot_models, ocp_params)
-        ws = WarmStartReference()
-        ws.setup(self.robot_models._robot_model)
+        reference_trajectory_points = [el.point for el in reference_trajectory]
+        x0, x_init, u_init = ws_ref.generate(
+            initial_state, reference_trajectory_points
+        )
+        ocp.solve(x0, x_init, u_init)
+        ws_shift.update_previous_solution(ocp.ocp_results)
 
-        mpc = MPC()
-        mpc.setup(ocp=ocp, warm_start=ws, buffer=self.traj_buffer)
-        # Keep this as the last line for multithreading reasons.
-        # `self.mpc is None` is used to know when MPC is fully initialized.
-        self.mpc = mpc
+        self.mpc = MPC()
+        self.mpc.setup(ocp=ocp, warm_start=ws_shift, buffer=self.traj_buffer)
 
     def sensor_callback(self, sensor_msg: Sensor) -> None:
         """Update the sensor_msg attribute of the class."""
@@ -230,12 +246,6 @@ class AgimusController(Node):
         if self.q0 is None:
             self.q0 = np.array(joint_states_msg.position)
             self.destroy_subscription(self.state_subscriber)
-
-            self.initialize_robot_and_mpc()
-
-    def initialize_robot_and_mpc(self):
-        self.create_robot_models()
-        self.setup_mpc()
 
     def mpc_input_callback(self, msg: MpcInput) -> None:
         """Fill the new point msg in the trajectory buffer."""
@@ -303,11 +313,9 @@ class AgimusController(Node):
             )
             return
 
-        # If MPC object has been initialized
-        # but MPC is not running (i.e. timer is None)
-        if self.mpc is None:
+        if self.q0 is None:
             self.get_logger().warn(
-                f"Waiting for MPC to be initialized...",
+                f"Waiting for robot descriptions...",
                 throttle_duration_sec=5.0,
             )
             return
@@ -320,12 +328,17 @@ class AgimusController(Node):
             )
             return
 
+        # Stop the initialization loop.
+        self.destroy_timer(self._init_timer)
+
+        self.create_robot_models()
+        self.setup_mpc()
+
         self.get_logger().info(
             "MPC is initialized and buffer has enough data. Starting to compute controls."
         )
-        # TODO Make a first resolution of the MPC.
+        # Start the MPC loop
         self.create_timer(1.0 / self.params.rate, self.run_callback)
-        self.destroy_timer(self._init_timer)
 
     def run_callback(self, *args) -> None:
         """
