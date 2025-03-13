@@ -44,6 +44,10 @@ agimus_controller_params:
       type: bool
       default_value: False
       description: "Whether or not we want to use solver callbacks"
+    definition_yaml_file:
+      type: string
+      default_value: ""
+      description: "Path to a YAML file containing a description of the OCP."
   publish_debug_data:
     type: bool
     default_value: True

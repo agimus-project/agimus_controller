@@ -22,7 +22,7 @@ from sensor_msgs.msg import JointState
 
 from agimus_controller.mpc import MPC
 from agimus_controller.mpc_data import OCPResults
-from agimus_controller.ocp.ocp_croco_goal_reaching import OCPCrocoGoalReaching
+from agimus_controller.ocp.ocp_croco_generic import OCPCrocoGeneric
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 from agimus_controller.warm_start_reference import WarmStartReference
 from agimus_controller.warm_start_shift_previous_solution import (
@@ -82,7 +82,9 @@ class AgimusController(Node):
         self._ocp_res = None
 
         self.initialize_ros_attributes()
-        self.get_logger().info("Init done")
+        self.get_logger().info(
+            f"Init done. Horizon total time is {self.ocp_params.total_time}"
+        )
 
     def get_param_from_node(self, node_name: str, param_name: str) -> ParameterValue:
         """Returns parameter from the node"""
@@ -205,7 +207,11 @@ class AgimusController(Node):
 
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
-        ocp = OCPCrocoGoalReaching(self.robot_models, self.ocp_params)
+        yaml_file = self.params.ocp.definition_yaml_file
+        if yaml_file == "":
+            yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
+        ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
+
         ws_shift = WarmStartShiftPreviousSolution()
         ws_shift.setup(self.robot_models, self.ocp_params)
 
