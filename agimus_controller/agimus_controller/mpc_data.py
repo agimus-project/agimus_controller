@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import numpy as np
 import numpy.typing as npt
+import typing as T
 
 from agimus_controller.trajectory import TrajectoryPoint
 
@@ -19,7 +20,10 @@ class OCPDebugData:
     # Debug data
     result: OCPResults = OCPResults()
     references: list[TrajectoryPoint] = field(default_factory=list)
-    collision_distance_residuals: list[dict[np.float64]] = field(default_factory=list)
+    residuals: T.Dict[str, T.List[npt.NDArray[np.float64]]] = field(
+        default_factory=dict
+    )
+
     # Solver infos
     kkt_norm: np.float64 = 0.0
     nb_iter: np.int64 = 0
