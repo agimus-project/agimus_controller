@@ -124,17 +124,16 @@ class OCPBaseCroco(OCPBase):
         max_iters = (
             self._ocp_params.solver_iters if use_iteration_limits_and_timeout else 1000
         )
-        # If mim_solvers is at the latest state
-        has_max_solve_time = hasattr(self._solver, "max_solve_time")
-        if use_iteration_limits_and_timeout and has_max_solve_time:
-            self._solver.max_solve_time = float("inf")
+        # This if is only meant as a way of smoothing the integration of attribute
+        # `SolverCSQP.max_solve_time`. If the user did not set `max_solve_time`, then
+        # don't touch the attribute.
+        if self._ocp_params.max_solve_time is not None:
+            self._solver.max_solve_time = (
+                self._ocp_params.max_solve_time
+                if use_iteration_limits_and_timeout
+                else float("inf")
+            )
         res = self._solver.solve(x_warmstart, u_warmstart, max_iters)
-        if (
-            use_iteration_limits_and_timeout
-            and has_max_solve_time
-            and self._ocp_params.max_solve_time is not None
-        ):
-            self._solver.max_solve_time = self._ocp_params.max_solve_time
         ocp_results = OCPResults(
             states=self._solver.xs,
             ricatti_gains=self._solver.K,
