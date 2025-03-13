@@ -55,6 +55,7 @@ class OCPBase(ABC):
         x0: npt.NDArray[np.float64],
         x_warmstart: list[npt.NDArray[np.float64]],
         u_warmstart: list[npt.NDArray[np.float64]],
+        use_iteration_limits_and_timeout: bool = True,
     ) -> None:
         """Solver for the OCP. This method should be implemented by the derived class.
         The method should solve the OCP for the given initial state and warmstart values.
@@ -63,6 +64,8 @@ class OCPBase(ABC):
             x0 (npt.NDArray[np.float64]): current state of the robot.
             x_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the state. This should be of size `n_controls + 1`.
             u_warmstart (list[npt.NDArray[np.float64]]): Warmstart values for the control inputs. This should be of size `n_controls`.
+            use_iteration_limits_and_timeout (bool): Set to False to skip the max solve time and max iterations of the OCP.
+                This is useful for the first call to solve.
         """
         pass
 

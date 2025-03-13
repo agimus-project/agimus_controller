@@ -58,6 +58,8 @@ class OCPBaseCroco(OCPBase):
         self._solver.use_filter_line_search = self._ocp_params.use_filter_line_search
 
         # Parameters of the solver
+        if self._ocp_params.max_solve_time is not None:
+            self._solver.max_solve_time = self._ocp_params.max_solve_time
         self._solver.termination_tolerance = self._ocp_params.termination_tolerance
         self._solver.max_qp_iters = self._ocp_params.qp_iters
         self._solver.eps_abs = self._ocp_params.eps_abs
@@ -106,6 +108,7 @@ class OCPBaseCroco(OCPBase):
         x0: npt.NDArray[np.float64],
         x_warmstart: list[npt.NDArray[np.float64]],
         u_warmstart: list[npt.NDArray[np.float64]],
+        use_iteration_limits_and_timeout: bool = True,
     ) -> None:
         """Solves the OCP.
         The results can be accessed through the ocp_results property.
@@ -118,9 +121,19 @@ class OCPBaseCroco(OCPBase):
         # Set the initial state
         self._problem.x0 = x0
         # Solve the OCP
-        res = self._solver.solve(
-            x_warmstart, u_warmstart, self._ocp_params.solver_iters
+        max_iters = (
+            self._ocp_params.solver_iters if use_iteration_limits_and_timeout else 1000
         )
+        # This if is only meant as a way of smoothing the integration of attribute
+        # `SolverCSQP.max_solve_time`. If the user did not set `max_solve_time`, then
+        # don't touch the attribute.
+        if self._ocp_params.max_solve_time is not None:
+            self._solver.max_solve_time = (
+                self._ocp_params.max_solve_time
+                if use_iteration_limits_and_timeout
+                else float("inf")
+            )
+        res = self._solver.solve(x_warmstart, u_warmstart, max_iters)
         ocp_results = OCPResults(
             states=self._solver.xs,
             ricatti_gains=self._solver.K,
@@ -132,6 +145,23 @@ class OCPBaseCroco(OCPBase):
             self._debug_data.kkt_norm = self._solver.KKT
             self._debug_data.nb_iter = int(self._solver.iter)
             self._debug_data.nb_qp_iter = int(self._solver.qp_iters)
+            # For now, we don't publish any residuals for performance reasons.
+            # See https://github.com/agimus-project/agimus_controller/pull/201#discussion_r1993106004
+            # if len(self._debug_data.residuals) == 0:
+            #     names = (
+            #         self._problem.runningModels[0]
+            #         .differential.costs.costs.todict()
+            #         .keys()
+            #     )
+            # else:
+            #     names = self._debug_data.residuals.keys()
+            # self._debug_data.residuals = {name: [] for name in names}
+
+            # for data in self._problem.runningDatas:
+            #     for name in names:
+            #         self._debug_data.residuals[name].append(
+            #             data.differential.costs.costs[name].residual.r
+            #         )
 
         # Store the results
         self._ocp_results = ocp_results

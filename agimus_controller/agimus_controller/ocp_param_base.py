@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import typing as T
 
 
 @dataclass
@@ -52,6 +53,9 @@ class OCPParamsBaseCroco:
     qp_iters: int = 200  # Number of QP iterations (must be a multiple of 25).
     termination_tolerance: float = (
         1e-3  # Termination tolerance (norm of the KKT conditions).
+    )
+    max_solve_time: T.Optional[float] = (
+        None  # timeout of the OCP solve function. Set it to None to skip using it.
     )
     eps_abs: float = 1e-6  # Absolute tolerance of the solver.
     eps_rel: float = 0.0  # Relative tolerance of the solver.

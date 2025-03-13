@@ -1,10 +1,10 @@
 import numpy as np
 import unittest
 import rclpy
-from agimus_controller_ros.simple_trajectory_publisher import SimpleTrajectoryPublisher
+from agimus_controller_ros.simple_trajectory_publisher import QuinticTrajectory
 
 
-class TestSimpleTrajectoryPublisher(unittest.TestCase):
+class TestQuinticTrajectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         rclpy.init()
@@ -16,13 +16,31 @@ class TestSimpleTrajectoryPublisher(unittest.TestCase):
         return super().tearDownClass()
 
     def test_quintic_trajectory(self):
-        obj = SimpleTrajectoryPublisher()
-        times = np.linspace(0, obj.scale_duration, 200)
-        positions = [obj.quintic_trajectory(t) for t in times]
+        amp = 1.5
+        scale_duration = 0.7
+        obj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
+        dt = 1e-5
+        precision = 1e-3  # precision for finite difference
+        times = np.linspace(0, obj.scale_duration, int(scale_duration / dt))
+        positions = [obj.get_value_at_t(t) for t in times]
 
-        for position in positions:
-            self.assertGreaterEqual(position, 0)
-            self.assertLessEqual(position, 1)
+        for idx, position in enumerate(positions):
+            polynom, d_polynom, dd_polynom = position
+            self.assertGreaterEqual(polynom, 0)
+            self.assertLessEqual(polynom, obj.amp)
+
+            # test derivatives by finite difference
+            if idx < len(positions) - 1:
+                next_position = positions[idx + 1]
+                next_polynom, d_next_polynom, dd_next_polynom = next_position
+                self.assertLessEqual(
+                    np.abs((next_polynom - polynom) / dt - d_next_polynom),
+                    precision,
+                )
+                self.assertLessEqual(
+                    np.abs((d_next_polynom - d_polynom) / dt - dd_next_polynom),
+                    precision,
+                )
 
         if False:
             import matplotlib.pyplot as plt

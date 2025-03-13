@@ -1,12 +1,48 @@
+from typing import List, Tuple
+import numpy as np
+import pinocchio as pin
+
 from agimus_msgs.msg import MpcInput
 from geometry_msgs.msg import Pose
 from std_msgs.msg import String
 from rclpy.node import Node
 import rclpy
-import pinocchio as pin
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
-import numpy as np
 from sensor_msgs.msg import JointState
+
+from agimus_controller_ros.trajectory_weights_parameters import (
+    trajectory_weights_params,
+)
+
+
+class QuinticTrajectory:
+    """Computes a quintic polynomial trajectory with desired amplitude and duration."""
+
+    def __init__(self, scale_duration: np.float64, amp: np.float64):
+        """Initialize polynomial attributes."""
+        self.amp = amp
+        self.scale_duration = scale_duration
+
+    def get_value_at_t(
+        self, t: np.float64
+    ) -> Tuple[np.float64, np.float64, np.float64]:
+        """Return polynomial value and his derivatives at time t."""
+        if t <= 0:
+            return 0.0, 0.0, 0.0
+        elif t >= self.scale_duration:
+            return self.amp, 0.0, 0.0
+
+        # Normalize time
+        s = t / self.scale_duration
+
+        polynomial = self.amp * (10 * s**3 - 15 * s**4 + 6 * s**5)
+        d_polynomial = (
+            self.amp * (30 * s**2 - 60 * s**3 + 30 * s**4) / self.scale_duration
+        )
+        dd_polynomial = (
+            self.amp * (60 * s - 180 * s**2 + 120 * s**3) / (self.scale_duration**2)
+        )
+        return polynomial, d_polynomial, dd_polynomial
 
 
 class SimpleTrajectoryPublisher(Node):
@@ -19,6 +55,8 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_data = None
         self.ee_frame_id = None
         self.ee_frame_name = "fer_link8"
+        self.param_listener = trajectory_weights_params.ParamListener(self)
+        self.params = self.param_listener.get_params()
         self.robot_description_msg = None
 
         self.q0 = None
@@ -28,9 +66,7 @@ class SimpleTrajectoryPublisher(Node):
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
-        self.amp = 0.2
-        self.scale_amp = 0.0
-        self.scale_duration = 0.2
+        self.quint_traj = QuinticTrajectory(scale_duration=0.8, amp=0.2)
         self.w = 0.5 * np.pi
 
         # Obtained by checking "QoS profile" values in out of:
@@ -89,29 +125,23 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_model = pin.buildModelFromXML(self.robot_description_msg.data)
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
+
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
 
-    def quintic_trajectory(self, t):
-        """Computes a quintic polynomial trajectory from 0 to 1 over duration.
-
-        Args:
-            t (float): Current time in range [0, init_duration].
-            init_duration (float): Total duration of the trajectory.
-
-        Returns:
-            float: Position value at time t.
+    def get_weights(
+        self, weights: List[np.float64], size: np.float64
+    ) -> List[np.float64]:
         """
-        if t <= 0:
-            return 0.0
-        elif t >= self.scale_duration:
-            return 1.0
-
-        # Normalize time
-        s = t / self.scale_duration
-        return 10 * s**3 - 15 * s**4 + 6 * s**5  # Quintic polynomial
+        Return weights with right size if user sent only one value, otherwise
+        directly returns weights.
+        """
+        if len(weights) == 1:
+            return weights * size
+        else:
+            return weights
 
     def publish_mpc_input(self):
         """
@@ -124,15 +154,16 @@ class SimpleTrajectoryPublisher(Node):
 
         if self.pin_model is None:
             self.load_models()
-
-        self.scale_amp = self.quintic_trajectory(self.t)
-        amp = self.scale_amp * self.amp
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
+        amp, damp, ddamp = self.quint_traj.get_value_at_t(self.t)
         for i in [2, 3]:
             self.q[i] = self.q0[i] + amp * np.sin(self.w * self.t)
-            self.dq[i] = amp * self.w * np.cos(self.w * self.t)
-            self.ddq[i] = -amp * self.w * self.w * np.sin(self.w * self.t)
+            w = self.w
+            sin_wt = np.sin(w * self.t)
+            cos_wt = np.cos(w * self.t)
+            self.dq[i] = damp * sin_wt + amp * w * cos_wt
+            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
@@ -145,12 +176,12 @@ class SimpleTrajectoryPublisher(Node):
 
         # Create the message
         msg = MpcInput()
-        msg.w_q = [1.0] * self.croco_nq
-        msg.w_qdot = [1e-2] * self.croco_nq
-        msg.w_qddot = [1e-6] * self.croco_nq
-        msg.w_robot_effort = [1e-4] * self.croco_nq
-        msg.w_pose = [1e-10] * 6
 
+        msg.w_q = self.get_weights(self.params.w_q, self.croco_nq)
+        msg.w_qdot = self.get_weights(self.params.w_qdot, self.croco_nq)
+        msg.w_qddot = self.get_weights(self.params.w_qddot, self.croco_nq)
+        msg.w_robot_effort = self.get_weights(self.params.w_robot_effort, self.croco_nq)
+        msg.w_pose = self.get_weights(self.params.w_pose, 6)
         msg.q = list(self.q[: self.croco_nq])
         msg.qdot = list(self.dq[: self.croco_nq])
         msg.qddot = list(self.ddq[: self.croco_nq])
@@ -177,6 +208,7 @@ class SimpleTrajectoryPublisher(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SimpleTrajectoryPublisher()
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
