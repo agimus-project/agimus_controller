@@ -82,7 +82,9 @@ class AgimusController(Node):
         self._ocp_res = None
 
         self.initialize_ros_attributes()
-        self.get_logger().info(f"Init done. Horizon total time is {self.ocp_params.total_time}")
+        self.get_logger().info(
+            f"Init done. Horizon total time is {self.ocp_params.total_time}"
+        )
 
     def get_param_from_node(self, node_name: str, param_name: str) -> ParameterValue:
         """Returns parameter from the node"""
@@ -231,7 +233,7 @@ class AgimusController(Node):
         x0, x_init, u_init = ws_ref.generate(initial_state, reference_trajectory_points)
         ocp.solve(x0, x_init, u_init, use_iteration_limits_and_timeout=False)
         ws_shift.update_previous_solution(ocp.ocp_results)
-        
+
         self.mpc = MPC()
         self.mpc.setup(ocp=ocp, warm_start=ws_shift, buffer=self.traj_buffer)
 
