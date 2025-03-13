@@ -145,21 +145,23 @@ class OCPBaseCroco(OCPBase):
             self._debug_data.kkt_norm = self._solver.KKT
             self._debug_data.nb_iter = int(self._solver.iter)
             self._debug_data.nb_qp_iter = int(self._solver.qp_iters)
-            if len(self._debug_data.residuals) == 0:
-                names = (
-                    self._problem.runningModels[0]
-                    .differential.costs.costs.todict()
-                    .keys()
-                )
-            else:
-                names = self._debug_data.residuals.keys()
-            self._debug_data.residuals = {name: [] for name in names}
+            # For now, we don't publish any residuals for performance reasons.
+            # See https://github.com/agimus-project/agimus_controller/pull/201#discussion_r1993106004
+            # if len(self._debug_data.residuals) == 0:
+            #     names = (
+            #         self._problem.runningModels[0]
+            #         .differential.costs.costs.todict()
+            #         .keys()
+            #     )
+            # else:
+            #     names = self._debug_data.residuals.keys()
+            # self._debug_data.residuals = {name: [] for name in names}
 
-            for data in self._problem.runningDatas:
-                for name in names:
-                    self._debug_data.residuals[name].append(
-                        data.differential.costs.costs[name].residual.r
-                    )
+            # for data in self._problem.runningDatas:
+            #     for name in names:
+            #         self._debug_data.residuals[name].append(
+            #             data.differential.costs.costs[name].residual.r
+            #         )
 
         # Store the results
         self._ocp_results = ocp_results
