@@ -49,6 +49,7 @@ setup(
         "console_scripts": [
             "simple_trajectory_publisher = agimus_controller_ros.simple_trajectory_publisher:main",
             "agimus_controller_node = agimus_controller_ros.agimus_controller:main",
+            "mpc_debugger_node = agimus_controller_ros.mpc_debugger_node:main",
         ],
     },
     tests_require=["pytest"],
