@@ -9,7 +9,6 @@ from agimus_controller.factory.robot_model import RobotModels
 from agimus_controller.mpc_data import OCPResults, OCPDebugData
 from agimus_controller.ocp_base import OCPBase
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
-from agimus_controller.trajectory import WeightedTrajectoryPoint
 
 
 class OCPBaseCroco(OCPBase):
@@ -64,6 +63,7 @@ class OCPBaseCroco(OCPBase):
         self._solver.max_qp_iters = self._ocp_params.qp_iters
         self._solver.eps_abs = self._ocp_params.eps_abs
         self._solver.eps_rel = self._ocp_params.eps_rel
+
         if self._ocp_params.callbacks:
             self._solver.setCallbacks(
                 [mim_solvers.CallbackVerbose(), mim_solvers.CallbackLogger()]
@@ -93,15 +93,17 @@ class OCPBaseCroco(OCPBase):
         """Create the terminal model."""
         pass
 
-    def set_reference_weighted_trajectory(
-        self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
-    ):
+    def set_reference_weighted_trajectory(self):
         """Set the reference trajectory for the OCP."""
-        if self._ocp_params.use_debug_data:
-            reference_trajectory_points = [
-                el.point for el in reference_weighted_trajectory
-            ]
-            self._debug_data.references = reference_trajectory_points
+        pass
+
+    def fill_debug_data(self, res, ocp_results):
+        """Fill attributes of dataclass OCPDebugData."""
+        self._debug_data.problem_solved = res
+        self._debug_data.result = ocp_results
+        self._debug_data.kkt_norm = self._solver.KKT
+        self._debug_data.nb_iter = int(self._solver.iter)
+        self._debug_data.nb_qp_iter = int(self._solver.qp_iters)
 
     def solve(
         self,
@@ -140,28 +142,7 @@ class OCPBaseCroco(OCPBase):
             feed_forward_terms=self._solver.us,
         )
         if self._ocp_params.use_debug_data:
-            self._debug_data.problem_solved = res
-            self._debug_data.result = ocp_results
-            self._debug_data.kkt_norm = self._solver.KKT
-            self._debug_data.nb_iter = int(self._solver.iter)
-            self._debug_data.nb_qp_iter = int(self._solver.qp_iters)
-            # For now, we don't publish any residuals for performance reasons.
-            # See https://github.com/agimus-project/agimus_controller/pull/201#discussion_r1993106004
-            # if len(self._debug_data.residuals) == 0:
-            #     names = (
-            #         self._problem.runningModels[0]
-            #         .differential.costs.costs.todict()
-            #         .keys()
-            #     )
-            # else:
-            #     names = self._debug_data.residuals.keys()
-            # self._debug_data.residuals = {name: [] for name in names}
-
-            # for data in self._problem.runningDatas:
-            #     for name in names:
-            #         self._debug_data.residuals[name].append(
-            #             data.differential.costs.costs[name].residual.r
-            #         )
+            self.fill_debug_data(res=res, ocp_results=ocp_results)
 
         # Store the results
         self._ocp_results = ocp_results
