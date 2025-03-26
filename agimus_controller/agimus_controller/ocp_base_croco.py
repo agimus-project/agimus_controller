@@ -97,7 +97,7 @@ class OCPBaseCroco(OCPBase):
         """Set the reference trajectory for the OCP."""
         pass
 
-    def fill_debug_data(self, res, ocp_results):
+    def fill_debug_data(self, res: bool, ocp_results: OCPResults) -> None:
         """Fill attributes of dataclass OCPDebugData."""
         self._debug_data.problem_solved = res
         self._debug_data.result = ocp_results

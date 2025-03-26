@@ -378,6 +378,7 @@ class AgimusController(Node):
                 )
                 return
         if self.params.publish_debug_data:
+            # Do not use ROS time here because we want to measure the real computation time
             start_compute_time = time.perf_counter()
         self.np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
 

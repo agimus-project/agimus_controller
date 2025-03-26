@@ -415,8 +415,8 @@ class OCPCrocoGeneric(OCPBaseCroco):
             if cost.publish_residual:
                 self._debug_data.residuals.append((cost.name, None))
 
-    def fill_debug_data_references_and_residuals(self) -> None:
-        """Fill references and residuals of dataclass OCPDebugData."""
+    def fill_debug_data(self, res, ocp_results) -> None:
+        super().fill_debug_data(res=res, ocp_results=ocp_results)
         model = self._problem.runningModels[0]
         # fill references data only for first node because when resetting ocp, we are
         # shifting reference to next node, so we end up publishing all the references
@@ -467,19 +467,3 @@ class OCPCrocoGeneric(OCPBaseCroco):
     def get_default_yaml_file(basename: str) -> pathlib.Path:
         file = pathlib.Path(__file__).parent / basename
         return file
-
-    def solve(
-        self,
-        x0: npt.NDArray[np.float64],
-        x_warmstart: list[npt.NDArray[np.float64]],
-        u_warmstart: list[npt.NDArray[np.float64]],
-        use_iteration_limits_and_timeout: bool = True,
-    ) -> None:
-        super().solve(
-            x0=x0,
-            x_warmstart=x_warmstart,
-            u_warmstart=u_warmstart,
-            use_iteration_limits_and_timeout=use_iteration_limits_and_timeout,
-        )
-        if self._ocp_params.use_debug_data:
-            self.fill_debug_data_references_and_residuals()
