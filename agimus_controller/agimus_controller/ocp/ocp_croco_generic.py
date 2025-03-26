@@ -6,6 +6,7 @@ import pinocchio
 import colmpc
 import dataclasses
 import yaml
+import pinocchio as pin
 import typing as T
 
 from agimus_controller.ocp_base_croco import (
@@ -222,6 +223,7 @@ class CostModelSumItem:
     weight: float = 1.0
     active: bool = True
     update: bool = False
+    publish_residual: bool = False
 
 
 @dataclasses.dataclass
@@ -379,6 +381,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
             data = yaml.safe_load(f)
         self._data = ShootingProblem(**data)
         super().__init__(robot_models, params)
+        self.init_debug_data_references_and_residuals()
 
     @property
     def _build_data(self) -> BuildData:
@@ -395,7 +398,6 @@ class OCPCrocoGeneric(OCPBaseCroco):
             running_model.differential.armature = self._robot_models.armature
             running_model.dt = dt
             running_model_list.append(running_model)
-
         assert len(running_model_list) == self.n_controls
         return running_model_list
 
@@ -405,13 +407,47 @@ class OCPCrocoGeneric(OCPBaseCroco):
         terminal_model.dt = 0.0
         return terminal_model
 
+    def init_debug_data_references_and_residuals(self) -> None:
+        """Initialize references and residuals of dataclass OCPDebugData."""
+        for cost in self._data.running_model.differential.costs:
+            if cost.update:
+                self._debug_data.references.append((cost.name, None))
+            if cost.publish_residual:
+                self._debug_data.residuals.append((cost.name, None))
+
+    def fill_debug_data_references_and_residuals(self) -> None:
+        """Fill references and residuals of dataclass OCPDebugData."""
+        model = self._problem.runningModels[0]
+        # fill references data only for first node because when resetting ocp, we are
+        # shifting reference to next node, so we end up publishing all the references
+        for reference_idx in range(len(self._debug_data.references)):
+            name = self._debug_data.references[reference_idx][0]
+            reference = model.differential.costs.costs[name].cost.residual.reference
+            if isinstance(reference, pin.SE3):
+                reference = pin.SE3ToXYZQUAT(reference)
+            self._debug_data.references[reference_idx] = (name, reference)
+
+        # fill residuals data
+        for residual_idx in range(len(self._debug_data.residuals)):
+            name = self._debug_data.residuals[residual_idx][0]
+            residual_size = (
+                self._problem.runningDatas[0]
+                .differential.costs.costs[name]
+                .residual.r.shape[0]
+            )
+            residual_prediction = np.zeros((self._ocp_params.n_controls, residual_size))
+            for node_idx, data in enumerate(self._problem.runningDatas):
+                residual_prediction[node_idx, :] = data.differential.costs.costs[
+                    name
+                ].residual.r
+            self._debug_data.residuals[residual_idx] = (name, residual_prediction)
+
     def set_reference_weighted_trajectory(
         self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
     ):
         """Set the reference trajectory for the OCP."""
 
         assert len(reference_weighted_trajectory) == self.n_controls + 1
-        super().set_reference_weighted_trajectory(reference_weighted_trajectory)
 
         problem = self._solver.problem
 
@@ -431,3 +467,19 @@ class OCPCrocoGeneric(OCPBaseCroco):
     def get_default_yaml_file(basename: str) -> pathlib.Path:
         file = pathlib.Path(__file__).parent / basename
         return file
+
+    def solve(
+        self,
+        x0: npt.NDArray[np.float64],
+        x_warmstart: list[npt.NDArray[np.float64]],
+        u_warmstart: list[npt.NDArray[np.float64]],
+        use_iteration_limits_and_timeout: bool = True,
+    ) -> None:
+        super().solve(
+            x0=x0,
+            x_warmstart=x_warmstart,
+            u_warmstart=u_warmstart,
+            use_iteration_limits_and_timeout=use_iteration_limits_and_timeout,
+        )
+        if self._ocp_params.use_debug_data:
+            self.fill_debug_data_references_and_residuals()
