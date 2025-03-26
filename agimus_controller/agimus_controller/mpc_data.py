@@ -3,8 +3,6 @@ import numpy as np
 import numpy.typing as npt
 import typing as T
 
-from agimus_controller.trajectory import TrajectoryPoint
-
 
 @dataclass
 class OCPResults:
@@ -19,9 +17,11 @@ class OCPResults:
 class OCPDebugData:
     # Debug data
     result: OCPResults = OCPResults()
-    references: list[TrajectoryPoint] = field(default_factory=list)
-    residuals: T.Dict[str, T.List[npt.NDArray[np.float64]]] = field(
-        default_factory=dict
+    references: list[T.Tuple[str, npt.NDArray[np.float64]]] = field(
+        default_factory=list
+    )
+    residuals: list[T.Tuple[str, T.List[npt.NDArray[np.float64]]]] = field(
+        default_factory=list
     )
 
     # Solver infos

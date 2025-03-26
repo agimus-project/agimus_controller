@@ -129,7 +129,6 @@ class OCPCrocoGoalReaching(OCPBaseCroco):
     ):
         """Set the reference trajectory for the OCP."""
         assert len(reference_weighted_trajectory) == self.n_controls + 1
-        super().set_reference_weighted_trajectory(reference_weighted_trajectory)
 
         # Modify running costs reference and weights
         for i, ref_weighted_pt in enumerate(reference_weighted_trajectory[:-1]):

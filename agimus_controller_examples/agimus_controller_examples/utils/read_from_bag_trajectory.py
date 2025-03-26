@@ -1,6 +1,5 @@
 from rclpy.serialization import deserialize_message
 import rosbag2_py
-import numpy as np
 import pickle
 from builtin_interfaces.msg import Duration
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_msg_to_numpy
@@ -61,12 +60,8 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
     # Open the pickle file
     with open(pickle_file_path, "wb") as pickle_file:
         mpc_data = {}
-        mpc_data["state_references"] = []
-        mpc_data["control_references"] = []
-        mpc_data["ee_pose_references"] = []
         mpc_data["states_predictions"] = []
         mpc_data["control_predictions"] = []
-        mpc_data["collision_distance_residuals"] = []
         mpc_data["kkt_norms"] = []
         mpc_data["nb_iters"] = []
         mpc_data["nb_qp_iters"] = []
@@ -75,14 +70,7 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
         # Read each message in the rosbag and store it
         while reader.has_next():
             topic, msg, _ = reader.read_next()
-            if topic == "/mpc_input":
-                msg = convert_bytes_to_message(msg, MpcInput)
-                state_reference = np.concatenate((msg.q, msg.qdot))
-                mpc_data["state_references"].append(state_reference)
-                mpc_data["control_references"].append(np.array(msg.robot_effort))
-                pos = msg.pose.position
-                mpc_data["ee_pose_references"].append(np.array([pos.x, pos.y, pos.z]))
-            elif topic == "/mpc_debug":
+            if topic == "/mpc_debug":
                 mpc_debug_msg = convert_bytes_to_message(msg, MpcDebug)
                 mpc_data["states_predictions"].append(
                     matrix_msg_to_numpy(mpc_debug_msg.states_predictions)
@@ -90,9 +78,18 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
                 mpc_data["control_predictions"].append(
                     matrix_msg_to_numpy(mpc_debug_msg.control_predictions)
                 )
-                mpc_data["collision_distance_residuals"].append(
-                    matrix_msg_to_numpy(mpc_debug_msg.collision_distance_residuals)
-                )
+                for residual in mpc_debug_msg.residuals:
+                    if residual.name + "_residuals" not in mpc_data.keys():
+                        mpc_data[residual.name + "_residuals"] = []
+                    mpc_data[residual.name + "_residuals"].append(
+                        matrix_msg_to_numpy(residual.data)
+                    )
+                for reference in mpc_debug_msg.references:
+                    if reference.name + "_references" not in mpc_data.keys():
+                        mpc_data[reference.name + "_references"] = []
+                    mpc_data[reference.name + "_references"].append(
+                        matrix_msg_to_numpy(reference.data)
+                    )
                 mpc_data["kkt_norms"].append(mpc_debug_msg.kkt_norm)
                 mpc_data["nb_iters"].append(mpc_debug_msg.nb_iter)
                 mpc_data["nb_qp_iters"].append(mpc_debug_msg.nb_qp_iter)
