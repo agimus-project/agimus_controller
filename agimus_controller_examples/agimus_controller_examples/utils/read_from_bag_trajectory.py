@@ -66,7 +66,6 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
         mpc_data["ee_pose_references"] = []
         mpc_data["states_predictions"] = []
         mpc_data["control_predictions"] = []
-        mpc_data["collision_distance_residuals"] = []
         mpc_data["kkt_norms"] = []
         mpc_data["nb_iters"] = []
         mpc_data["nb_qp_iters"] = []
@@ -90,9 +89,14 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
                 mpc_data["control_predictions"].append(
                     matrix_msg_to_numpy(mpc_debug_msg.control_predictions)
                 )
-                mpc_data["collision_distance_residuals"].append(
-                    matrix_msg_to_numpy(mpc_debug_msg.collision_distance_residuals)
-                )
+                for residual in mpc_debug_msg.residuals:
+                    if residual.name not in mpc_data.keys():
+                        mpc_data[residual.name] = []
+                    mpc_data[residual.name].append(matrix_msg_to_numpy(residual.data))
+                for reference in mpc_debug_msg.references:
+                    if reference.name not in mpc_data.keys():
+                        mpc_data[reference.name] = []
+                    mpc_data[reference.name].append(matrix_msg_to_numpy(reference.data))
                 mpc_data["kkt_norms"].append(mpc_debug_msg.kkt_norm)
                 mpc_data["nb_iters"].append(mpc_debug_msg.nb_iter)
                 mpc_data["nb_qp_iters"].append(mpc_debug_msg.nb_qp_iter)
