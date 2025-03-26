@@ -65,15 +65,11 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
     )
     for name, data in mpc_debug_data.ocp.residuals:
         mpc_debug_msg.residuals.append(
-            Residual(
-                name=name + "_residuals", data=matrix_numpy_to_msg(np.asarray(data))
-            )
+            Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
     for name, data in mpc_debug_data.ocp.references:
         mpc_debug_msg.references.append(
-            Residual(
-                name=name + "_references", data=matrix_numpy_to_msg(np.asarray(data))
-            )
+            Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
 
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
