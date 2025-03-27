@@ -97,8 +97,8 @@ class TestWarmStart(unittest.TestCase):
 
         # Assert
         # Check shapes
-        assert len(x_init) == nu
-        assert len(u_init) == nu
+        self.assertEqual(len(x_init), nu + 1)
+        self.assertEqual(len(u_init), nu)
 
         # Check values (assuming `generate` would use these random inputs)
         np.testing.assert_array_equal(x0[: model.nq], init_state.robot_configuration)
@@ -114,7 +114,7 @@ class TestWarmStart(unittest.TestCase):
             # This assert is not based on something we actually desire.
             # We may want something smarted for the control
             np.testing.assert_array_equal(u_init[i - 1], controls[i])
-            np.testing.assert_array_equal(x_init[i - 1], d.xnext)
+            np.testing.assert_array_equal(x_init[i], d.xnext)
 
 
 if __name__ == "__main__":

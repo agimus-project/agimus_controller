@@ -16,7 +16,7 @@ class OCPResults:
 @dataclass
 class OCPDebugData:
     # Debug data
-    result: OCPResults = OCPResults()
+    result: OCPResults = field(default_factory=OCPResults)
     references: list[T.Tuple[str, npt.NDArray[np.float64]]] = field(
         default_factory=list
     )
@@ -33,7 +33,7 @@ class OCPDebugData:
 
 @dataclass
 class MPCDebugData:
-    ocp: OCPDebugData = OCPDebugData()
+    ocp: OCPDebugData = field(default_factory=OCPDebugData)
     # Timers
     duration_iteration_ns: int = 0
     duration_horizon_update_ns: int = 0

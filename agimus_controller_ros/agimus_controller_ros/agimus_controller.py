@@ -42,86 +42,42 @@ from agimus_controller.trajectory import TrajectoryBuffer, TrajectoryPoint
 from agimus_controller_ros.agimus_controller_parameters import agimus_controller_params
 
 
-class AgimusController(Node):
-    """Agimus controller's ROS 2 node class."""
-
-    def __init__(self, node_name: str = "agimus_controller_node") -> None:
-        """Get ROS parameters, initialize trajectory buffer and ros attributes."""
-        super().__init__(node_name)
-        self.param_listener = agimus_controller_params.ParamListener(self)
-        self.params = self.param_listener.get_params()
-        self.params.ocp.armature = np.array(self.params.ocp.armature)
-        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
-        self.params.collision_pairs = [
-            (
-                self.params.get_entry(collision_pair_name).first,
-                self.params.get_entry(collision_pair_name).second,
-            )
-            for collision_pair_name in self.params.collision_pairs_names
-        ]
-        self.ocp_params = OCPParamsBaseCroco(
-            dt=self.params.ocp.dt,
-            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
-            horizon_size=self.params.ocp.horizon_size,
-            solver_iters=self.params.ocp.max_iter,
-            callbacks=self.params.ocp.activate_callback,
-            qp_iters=self.params.ocp.max_qp_iter,
-            use_debug_data=self.params.publish_debug_data,
+def get_param_from_node(
+    requester_node: Node, target_node_name: str, target_param_name: str
+) -> ParameterValue:
+    """Returns parameter from a node"""
+    service_name = f"/{target_node_name}/get_parameters"
+    param_client = requester_node.create_client(GetParameters, service_name)
+    while not param_client.wait_for_service(timeout_sec=1.0):
+        requester_node.get_logger().info(
+            f"Service {service_name} not available, waiting again..."
         )
-        self.last_point = None
-        self.first_run_done = False
-        self.rmodel = None
-        self.mpc = None
+    request = GetParameters.Request()
+    request.names = [target_param_name]
+
+    future = param_client.call_async(request)
+    rclpy.spin_until_future_complete(requester_node, future)
+
+    if future.result() is not None:
+        return future.result().values[0]
+    else:
+        raise ValueError(
+            f"Failed to get parameter {target_param_name} from node {target_node_name}"
+        )
+
+
+class RobotModelsMixin:
+    def init_ros_robot_creation(self) -> None:
         self.q0 = None
         self.robot_description_msg = None
-        self.np_sensor_msg = None
         self.environment_msg = None
         self.robot_srdf_description_msg = None
-        self.destroy_joint_sub = False
-        # Stores the OCP result to be able to publish it
-        # at next iteration, when using a constant delay
-        self._ocp_res = None
-
-        self.initialize_ros_attributes()
-        self.get_logger().info(
-            f"Init done. Horizon total time is {self.ocp_params.total_time}"
-        )
-
-    def get_param_from_node(self, node_name: str, param_name: str) -> ParameterValue:
-        """Returns parameter from the node"""
-        param_client = self.create_client(GetParameters, f"/{node_name}/get_parameters")
-        while not param_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("Service not available, waiting again...")
-        request = GetParameters.Request()
-        request.names = [param_name]
-
-        future = param_client.call_async(request)
-        rclpy.spin_until_future_complete(self, future)
-
-        if future.result() is not None:
-            return future.result().values[0]
-        else:
-            raise ValueError("Failed to load moving joint names from LFC")
-
-    def initialize_ros_attributes(self) -> None:
-        """Initialize ROS related attributes such as Publishers, Subscribers and Timers"""
-        self.sensor_msg = None
-        self.control_msg = None
 
         # Get moving joint names from LFC
-        self.moving_joint_names = self.get_param_from_node(
-            "linear_feedback_controller", "moving_joint_names"
+        self.moving_joint_names = get_param_from_node(
+            self, "linear_feedback_controller", "moving_joint_names"
         ).string_array_value
 
-        self.state_subscriber = self.create_subscription(
-            Sensor,
-            "sensor",
-            self.sensor_callback,
-            qos_profile=QoSProfile(
-                depth=10,
-                reliability=ReliabilityPolicy.BEST_EFFORT,
-            ),
-        )
         self.subscriber_robot_description = self.create_subscription(
             String,
             "/robot_description",
@@ -152,6 +108,116 @@ class AgimusController(Node):
                 reliability=ReliabilityPolicy.RELIABLE,
             ),
         )
+        self.state_subscriber = self.create_subscription(
+            JointState,
+            "joint_states",
+            self.joint_states_callback,
+            qos_profile=QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+            ),
+        )
+
+    def robot_description_callback(self, msg: String) -> None:
+        """Set robot description xml msg."""
+        self.robot_description_msg = msg
+
+    def environment_description_callback(self, msg: String) -> None:
+        """Set environment description xml msg."""
+        self.environment_msg = msg
+
+    def robot_srdf_description_callback(self, msg: String) -> None:
+        """Set robot srdf description xml msg."""
+        self.robot_srdf_description_msg = msg
+
+    def joint_states_callback(self, joint_states_msg: JointState) -> None:
+        """Set joint state reference."""
+        if (
+            self.robot_description_msg is None
+            or self.environment_msg is None
+            or self.robot_srdf_description_msg is None
+        ):
+            return
+        if self.q0 is None:
+            self.q0 = np.array(joint_states_msg.position)
+            self.destroy_subscription(self.state_subscriber)
+            self.destroy_subscription(self.subscriber_robot_description)
+            self.destroy_subscription(self.subscriber_robot_srdf_description)
+            self.destroy_subscription(self.subscriber_environment_description)
+
+    def ros_robot_ready(self) -> bool:
+        return self.q0 is not None
+
+    def create_robot_models(self, **robot_model_parameters_kwargs) -> None:
+        robot_params = RobotModelParameters(
+            robot_urdf=self.robot_description_msg.data,
+            env_urdf=self.environment_msg.data,
+            srdf=self.robot_srdf_description_msg.data,
+            moving_joint_names=self.moving_joint_names,
+            **robot_model_parameters_kwargs,
+        )
+        self.robot_models = RobotModels(robot_params)
+        self.rmodel = self.robot_models._robot_model
+
+        self.get_logger().info("Robot Models initialized")
+
+
+class AgimusController(Node, RobotModelsMixin):
+    """Agimus controller's ROS 2 node class."""
+
+    def __init__(self, node_name: str = "agimus_controller_node") -> None:
+        """Get ROS parameters, initialize trajectory buffer and ros attributes."""
+        super().__init__(node_name)
+        self.param_listener = agimus_controller_params.ParamListener(self)
+        self.params = self.param_listener.get_params()
+        self.params.ocp.armature = np.array(self.params.ocp.armature)
+        self.traj_buffer = TrajectoryBuffer(self.params.ocp.dt_factor_n_seq)
+        self.params.collision_pairs = [
+            (
+                self.params.get_entry(collision_pair_name).first,
+                self.params.get_entry(collision_pair_name).second,
+            )
+            for collision_pair_name in self.params.collision_pairs_names
+        ]
+        self.ocp_params = OCPParamsBaseCroco(
+            dt=self.params.ocp.dt,
+            dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
+            horizon_size=self.params.ocp.horizon_size,
+            solver_iters=self.params.ocp.max_iter,
+            callbacks=self.params.ocp.activate_callback,
+            qp_iters=self.params.ocp.max_qp_iter,
+            use_debug_data=self.params.publish_debug_data,
+        )
+        self.last_point = None
+        self.first_run_done = False
+        self.rmodel = None
+        self.mpc = None
+        self.np_sensor_msg = None
+        # Stores the OCP result to be able to publish it
+        # at next iteration, when using a constant delay
+        self._ocp_res = None
+
+        self.initialize_ros_attributes()
+        self.get_logger().info(
+            f"Init done. Horizon total time is {self.ocp_params.total_time}"
+        )
+
+    def initialize_ros_attributes(self) -> None:
+        """Initialize ROS related attributes such as Publishers, Subscribers and Timers"""
+        self.sensor_msg = None
+        self.control_msg = None
+
+        self.init_ros_robot_creation()
+
+        self.sensor_subscriber = self.create_subscription(
+            Sensor,
+            "sensor",
+            self.sensor_callback,
+            qos_profile=QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+            ),
+        )
         self.subscriber_mpc_input = self.create_subscription(
             MpcInput,
             "mpc_input",
@@ -164,15 +230,6 @@ class AgimusController(Node):
         self.control_publisher = self.create_publisher(
             Control,
             "control",
-            qos_profile=QoSProfile(
-                depth=10,
-                reliability=ReliabilityPolicy.BEST_EFFORT,
-            ),
-        )
-        self.state_subscriber = self.create_subscription(
-            JointState,
-            "joint_states",
-            self.joint_states_callback,
             qos_profile=QoSProfile(
                 depth=10,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -242,18 +299,6 @@ class AgimusController(Node):
         """Update the sensor_msg attribute of the class."""
         self.sensor_msg = sensor_msg
 
-    def joint_states_callback(self, joint_states_msg: JointState) -> None:
-        """Set joint state reference."""
-        if (
-            self.robot_description_msg is None
-            or self.environment_msg is None
-            or self.robot_srdf_description_msg is None
-        ):
-            return
-        if self.q0 is None:
-            self.q0 = np.array(joint_states_msg.position)
-            self.destroy_subscription(self.state_subscriber)
-
     def mpc_input_callback(self, msg: MpcInput) -> None:
         """Fill the new point msg in the trajectory buffer."""
         w_traj_point = mpc_msg_to_weighted_traj_point(
@@ -262,35 +307,6 @@ class AgimusController(Node):
         self.traj_buffer.append(w_traj_point)
         self.params.ocp.effector_frame_name = msg.ee_frame_name
         self.effector_frame_name = msg.ee_frame_name
-
-    def robot_description_callback(self, msg: String) -> None:
-        """Set robot description xml msg."""
-        self.robot_description_msg = msg
-
-    def environment_description_callback(self, msg: String) -> None:
-        """Set environment description xml msg."""
-        self.environment_msg = msg
-
-    def robot_srdf_description_callback(self, msg: String) -> None:
-        """Set robot srdf description xml msg."""
-        self.robot_srdf_description_msg = msg
-
-    def create_robot_models(self) -> None:
-        params = RobotModelParameters(
-            robot_urdf=self.robot_description_msg.data,
-            env_urdf=self.environment_msg.data,
-            srdf=self.robot_srdf_description_msg.data,
-            free_flyer=self.params.free_flyer,
-            collision_as_capsule=self.params.collision_as_capsule,
-            self_collision=self.params.self_collision,
-            armature=self.params.ocp.armature,
-            moving_joint_names=self.moving_joint_names,
-            collision_pairs=self.params.collision_pairs,
-        )
-        self.robot_models = RobotModels(params)
-        self.rmodel = self.robot_models._robot_model
-
-        self.get_logger().info("Robot Models initialized")
 
     def buffer_has_enough_data(self, ratio: float) -> bool:
         """
@@ -320,7 +336,7 @@ class AgimusController(Node):
             )
             return
 
-        if self.q0 is None:
+        if not self.ros_robot_ready():
             self.get_logger().warn(
                 "Waiting for robot descriptions...",
                 throttle_duration_sec=5.0,
@@ -337,8 +353,13 @@ class AgimusController(Node):
 
         # Stop the initialization loop.
         self.destroy_timer(self._init_timer)
-
-        self.create_robot_models()
+        self.create_robot_models(
+            free_flyer=self.params.free_flyer,
+            collision_as_capsule=self.params.collision_as_capsule,
+            self_collision=self.params.self_collision,
+            armature=self.params.ocp.armature,
+            collision_pairs=self.params.collision_pairs,
+        )
         self.setup_mpc()
 
         self.get_logger().info(
