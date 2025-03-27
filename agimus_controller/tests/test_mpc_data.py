@@ -49,8 +49,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
         params = {
             "result": list(),
             "references": list(),
-            "kkt_norms": list(),
-            "collision_distance_residuals": list(),
+            "kkt_norm": list(),
             "problem_solved": False,
         }
         obj = OCPDebugData(**deepcopy(params))
@@ -71,8 +70,7 @@ class TestOCPParamsCrocoBase(unittest.TestCase):
                 **{
                     "result": list(),
                     "references": list(),
-                    "kkt_norms": list(),
-                    "collision_distance_residuals": list(),
+                    "kkt_norm": list(),
                     "problem_solved": False,
                 }
             ),
