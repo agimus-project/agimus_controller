@@ -97,7 +97,7 @@ class TestWarmStart(unittest.TestCase):
 
         # Assert
         # Check shapes
-        self.assertEqual(len(x_init), nu+1)
+        self.assertEqual(len(x_init), nu + 1)
         self.assertEqual(len(u_init), nu)
 
         # Check values (assuming `generate` would use these random inputs)
