@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import numpy as np
-
+import time
 
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rcl_interfaces.srv import GetParameters
@@ -222,7 +223,7 @@ class AgimusController(Node, RobotModelsMixin):
             "mpc_input",
             self.mpc_input_callback,
             qos_profile=QoSProfile(
-                depth=10,
+                depth=1000,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
@@ -398,7 +399,8 @@ class AgimusController(Node, RobotModelsMixin):
                 )
                 return
         if self.params.publish_debug_data:
-            start_compute_time = self.get_clock().now()
+            # Do not use ROS time here because we want to measure the real computation time
+            start_compute_time = time.perf_counter()
         self.np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
 
         x0_traj_point = TrajectoryPoint(
@@ -427,8 +429,8 @@ class AgimusController(Node, RobotModelsMixin):
         else:
             self.send_control_msg(ocp_res)
         if self.params.publish_debug_data:
-            compute_time = self.get_clock().now() - start_compute_time
-            self.ocp_solve_time_pub.publish(compute_time.to_msg())
+            compute_time = time.perf_counter() - start_compute_time
+            self.ocp_solve_time_pub.publish(Duration(seconds=compute_time).to_msg())
             self.ocp_x0_pub.publish(self.sensor_msg)
             mpc_debug_msg = mpc_debug_data_to_msg(self.mpc.mpc_debug_data)
             self.mpc_debug_pub.publish(mpc_debug_msg)

@@ -95,7 +95,7 @@ class SimpleTrajectoryPublisher(Node):
             MpcInput,
             "mpc_input",
             qos_profile=QoSProfile(
-                depth=10,
+                depth=1000,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
@@ -157,11 +157,11 @@ class SimpleTrajectoryPublisher(Node):
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
         amp, damp, ddamp = self.quint_traj.get_value_at_t(self.t)
+        w = self.w
+        sin_wt = np.sin(w * self.t)
+        cos_wt = np.cos(w * self.t)
         for i in [2, 3]:
-            self.q[i] = self.q0[i] + amp * np.sin(self.w * self.t)
-            w = self.w
-            sin_wt = np.sin(w * self.t)
-            cos_wt = np.cos(w * self.t)
+            self.q[i] = self.q0[i] + amp * sin_wt
             self.dq[i] = damp * sin_wt + amp * w * cos_wt
             self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
