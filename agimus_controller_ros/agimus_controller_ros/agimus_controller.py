@@ -41,26 +41,31 @@ from agimus_controller.trajectory import TrajectoryBuffer, TrajectoryPoint
 from agimus_controller_ros.agimus_controller_parameters import agimus_controller_params
 
 
-
-def get_param_from_node(node: Node, node_name: str, param_name: str) -> ParameterValue:
+def get_param_from_node(
+    requester_node: Node, target_node_name: str, target_param_name: str
+) -> ParameterValue:
     """Returns parameter from a node"""
-    service_name = f"/{node_name}/get_parameters"
-    param_client = node.create_client(GetParameters, service_name)
+    service_name = f"/{target_node_name}/get_parameters"
+    param_client = requester_node.create_client(GetParameters, service_name)
     while not param_client.wait_for_service(timeout_sec=1.0):
-        node.get_logger().info(f"Service {service_name} not available, waiting again...")
+        requester_node.get_logger().info(
+            f"Service {service_name} not available, waiting again..."
+        )
     request = GetParameters.Request()
-    request.names = [param_name]
+    request.names = [target_param_name]
 
     future = param_client.call_async(request)
-    rclpy.spin_until_future_complete(node, future)
+    rclpy.spin_until_future_complete(requester_node, future)
 
     if future.result() is not None:
         return future.result().values[0]
     else:
-        raise ValueError(f"Failed to get parameter {param_name} from node {node_name}")
+        raise ValueError(
+            f"Failed to get parameter {target_param_name} from node {target_node_name}"
+        )
 
 
-class RobotMixin:
+class RobotModelsMixin:
     def init_ros_robot_creation(self) -> None:
         self.q0 = None
         self.robot_description_msg = None
@@ -68,8 +73,8 @@ class RobotMixin:
         self.robot_srdf_description_msg = None
 
         # Get moving joint names from LFC
-        self.moving_joint_names = get_param_from_node(self,
-            "linear_feedback_controller", "moving_joint_names"
+        self.moving_joint_names = get_param_from_node(
+            self, "linear_feedback_controller", "moving_joint_names"
         ).string_array_value
 
         self.subscriber_robot_description = self.create_subscription(
@@ -148,14 +153,15 @@ class RobotMixin:
             env_urdf=self.environment_msg.data,
             srdf=self.robot_srdf_description_msg.data,
             moving_joint_names=self.moving_joint_names,
-            **robot_model_parameters_kwargs
+            **robot_model_parameters_kwargs,
         )
         self.robot_models = RobotModels(robot_params)
         self.rmodel = self.robot_models._robot_model
 
         self.get_logger().info("Robot Models initialized")
 
-class AgimusController(Node, RobotMixin):
+
+class AgimusController(Node, RobotModelsMixin):
     """Agimus controller's ROS 2 node class."""
 
     def __init__(self, node_name: str = "agimus_controller_node") -> None:

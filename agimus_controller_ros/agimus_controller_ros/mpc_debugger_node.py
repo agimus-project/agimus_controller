@@ -3,7 +3,7 @@ import rclpy.duration
 import sys
 import argparse
 from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 import rclpy.time
 from builtin_interfaces.msg import Duration as DurationMsg
@@ -11,19 +11,17 @@ from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose
 from agimus_msgs.msg import MpcDebug
 
-from agimus_controller_ros.agimus_controller import RobotMixin, get_param_from_node
+from agimus_controller_ros.agimus_controller import (
+    RobotModelsMixin,
+    get_param_from_node,
+)
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_msg_to_numpy
 import pinocchio
 import eigenpy
 
 
-default_qos_profile = QoSProfile(
-    depth=10,
-    reliability=ReliabilityPolicy.RELIABLE,
-)
-
-
 def pinocchio_se3_to_geometry_msg_pose(M: pinocchio.SE3, pose: Pose) -> Pose:
+    "Store in `pose` message the transform `M`"
     pose.position.x = M.translation[0]
     pose.position.y = M.translation[1]
     pose.position.z = M.translation[2]
@@ -36,7 +34,12 @@ def pinocchio_se3_to_geometry_msg_pose(M: pinocchio.SE3, pose: Pose) -> Pose:
     return pose
 
 
-class MPCDebuggerNode(Node, RobotMixin):
+class MPCDebuggerNode(Node, RobotModelsMixin):
+    """ROS node class to assist users of the AgimusController ROS node.
+
+    Features:
+    - publishes the current MPC prediction as markers that can be viewed in RViz.
+    """
 
     def __init__(
         self,
@@ -45,6 +48,13 @@ class MPCDebuggerNode(Node, RobotMixin):
         marker_namespace: str,
         marker_size: float,
     ):
+        """
+        Args:
+        - frame_name: name of the frame in the pinocchio Model
+        - parent_frame_name: string passed to field `marker.header.frame_id` in the published messages.
+        - marker_namespace: set the `marker.ns` field.
+        - marker_size: set the `marker.scale` field.
+        """
         super().__init__("mpc_debugger_node")
         self._frame_name = frame_name
         self._parent_frame_name = parent_frame_name
@@ -69,13 +79,7 @@ class MPCDebuggerNode(Node, RobotMixin):
         self.destroy_timer(self._init_timer)
 
         self.get_logger().info("create robot...")
-        self.create_robot_models(
-            free_flyer=self._robot_has_free_flyer,
-            # collision_as_capsule=self.params.collision_as_capsule,
-            # self_collision=self.params.self_collision,
-            # armature=self.params.ocp.armature,
-            # collision_pairs=self.params.collision_pairs,
-        )
+        self.create_robot_models(free_flyer=self._robot_has_free_flyer)
         frame_name_ok = self.rmodel.existFrame(self._frame_name)
         assert frame_name_ok, f"Frame {self._frame_name} could not be found."
         self.rdata = self.rmodel.createData()
@@ -85,7 +89,7 @@ class MPCDebuggerNode(Node, RobotMixin):
         self._mpc_debug_sub = self.create_subscription(
             MpcDebug,
             "mpc_debug",
-            self.mpc_debug_callback,
+            self.mpc_debug_to_prediction_markers,
             qos_profile=QoSProfile(
                 depth=10,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -107,7 +111,9 @@ class MPCDebuggerNode(Node, RobotMixin):
         for i, state in enumerate(states):
             marker = Marker()
             marker.header.frame_id = self._parent_frame_name
-            # marker.header.stamp = rclcpp::Clock().now();
+            # The MPC debug message does not have a stamp so
+            # it is not possible to correctly set
+            # marker.header.stamp
             marker.ns = self._marker_ns
             marker.id = i
 
@@ -128,7 +134,7 @@ class MPCDebuggerNode(Node, RobotMixin):
             marker.lifetime = DurationMsg(sec=1)
             self._marker_array.markers.append(marker)
 
-    def mpc_debug_callback(self, msg: MpcDebug):
+    def mpc_debug_to_prediction_markers(self, msg: MpcDebug):
         if len(self._marker_array.markers) == 0:
             self._init_marker_array(msg)
 
@@ -147,10 +153,27 @@ def main(args=None):
         "mpc_debugger_node",
         description="This node transforms the MPC debug data into a marker array that can be visualized in RViz.",
     )
-    parser.add_argument("--frame", type=str, required=True)
-    parser.add_argument("--parent-frame", type=str, default="world")
-    parser.add_argument("--marker-size", type=float, default=0.01)
-    parser.add_argument("--marker-ns", type=str, default="states_predictions")
+    parser.add_argument(
+        "--frame",
+        type=str,
+        required=True,
+        help="name of the frame in the pinocchio Model",
+    )
+    parser.add_argument(
+        "--parent-frame",
+        type=str,
+        default="world",
+        help="string passed to field `marker.header.frame_id` in the published messages.",
+    )
+    parser.add_argument(
+        "--marker-size", type=float, default=0.01, help="set the `marker.ns` field."
+    )
+    parser.add_argument(
+        "--marker-ns",
+        type=str,
+        default="states_predictions",
+        help="set the `marker.scale` field.",
+    )
     arguments = parser.parse_args(args)
 
     rclpy.init(args=args)
