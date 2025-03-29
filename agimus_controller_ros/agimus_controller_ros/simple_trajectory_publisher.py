@@ -161,22 +161,38 @@ class SimpleTrajectoryPublisher(Node):
         # Note: remove 7 to joint id if free flyer is used.
         # joint id starts with 1 because joint id 0 is the universe.
         q0 = np.array([
-            self.q0[
-                self.robot_models.full_robot_model.idx_qs[
-                    self.robot_models.full_robot_model.getJointId(jn)
-                ]
-            ]
-            for jn in self.robot_models.params.moving_joint_names
+             self.q0[
+                 self.robot_models.full_robot_model.idx_qs[
+                     self.robot_models.full_robot_model.getJointId(jn)
+                 ]
+             ]
+             for jn in self.robot_models.params.moving_joint_names
         ])
         self.q0 = q0.copy()
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
+        # ids =[self.robot_models.full_robot_model.getJointId(jn) for jn in self.robot_models.params.moving_joint_names
+        #         ]
+        # qO_reduced = []
+        # for joint in self.robot_models.full_robot_model.joints:
+        #     if joint.id in ids:
+        #         qO_reduced.append(joint.idx_q)
+        # self.q0 = qO_reduced.copy()
 
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
         self.get_logger().warn(
             f"Model loaded, reduced self.q0 size = {self.q0.size}")
         self.get_logger().warn(f"Model loaded, pin_model = {self.pin_model}")
+
+        # Print mapping of joint names to q indices
+        self.get_logger().warn(f"Moving joint names: {self.robot_models.params.moving_joint_names}")
+
+        self.get_logger().info("Joint name → q index mapping (reduced model):")
+        for joint in self.robot_models.params.moving_joint_names:
+            joint_id = self.robot_models.full_robot_model.getJointId(joint)
+            joint_obj = self.robot_models.full_robot_model.joints[joint_id]
+            self.get_logger().info(f"{joint}: joint_id={joint_id}, q_index={joint_obj.idx_q}")
 
     def get_weights(
         self, weights: List[np.float64], size: np.float64
@@ -207,10 +223,23 @@ class SimpleTrajectoryPublisher(Node):
         w = self.w
         sin_wt = np.sin(w * self.t)
         cos_wt = np.cos(w * self.t)
-        for i in [2, 3]:
-            self.q[i] = self.q0[i] + amp * sin_wt
-            self.dq[i] = damp * sin_wt + amp * w * cos_wt
-            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+        
+        target_joint_names = ["arm_left_3_joint", "arm_left_4_joint"]  # or whichever ones you want to oscillate
+
+        for name in target_joint_names:
+            joint_id = self.robot_models.full_robot_model.getJointId(name)
+            idx = self.robot_models.full_robot_model.joints[joint_id].idx_q
+
+        if idx < len(self.q):  # Safety check
+            self.q[idx] = self.q0[idx] + amp * sin_wt
+            self.dq[idx] = damp * sin_wt + amp * w * cos_wt
+            self.ddq[idx] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+
+
+        # for i in [2, 3]:
+        #     self.q[i] = self.q0[i] + amp * sin_wt
+        #     self.dq[i] = damp * sin_wt + amp * w * cos_wt
+        #     self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
