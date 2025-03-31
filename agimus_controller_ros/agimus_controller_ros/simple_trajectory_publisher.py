@@ -87,15 +87,15 @@ class SimpleTrajectoryPublisher(Node):
                 reliability=ReliabilityPolicy.RELIABLE,
             ),
         )
-        self.state_subscriber = self.create_subscription(
-            JointState,
-            "joint_states",
-            self.joint_states_callback,
-            qos_profile=QoSProfile(
-                depth=10,
-                reliability=ReliabilityPolicy.BEST_EFFORT,
-            ),
-        )
+        # self.state_subscriber = self.create_subscription(
+        #     JointState,
+        #     "joint_states",
+        #     self.joint_states_callback,
+        #     qos_profile=QoSProfile(
+        #         depth=10,
+        #         reliability=ReliabilityPolicy.BEST_EFFORT,
+        #     ),
+        # )
         self.publisher_ = self.create_publisher(
             MpcInput,
             "mpc_input",
@@ -168,7 +168,7 @@ class SimpleTrajectoryPublisher(Node):
              ]
              for jn in self.robot_models.params.moving_joint_names
         ])
-        self.q0 = q0.copy()
+        self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0])
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
@@ -189,10 +189,12 @@ class SimpleTrajectoryPublisher(Node):
         self.get_logger().warn(f"Moving joint names: {self.robot_models.params.moving_joint_names}")
 
         self.get_logger().info("Joint name → q index mapping (reduced model):")
-        for joint in self.robot_models.params.moving_joint_names:
-            joint_id = self.robot_models.full_robot_model.getJointId(joint)
-            joint_obj = self.robot_models.full_robot_model.joints[joint_id]
-            self.get_logger().info(f"{joint}: joint_id={joint_id}, q_index={joint_obj.idx_q}")
+        for i, joint in enumerate(self.robot_models.params.moving_joint_names):
+            self.get_logger().info(f"{i}: {joint} → {self.q0[i]:.4f}")
+        # for joint in self.robot_models.params.moving_joint_names:
+        #     joint_id = self.robot_models.full_robot_model.getJointId(joint)
+        #     joint_obj = self.robot_models.full_robot_model.joints[joint_id]
+        #     self.get_logger().info(f"{joint}: joint_id={joint_id}, q_index={joint_obj.idx_q}")
 
     def get_weights(
         self, weights: List[np.float64], size: np.float64
@@ -212,7 +214,7 @@ class SimpleTrajectoryPublisher(Node):
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
 
-        if self.robot_description_msg is None or self.q0 is None:
+        if self.robot_description_msg is None: #or self.q0 is None:
             return
 
         if self.pin_model is None:
@@ -224,22 +226,32 @@ class SimpleTrajectoryPublisher(Node):
         sin_wt = np.sin(w * self.t)
         cos_wt = np.cos(w * self.t)
         
-        target_joint_names = ["arm_left_3_joint", "arm_left_4_joint"]  # or whichever ones you want to oscillate
+        # target_joint_names = ["arm_left_3_joint", "arm_left_4_joint"]  # or whichever ones you want to oscillate
 
-        for name in target_joint_names:
-            joint_id = self.robot_models.full_robot_model.getJointId(name)
-            idx = self.robot_models.full_robot_model.joints[joint_id].idx_q
+        # for name in target_joint_names:
+        #     if joint_name in self.robot_models.params.moving_joint_names:
+        #         idx = self.robot_models.params.moving_joint_names.index(joint_name)
 
-        if idx < len(self.q):  # Safety check
-            self.q[idx] = self.q0[idx] + amp * sin_wt
-            self.dq[idx] = damp * sin_wt + amp * w * cos_wt
-            self.ddq[idx] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+        #         if idx < len(self.q):
+        #             self.q[idx] = self.q0[idx] + amp * sin_wt
+        #             self.dq[idx] = damp * sin_wt + amp * w * cos_wt
+        #             self.ddq[idx] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+            # else:
+            #     self.get_logger().warn(f"{joint_name} not in moving_joint_names!")
+    
+        #     joint_id = self.robot_models.full_robot_model.getJointId(name)
+        #     idx = self.robot_models.full_robot_model.joints[joint_id].idx_q
+
+        # if idx < len(self.q):  # Safety check
+        #     self.q[idx] = self.q0[idx] + amp * sin_wt
+        #     self.dq[idx] = damp * sin_wt + amp * w * cos_wt
+        #     self.ddq[idx] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
 
-        # for i in [2, 3]:
-        #     self.q[i] = self.q0[i] + amp * sin_wt
-        #     self.dq[i] = damp * sin_wt + amp * w * cos_wt
-        #     self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+        for i in [2, 3]:
+            self.q[i] = self.q0[i] + amp * sin_wt
+            self.dq[i] = damp * sin_wt + amp * w * cos_wt
+            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
         # Extract the end-effector position and orientation
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
