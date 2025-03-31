@@ -20,6 +20,7 @@ from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
 )
 
+
 class QuinticTrajectory:
     """Computes a quintic polynomial trajectory with desired amplitude and duration."""
 
@@ -128,14 +129,13 @@ class SimpleTrajectoryPublisher(Node):
         else:
             raise ValueError("Failed to load moving joint names from LFC")
 
-
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
         self.get_logger().warn("Received the joint states.")
         jpos = np.array(joint_states_msg.position)
         # TODO fix this, temp hac to work from sim
         if np.linalg.norm(jpos) > 1e-2:
-            self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0]) #jpos
+            self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0])  # jpos
             self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
@@ -147,27 +147,33 @@ class SimpleTrajectoryPublisher(Node):
 
     def load_models(self):
         """Callback to get robot description and store to object"""
-        self.robot_models = RobotModels(param=RobotModelParameters(
-            robot_urdf = self.robot_description_msg.data,
-            free_flyer = False,
-            moving_joint_names = self.moving_joint_names
-        ))
+        self.robot_models = RobotModels(
+            param=RobotModelParameters(
+                robot_urdf=self.robot_description_msg.data,
+                free_flyer=False,
+                moving_joint_names=self.moving_joint_names,
+            )
+        )
         self.pin_model = self.robot_models.robot_model
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
         self.get_logger().warn(f"Model loaded, self.q0 = {self.q0.size}")
-        self.get_logger().warn(f"Model loaded, nb_joints = {len(self.robot_models.full_robot_model.joints)}")
+        self.get_logger().warn(
+            f"Model loaded, nb_joints = {len(self.robot_models.full_robot_model.joints)}"
+        )
         # Note: remove 7 to joint id if free flyer is used.
         # joint id starts with 1 because joint id 0 is the universe.
-        q0 = np.array([
-             self.q0[
-                 self.robot_models.full_robot_model.idx_qs[
-                     self.robot_models.full_robot_model.getJointId(jn)
-                 ]
-             ]
-             for jn in self.robot_models.params.moving_joint_names
-        ])
+        q0 = np.array(
+            [
+                self.q0[
+                    self.robot_models.full_robot_model.idx_qs[
+                        self.robot_models.full_robot_model.getJointId(jn)
+                    ]
+                ]
+                for jn in self.robot_models.params.moving_joint_names
+            ]
+        )
         self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0])
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
@@ -181,12 +187,13 @@ class SimpleTrajectoryPublisher(Node):
         # self.q0 = qO_reduced.copy()
 
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
-        self.get_logger().warn(
-            f"Model loaded, reduced self.q0 size = {self.q0.size}")
+        self.get_logger().warn(f"Model loaded, reduced self.q0 size = {self.q0.size}")
         self.get_logger().warn(f"Model loaded, pin_model = {self.pin_model}")
 
         # Print mapping of joint names to q indices
-        self.get_logger().warn(f"Moving joint names: {self.robot_models.params.moving_joint_names}")
+        self.get_logger().warn(
+            f"Moving joint names: {self.robot_models.params.moving_joint_names}"
+        )
 
         self.get_logger().info("Joint name → q index mapping (reduced model):")
         for i, joint in enumerate(self.robot_models.params.moving_joint_names):
@@ -214,7 +221,7 @@ class SimpleTrajectoryPublisher(Node):
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
 
-        if self.robot_description_msg is None: #or self.q0 is None:
+        if self.robot_description_msg is None:  # or self.q0 is None:
             return
 
         if self.pin_model is None:
@@ -225,7 +232,7 @@ class SimpleTrajectoryPublisher(Node):
         w = self.w
         sin_wt = np.sin(w * self.t)
         cos_wt = np.cos(w * self.t)
-        
+
         # target_joint_names = ["arm_left_3_joint", "arm_left_4_joint"]  # or whichever ones you want to oscillate
 
         # for name in target_joint_names:
@@ -236,9 +243,9 @@ class SimpleTrajectoryPublisher(Node):
         #             self.q[idx] = self.q0[idx] + amp * sin_wt
         #             self.dq[idx] = damp * sin_wt + amp * w * cos_wt
         #             self.ddq[idx] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
-            # else:
-            #     self.get_logger().warn(f"{joint_name} not in moving_joint_names!")
-    
+        # else:
+        #     self.get_logger().warn(f"{joint_name} not in moving_joint_names!")
+
         #     joint_id = self.robot_models.full_robot_model.getJointId(name)
         #     idx = self.robot_models.full_robot_model.joints[joint_id].idx_q
 
@@ -246,7 +253,6 @@ class SimpleTrajectoryPublisher(Node):
         #     self.q[idx] = self.q0[idx] + amp * sin_wt
         #     self.dq[idx] = damp * sin_wt + amp * w * cos_wt
         #     self.ddq[idx] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
-
 
         for i in [2, 3]:
             self.q[i] = self.q0[i] + amp * sin_wt
