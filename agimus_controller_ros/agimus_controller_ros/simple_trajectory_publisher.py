@@ -135,7 +135,7 @@ class SimpleTrajectoryPublisher(Node):
         jpos = np.array(joint_states_msg.position)
         # TODO fix this, temp hac to work from sim
         if np.linalg.norm(jpos) > 1e-2:
-            self.q0 = jpos
+            self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0]) #jpos
             self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
