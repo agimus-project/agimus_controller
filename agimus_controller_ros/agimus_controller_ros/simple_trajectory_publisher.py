@@ -21,6 +21,22 @@ from agimus_controller_ros.trajectory_weights_parameters import (
 )
 
 
+def get_joint_idxs(
+    moving_joint_names: list[str], joint_state: JointState
+) -> list[np.int64]:
+    idxs = []
+    for joint_name in moving_joint_names:
+        idxs.append(joint_state.name.index(joint_name))
+    return idxs
+
+
+def get_reduced_configuration(q: list[np.float64], joint_idxs: list[np.int64]):
+    reduced_q = np.zeros((len(joint_idxs)))
+    for idx, joint_idx in enumerate(joint_idxs):
+        reduced_q[idx] = q[joint_idx]
+    return reduced_q
+
+
 class QuinticTrajectory:
     """Computes a quintic polynomial trajectory with desired amplitude and duration."""
 
@@ -78,6 +94,9 @@ class SimpleTrajectoryPublisher(Node):
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
         # ros2 topic info -v /joint_states
+        self.moving_joint_names = self.get_param_from_node(
+            "linear_feedback_controller", "moving_joint_names"
+        ).string_array_value
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
@@ -105,9 +124,6 @@ class SimpleTrajectoryPublisher(Node):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
-        self.moving_joint_names = self.get_param_from_node(
-            "linear_feedback_controller", "moving_joint_names"
-        ).string_array_value
         self.timer = self.create_timer(
             0.01, self.publish_mpc_input
         )  # Publish at 100 Hz
@@ -135,8 +151,11 @@ class SimpleTrajectoryPublisher(Node):
         jpos = np.array(joint_states_msg.position)
         # TODO fix this, temp hac to work from sim
         if np.linalg.norm(jpos) > 1e-2:
+            joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
+            self.q0 = get_reduced_configuration(jpos, joint_idxs)
             # self.q0 = jpos
-            self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0])
+
+            # self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0])
             self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
