@@ -230,7 +230,7 @@ class RobotModels:
             if jn not in self._params.moving_joint_names:
                 joints_to_lock.append(self._full_robot_model.getJointId(jn))
         if len(self._q0) == 0:
-            self._q0 = np.zeros(self._full_robot_model.nq)
+            self._q0 = pin.neutral(self._full_robot_model)
         (
             self._robot_model,
             [

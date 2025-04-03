@@ -9,10 +9,32 @@ from rclpy.node import Node
 import rclpy
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
+from rcl_interfaces.srv import GetParameters
+from rcl_interfaces.msg import ParameterValue
 
+from agimus_controller.factory.robot_model import (
+    RobotModelParameters,
+    RobotModels,
+)
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
 )
+
+
+def get_joint_idxs(
+    moving_joint_names: list[str], joint_state: JointState
+) -> list[np.int64]:
+    idxs = []
+    for joint_name in moving_joint_names:
+        idxs.append(joint_state.name.index(joint_name))
+    return idxs
+
+
+def get_reduced_configuration(q: list[np.float64], joint_idxs: list[np.int64]):
+    reduced_q = np.zeros((len(joint_idxs)))
+    for idx, joint_idx in enumerate(joint_idxs):
+        reduced_q[idx] = q[joint_idx]
+    return reduced_q
 
 
 class QuinticTrajectory:
@@ -54,9 +76,9 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_model = None
         self.pin_data = None
         self.ee_frame_id = None
-        self.ee_frame_name = "fer_link8"
         self.param_listener = trajectory_weights_params.ParamListener(self)
         self.params = self.param_listener.get_params()
+        self.ee_frame_name = self.params.ee_frame_name
         self.robot_description_msg = None
 
         self.q0 = None
@@ -72,6 +94,9 @@ class SimpleTrajectoryPublisher(Node):
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
         # ros2 topic info -v /joint_states
+        self.moving_joint_names = self.get_param_from_node(
+            "linear_feedback_controller", "moving_joint_names"
+        ).string_array_value
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
@@ -104,13 +129,30 @@ class SimpleTrajectoryPublisher(Node):
         )  # Publish at 100 Hz
         self.get_logger().info("Simple trajectory publisher node started.")
 
+    def get_param_from_node(self, node_name: str, param_name: str) -> ParameterValue:
+        """Returns parameter from the node"""
+        param_client = self.create_client(GetParameters, f"/{node_name}/get_parameters")
+        while not param_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("Service not available, waiting again...")
+        request = GetParameters.Request()
+        request.names = [param_name]
+
+        future = param_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            return future.result().values[0]
+        else:
+            raise ValueError("Failed to load moving joint names from LFC")
+
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
         self.get_logger().warn("Received the joint states.")
         jpos = np.array(joint_states_msg.position)
         # TODO fix this, temp hac to work from sim
         if np.linalg.norm(jpos) > 1e-2:
-            self.q0 = jpos
+            joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
+            self.q0 = get_reduced_configuration(jpos, joint_idxs)
             self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
@@ -122,14 +164,23 @@ class SimpleTrajectoryPublisher(Node):
 
     def load_models(self):
         """Callback to get robot description and store to object"""
-        self.pin_model = pin.buildModelFromXML(self.robot_description_msg.data)
+        self.robot_models = RobotModels(
+            param=RobotModelParameters(
+                robot_urdf=self.robot_description_msg.data,
+                free_flyer=False,
+                moving_joint_names=self.moving_joint_names,
+            )
+        )
+        self.pin_model = self.robot_models.robot_model
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
+
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
+        self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
 
     def get_weights(
         self, weights: List[np.float64], size: np.float64
@@ -160,7 +211,7 @@ class SimpleTrajectoryPublisher(Node):
         w = self.w
         sin_wt = np.sin(w * self.t)
         cos_wt = np.cos(w * self.t)
-        for i in [2, 3]:
+        for i in [2, 4]:
             self.q[i] = self.q0[i] + amp * sin_wt
             self.dq[i] = damp * sin_wt + amp * w * cos_wt
             self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt

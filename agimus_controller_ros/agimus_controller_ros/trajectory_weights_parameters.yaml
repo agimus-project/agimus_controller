@@ -20,3 +20,8 @@ trajectory_weights_params:
     type: double_array
     default_value: [0.1]
     description: "Weights for end-effector position cost."
+  ee_frame_name:
+    type: string
+    description: "End-effector name."
+    validation:
+      not_empty<>: []
