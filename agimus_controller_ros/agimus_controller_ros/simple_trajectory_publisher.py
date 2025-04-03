@@ -12,10 +12,16 @@ from sensor_msgs.msg import JointState
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
+from agimus_controller.trajectory import (
+    TrajectoryPoint,
+    TrajectoryPointWeights,
+    WeightedTrajectoryPoint,
+)
 from agimus_controller.factory.robot_model import (
     RobotModelParameters,
     RobotModels,
 )
+from agimus_controller_ros.ros_utils import array_to_ros_pose
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
 )
@@ -67,6 +73,56 @@ class QuinticTrajectory:
         return polynomial, d_polynomial, dd_polynomial
 
 
+class SinusWaveConfigurationSpace:
+    def __init__(self, w, scale_duration: np.float64, amp: np.float64, ee_frame_name):
+        self.quint_traj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
+        self.w = w
+        self.ee_frame_name = ee_frame_name
+        self.ee_frame_id = None
+        self.pin_model = None
+        self.pin_data = None
+        self.q0 = None
+        self.q = None
+        self.dq = None
+        self.ddq = None
+
+    def set_init_configuration(self, q0):
+        self.q0 = q0
+        self.q = self.q0.copy()
+        self.dq = np.zeros_like(self.q)
+        self.ddq = np.zeros_like(self.q)
+
+    def set_pin_model(self, pin_model):
+        self.pin_model = pin_model
+        self.pin_data = self.pin_model.createData()
+        self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
+
+    def get_traj_point_at_t(self, t):
+        amp, damp, ddamp = self.quint_traj.get_value_at_t(t)
+        w = self.w
+        sin_wt = np.sin(w * t)
+        cos_wt = np.cos(w * t)
+        for i in [2, 4]:
+            self.q[i] = self.q0[i] + amp * sin_wt
+            self.dq[i] = damp * sin_wt + amp * w * cos_wt
+            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+        pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
+        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
+
+        ee_pose = pin.SE3ToXYZQUAT(self.pin_data.oMf[self.ee_frame_id])
+
+        u = pin.rnea(self.pin_model, self.pin_data, self.q, self.dq, self.ddq)
+        traj_point = TrajectoryPoint(
+            time_ns=t,
+            robot_configuration=self.q,
+            robot_velocity=self.dq,
+            robot_acceleration=self.ddq,
+            robot_effort=u,
+            end_effector_poses={self.ee_frame_name: ee_pose},
+        )
+        return traj_point
+
+
 class SimpleTrajectoryPublisher(Node):
     """This is a simple trajectory publisher for a Panda robot."""
 
@@ -82,14 +138,12 @@ class SimpleTrajectoryPublisher(Node):
         self.robot_description_msg = None
 
         self.q0 = None
-        self.q = None
-        self.dq = None
-        self.ddq = None
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
-        self.quint_traj = QuinticTrajectory(scale_duration=0.8, amp=0.2)
-        self.w = 0.5 * np.pi
+        self.trajectory = SinusWaveConfigurationSpace(
+            w=0.5 * np.pi, scale_duration=0.8, amp=0.2, ee_frame_name=self.ee_frame_name
+        )
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
@@ -153,6 +207,7 @@ class SimpleTrajectoryPublisher(Node):
         if np.linalg.norm(jpos) > 1e-2:
             joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
             self.q0 = get_reduced_configuration(jpos, joint_idxs)
+            self.trajectory.set_init_configuration(q0=self.q0)
             self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
@@ -171,13 +226,10 @@ class SimpleTrajectoryPublisher(Node):
                 moving_joint_names=self.moving_joint_names,
             )
         )
+        self.trajectory.set_pin_model(self.robot_models.robot_model)
         self.pin_model = self.robot_models.robot_model
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
-
-        self.q = self.q0.copy()
-        self.dq = np.zeros_like(self.q)
-        self.ddq = np.zeros_like(self.q)
 
         self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
@@ -203,28 +255,13 @@ class SimpleTrajectoryPublisher(Node):
         if self.robot_description_msg is None or self.q0 is None:
             return
 
-        if self.pin_model is None:
+        if self.trajectory.pin_model is None:
             self.load_models()
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
-        amp, damp, ddamp = self.quint_traj.get_value_at_t(self.t)
-        w = self.w
-        sin_wt = np.sin(w * self.t)
-        cos_wt = np.cos(w * self.t)
-        for i in [2, 4]:
-            self.q[i] = self.q0[i] + amp * sin_wt
-            self.dq[i] = damp * sin_wt + amp * w * cos_wt
-            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
+        traj_point = self.trajectory.get_traj_point_at_t(self.t)
         # Extract the end-effector position and orientation
-        pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
-        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
-
-        ee_pose = self.pin_data.oMf[self.ee_frame_id]
-        xyz_quatxyzw = pin.SE3ToXYZQUAT(ee_pose)
-
-        u = pin.rnea(self.pin_model, self.pin_data, self.q, self.dq, self.ddq)
-
         # Create the message
         msg = MpcInput()
 
@@ -233,21 +270,12 @@ class SimpleTrajectoryPublisher(Node):
         msg.w_qddot = self.get_weights(self.params.w_qddot, self.croco_nq)
         msg.w_robot_effort = self.get_weights(self.params.w_robot_effort, self.croco_nq)
         msg.w_pose = self.get_weights(self.params.w_pose, 6)
-        msg.q = list(self.q[: self.croco_nq])
-        msg.qdot = list(self.dq[: self.croco_nq])
-        msg.qddot = list(self.ddq[: self.croco_nq])
+        msg.q = list(traj_point.robot_configuration)
+        msg.qdot = list(traj_point.robot_velocity)
+        msg.qddot = list(traj_point.robot_acceleration)
 
-        msg.robot_effort = list(u[: self.croco_nq])
-
-        pose = Pose()
-        pose.position.x = xyz_quatxyzw[0]
-        pose.position.y = xyz_quatxyzw[1]
-        pose.position.z = xyz_quatxyzw[2]
-        pose.orientation.x = xyz_quatxyzw[3]
-        pose.orientation.y = xyz_quatxyzw[4]
-        pose.orientation.z = xyz_quatxyzw[5]
-        pose.orientation.w = xyz_quatxyzw[6]
-        msg.pose = pose
+        msg.robot_effort = list(traj_point.robot_effort)
+        msg.pose = array_to_ros_pose(traj_point.end_effector_poses[self.ee_frame_name])
 
         msg.ee_frame_name = self.ee_frame_name
 

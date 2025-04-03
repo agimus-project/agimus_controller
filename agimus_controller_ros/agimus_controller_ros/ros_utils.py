@@ -29,6 +29,19 @@ def ros_pose_to_array(pose: Pose) -> npt.NDArray[np.float64]:
     )
 
 
+def array_to_ros_pose(pose_array: Pose) -> npt.NDArray[np.float64]:
+    """Convert geometry_msgs.msg.Pose to a 7d numpy array"""
+    ros_pose = Pose()
+    ros_pose.position.x = pose_array[0]
+    ros_pose.position.y = pose_array[1]
+    ros_pose.position.z = pose_array[2]
+    ros_pose.orientation.x = pose_array[3]
+    ros_pose.orientation.y = pose_array[4]
+    ros_pose.orientation.z = pose_array[5]
+    ros_pose.orientation.w = pose_array[6]
+    return ros_pose
+
+
 def mpc_msg_to_weighted_traj_point(
     msg: MpcInput, time_ns: int
 ) -> WeightedTrajectoryPoint:
