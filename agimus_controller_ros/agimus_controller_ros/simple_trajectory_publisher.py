@@ -88,7 +88,7 @@ class SimpleTrajectoryPublisher(Node):
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
-        self.quint_traj = QuinticTrajectory(scale_duration=0.8, amp=0.0)
+        self.quint_traj = QuinticTrajectory(scale_duration=0.8, amp=0.2)
         self.w = 0.5 * np.pi
 
         # Obtained by checking "QoS profile" values in out of:
@@ -153,9 +153,6 @@ class SimpleTrajectoryPublisher(Node):
         if np.linalg.norm(jpos) > 1e-2:
             joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
             self.q0 = get_reduced_configuration(jpos, joint_idxs)
-            # self.q0 = jpos
-
-            # self.q0 = np.array([0.36, -1.83, 0.47, -2.35, 0.0, -1.2, 0.0])
             self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
 
@@ -178,20 +175,12 @@ class SimpleTrajectoryPublisher(Node):
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
-        self.get_logger().warn(f"Model loaded, self.q0 = {self.q0.size}")
-        self.get_logger().warn(
-            f"Model loaded, nb_joints = {len(self.robot_models.full_robot_model.joints)}"
-        )
-        # Note: remove 7 to joint id if free flyer is used.
-        # joint id starts with 1 because joint id 0 is the universe.
-
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
 
+        self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
-        self.get_logger().warn(f"Model loaded, reduced self.q0 size = {self.q0.size}")
-        self.get_logger().warn(f"Model loaded, pin_model = {self.pin_model}")
 
     def get_weights(
         self, weights: List[np.float64], size: np.float64

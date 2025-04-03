@@ -74,7 +74,7 @@ agimus_controller_params:
     description: "Wether we account for self-collision"
   collision_pairs_names:
     type: string_array
-    default_value: []
+    default_value: [""]
     description: List of names of collision pairs passed to the OCP.
     read_only: true
   __map_collision_pairs_names:
