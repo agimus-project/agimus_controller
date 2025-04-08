@@ -30,6 +30,11 @@
       url = "https://github.com/nim65s/nixpkgs/pull/2.patch";
       flake = false;
     };
+    # mim-solvers 0.0.5 -> 0.1.0 for crocco v3
+    patch-mim-solvers = {
+      url = "https://github.com/NixOS/nixpkgs/pull/391930.patch";
+      flake = false;
+    };
   };
 
   outputs =
@@ -40,10 +45,9 @@
       franka-description,
       nix-ros-overlay,
       nixpkgs,
-      patch-hpp,
       self,
       ...
-    }:
+    }@inputs:
     nix-ros-overlay.inputs.flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -59,7 +63,10 @@
               });
             })
           ];
-          patches = [ patch-hpp ];
+          patches = [
+            inputs.patch-hpp
+            inputs.patch-mim-solvers
+          ];
         };
       in
       {

@@ -202,13 +202,25 @@
     "patch-hpp": {
       "flake": false,
       "locked": {
-        "narHash": "sha256-+/S2A4p6kTva+ZOFRt+XSd5N04BA3RcJHZvL17ebcLw=",
+        "narHash": "sha256-Rj07W99G9CvZEc/92lAJa8JYqgFKhaIoeyJuatpLlhk=",
         "type": "file",
         "url": "https://github.com/nim65s/nixpkgs/pull/2.patch"
       },
       "original": {
         "type": "file",
         "url": "https://github.com/nim65s/nixpkgs/pull/2.patch"
+      }
+    },
+    "patch-mim-solvers": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-0pQZ2ZymAp7PTxxo66Suu4N4JywieN6MV0zSyd4m+Aw=",
+        "type": "file",
+        "url": "https://github.com/NixOS/nixpkgs/pull/391930.patch"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://github.com/NixOS/nixpkgs/pull/391930.patch"
       }
     },
     "root": {
@@ -222,7 +234,8 @@
           "nix-ros-overlay",
           "nixpkgs"
         ],
-        "patch-hpp": "patch-hpp"
+        "patch-hpp": "patch-hpp",
+        "patch-mim-solvers": "patch-mim-solvers"
       }
     },
     "systems": {
