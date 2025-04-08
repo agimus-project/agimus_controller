@@ -25,7 +25,10 @@
       "inputs": {
         "flake-parts": "flake-parts",
         "mim-solvers": "mim-solvers",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": [
+          "nix-ros-overlay",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1744049836,
@@ -148,7 +151,7 @@
     "nix-ros-overlay": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs"
       },
       "locked": {
         "lastModified": 1743964225,
@@ -167,16 +170,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1743827369,
-        "narHash": "sha256-rpqepOZ8Eo1zg+KJeWoq1HAOgoMCDloqv5r2EAa9TSA=",
-        "owner": "NixOS",
+        "lastModified": 1739580444,
+        "narHash": "sha256-+/bSz4EAVbqz8/HsIGLroF8aNaO8bLRL7WfACN+24g4=",
+        "owner": "lopsided98",
         "repo": "nixpkgs",
-        "rev": "42a1c966be226125b48c384171c44c651c236c22",
+        "rev": "8bb37161a0488b89830168b81c48aed11569cb93",
         "type": "github"
       },
       "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
+        "owner": "lopsided98",
+        "ref": "nix-ros",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -196,26 +199,10 @@
         "type": "github"
       }
     },
-    "nixpkgs_2": {
-      "locked": {
-        "lastModified": 1739580444,
-        "narHash": "sha256-+/bSz4EAVbqz8/HsIGLroF8aNaO8bLRL7WfACN+24g4=",
-        "owner": "lopsided98",
-        "repo": "nixpkgs",
-        "rev": "8bb37161a0488b89830168b81c48aed11569cb93",
-        "type": "github"
-      },
-      "original": {
-        "owner": "lopsided98",
-        "ref": "nix-ros",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "patch-hpp": {
       "flake": false,
       "locked": {
-        "narHash": "sha256-Rj07W99G9CvZEc/92lAJa8JYqgFKhaIoeyJuatpLlhk=",
+        "narHash": "sha256-+/S2A4p6kTva+ZOFRt+XSd5N04BA3RcJHZvL17ebcLw=",
         "type": "file",
         "url": "https://github.com/nim65s/nixpkgs/pull/2.patch"
       },

@@ -12,7 +12,7 @@
     };
     colmpc = {
       url = "github:agimus-project/colmpc";
-      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
+      inputs.nixpkgs.follows = "nix-ros-overlay/nixpkgs";
     };
     linear-feedback-controller-msgs = {
       url = "github:loco-3d/linear-feedback-controller-msgs/humble-devel";
