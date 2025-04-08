@@ -12,7 +12,7 @@
     };
     colmpc = {
       url = "github:agimus-project/colmpc";
-      inputs.nixpkgs.follows = "nix-ros-overlay/nixpkgs";
+      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
     };
     linear-feedback-controller-msgs = {
       url = "github:loco-3d/linear-feedback-controller-msgs/humble-devel";
@@ -49,7 +49,16 @@
       let
         pkgs = import ./patched-nixpkgs.nix {
           inherit nixpkgs system;
-          overlays = [ nix-ros-overlay.overlays.default ];
+          overlays = [
+            nix-ros-overlay.overlays.default
+            (final: prev: {
+              python = prev.python3_12; # Force all packages to use nixpkgs' python3_12
+              python3Packages = prev.python3Packages; # Ensure consistency for Python packages
+              colmpc = prev.colmpc.overridePythonAttrs (old: {
+                python = prev.python3_12; # Force colmpc to use the same Python version
+              });
+            })
+          ];
           patches = [ patch-hpp ];
         };
       in
@@ -57,7 +66,7 @@
         packages = {
           default = self.packages.${system}.agimus-controller-ros;
           agimus-controller = pkgs.python3Packages.callPackage ./agimus_controller/default.nix {
-            inherit (colmpc.packages.${system}) colmpc;
+            colmpc = colmpc.packages.${system}.py-colmpc;
             inherit (franka-description.packages.${system}) franka-description;
           };
           agimus-controller-examples =

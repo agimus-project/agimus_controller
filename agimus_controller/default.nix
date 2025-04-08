@@ -17,7 +17,7 @@
 }:
 buildPythonPackage {
   pname = "agimus-controller";
-  version = "0-unstable-2025-01-15";
+  version = "0-unstable-2025-04-08";
 
   src = lib.fileset.toSource {
     root = ./.;
