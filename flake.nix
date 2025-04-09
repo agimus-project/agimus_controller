@@ -30,9 +30,14 @@
       url = "https://github.com/nim65s/nixpkgs/pull/2.patch";
       flake = false;
     };
-    # mim-solvers 0.0.5 -> 0.1.0 for crocco v3
+    # mim-solvers 0.0.5 -> 0.1.0 for crocoddyl v3
     patch-mim-solvers = {
       url = "https://github.com/NixOS/nixpkgs/pull/391930.patch";
+      flake = false;
+    };
+    # crocoddyl 2.2.0 -> 3.0.0 for crocoddyl v3
+    patch-crocoddyl = {
+      url = "https://github.com/NixOS/nixpkgs/pull/391300.patch";
       flake = false;
     };
   };
@@ -53,19 +58,11 @@
       let
         pkgs = import ./patched-nixpkgs.nix {
           inherit nixpkgs system;
-          overlays = [
-            nix-ros-overlay.overlays.default
-            (final: prev: {
-              python = prev.python3_12; # Force all packages to use nixpkgs' python3_12
-              python3Packages = prev.python3Packages; # Ensure consistency for Python packages
-              colmpc = prev.colmpc.overridePythonAttrs (old: {
-                python = prev.python3_12; # Force colmpc to use the same Python version
-              });
-            })
-          ];
+          overlays = [ nix-ros-overlay.overlays.default];
           patches = [
             inputs.patch-hpp
             inputs.patch-mim-solvers
+            inputs.patch-crocoddyl
           ];
         };
       in

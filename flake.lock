@@ -154,11 +154,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1743964225,
-        "narHash": "sha256-kNnEsx0vIlttxIBImExRihb5kzIZltoDY60W61igjVc=",
+        "lastModified": 1744157591,
+        "narHash": "sha256-18WMXNLZ91ot9wFyF/yMai68IcBgwnnwIIndoOflzlA=",
         "owner": "lopsided98",
         "repo": "nix-ros-overlay",
-        "rev": "2985461e1ca758fb0c9ad90dbeaa3e46b652e15c",
+        "rev": "215f4895bf988ca94d2ccd09c9bd5d0971f9fcb9",
         "type": "github"
       },
       "original": {
@@ -199,6 +199,18 @@
         "type": "github"
       }
     },
+    "patch-crocoddyl": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-ZXHVE5pfGVlYlqqqhYsIJAihZClkxANbjs/IjH42Qu0=",
+        "type": "file",
+        "url": "https://github.com/NixOS/nixpkgs/pull/391300.patch"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://github.com/NixOS/nixpkgs/pull/391300.patch"
+      }
+    },
     "patch-hpp": {
       "flake": false,
       "locked": {
@@ -234,6 +246,7 @@
           "nix-ros-overlay",
           "nixpkgs"
         ],
+        "patch-crocoddyl": "patch-crocoddyl",
         "patch-hpp": "patch-hpp",
         "patch-mim-solvers": "patch-mim-solvers"
       }
