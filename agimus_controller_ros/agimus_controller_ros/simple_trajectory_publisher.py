@@ -7,8 +7,6 @@ from geometry_msgs.msg import Pose
 from std_msgs.msg import String
 from rclpy.node import Node
 import rclpy
-import sys
-import argparse
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from rcl_interfaces.srv import GetParameters
@@ -69,11 +67,11 @@ class QuinticTrajectory:
         return polynomial, d_polynomial, dd_polynomial
 
 
-class ReferenceTrajectoryPublisher(Node):
+class SimpleTrajectoryPublisher(Node):
     """This is a simple trajectory publisher for a Panda robot."""
 
-    def __init__(self, node_name: str = "reference_trajectory_publisher"):
-        super().__init__(node_name)
+    def __init__(self):
+        super().__init__("simple_trajectory_publisher")
 
         self.pin_model = None
         self.pin_data = None
@@ -84,8 +82,14 @@ class ReferenceTrajectoryPublisher(Node):
         self.robot_description_msg = None
 
         self.q0 = None
+        self.q = None
+        self.dq = None
+        self.ddq = None
         self.t = 0.0
         self.dt = 0.01
+        self.croco_nq = 7
+        self.quint_traj = QuinticTrajectory(scale_duration=0.8, amp=0.2)
+        self.w = 0.5 * np.pi
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
@@ -120,7 +124,9 @@ class ReferenceTrajectoryPublisher(Node):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
-        self._init_timer = self.create_timer(0.1, self._initialize_loop)
+        self.timer = self.create_timer(
+            0.01, self.publish_mpc_input
+        )  # Publish at 100 Hz
         self.get_logger().info("Simple trajectory publisher node started.")
 
     def get_param_from_node(self, node_name: str, param_name: str) -> ParameterValue:
@@ -152,7 +158,7 @@ class ReferenceTrajectoryPublisher(Node):
 
     def robot_description_callback(self, msg: String) -> None:
         """Create the models of the robot from the urdf string."""
-        self.get_logger().info("Received robot description.")
+        self.get_logger().warn("Received robot description.")
         self.robot_description_msg = msg
         self.destroy_subscription(self.subscriber_robot_description_)
 
@@ -169,150 +175,82 @@ class ReferenceTrajectoryPublisher(Node):
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
-        self.get_logger().info(f"Model loaded, reduced self.q0 = {self.q0}")
-        self.get_logger().info(f"Model loaded, reduced self.q0 size = {self.q0.size}")
-        self.get_logger().info(f"Model loaded, pin_model = {self.pin_model}")
-
-    def _initialize_loop(self):
-        if self.robot_description_msg is None or self.q0 is None:
-            return
-
-        self.load_models()
-        self.initialization()
-
-        self.destroy_timer(self._init_timer)
-        self._publish_timer = self.create_timer(
-            self.dt, self.publish_mpc_input
-        )  # Publish at the same frequency as the MPC node reads input.
-        self.get_logger().info("Simple trajectory publisher node ready to publish.")
-
-    def initialization(self):
-        pass
-
-    def create_message(self, q, dq, ddq, u, ee_xyz_quatxyzw):
-        def as_weights_array(
-            weights: List[np.float64], size: np.float64
-        ) -> List[np.float64]:
-            return weights * size if len(weights) == 1 else weights
-
-        # Create the message
-        msg = MpcInput()
-
-        nv = self.pin_model.nv
-        msg.w_q = as_weights_array(self.params.w_q, nv)
-        msg.w_qdot = as_weights_array(self.params.w_qdot, nv)
-        msg.w_qddot = as_weights_array(self.params.w_qddot, nv)
-        msg.w_robot_effort = as_weights_array(self.params.w_robot_effort, nv)
-        msg.w_pose = as_weights_array(self.params.w_pose, 6)
-        msg.q = list(q)
-        msg.qdot = list(dq)
-        msg.qddot = list(ddq)
-
-        msg.robot_effort = list(u)
-
-        pose = Pose()
-        pose.position.x = ee_xyz_quatxyzw[0]
-        pose.position.y = ee_xyz_quatxyzw[1]
-        pose.position.z = ee_xyz_quatxyzw[2]
-        pose.orientation.x = ee_xyz_quatxyzw[3]
-        pose.orientation.y = ee_xyz_quatxyzw[4]
-        pose.orientation.z = ee_xyz_quatxyzw[5]
-        pose.orientation.w = ee_xyz_quatxyzw[6]
-        msg.pose = pose
-
-        msg.ee_frame_name = self.ee_frame_name
-        return msg
-
-    def create_message_using_FK_and_RNEA(self, q, dq, ddq):
-        # Extract the end-effector position and orientation
-        pin.forwardKinematics(self.pin_model, self.pin_data, q)
-        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
-
-        ee_pose = self.pin_data.oMf[self.ee_frame_id]
-        xyz_quatxyzw = pin.SE3ToXYZQUAT(ee_pose)
-
-        u = pin.rnea(self.pin_model, self.pin_data, q, dq, ddq)
-
-        msg = self.create_message(q, dq, ddq, u, xyz_quatxyzw)
-        return msg
-
-
-class SineWaveTrajectoryPublisher(ReferenceTrajectoryPublisher):
-    def __init__(
-        self,
-        joint_names: List[str],
-        amplitude: float = 0.2,  # radians
-        period: float = 4,  # seconds
-        scale_duration: float = 0.8,  # seconds
-    ):
-        super().__init__("simple_trajectory_publisher")
-
-        self._oscillating_joint_names = joint_names
-        self.quint_traj = QuinticTrajectory(
-            scale_duration=scale_duration, amp=amplitude
-        )
-        self.w = 2 * np.pi / period
-
-    @staticmethod
-    def build_from_args(argv):
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "joint_names", nargs="+", type=str, help="oscillating joint names"
-        )
-        parser.add_argument(
-            "--period",
-            "-T",
-            type=float,
-            default=4.0,
-            help="Oscillation period in seconds",
-        )
-        parser.add_argument(
-            "--amplitude",
-            "-A",
-            type=float,
-            default=0.2,
-            help="Oscillation amplitude in radians / meters.",
-        )
-        parser.add_argument(
-            "--scale-duration",
-            type=float,
-            default=0.8,
-            help="Time in seconds to reach the full amplitude.",
-        )
-        args, remaining = parser.parse_known_args(argv)
-
-        return SineWaveTrajectoryPublisher(
-            joint_names=args.joint_names,
-            amplitude=args.amplitude,
-            period=args.period,
-            scale_duration=args.scale_duration,
-        )
-
-    def initialization(self):
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
-        self._oscillating_joint_idx = [
-            self.pin_model.getJointId(jn) for jn in self._oscillating_joint_names
-        ]
+
+        self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
+        self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
+
+    def get_weights(
+        self, weights: List[np.float64], size: np.float64
+    ) -> List[np.float64]:
+        """
+        Return weights with right size if user sent only one value, otherwise
+        directly returns weights.
+        """
+        if len(weights) == 1:
+            return weights * size
+        else:
+            return weights
 
     def publish_mpc_input(self):
         """
         Main function to create a dummy mpc input
         Modifies each joint in sin manner with 0.2 rad amplitude
         """
+
+        if self.robot_description_msg is None or self.q0 is None:
+            return
+
+        if self.pin_model is None:
+            self.load_models()
         # Currently not changing the last two joints - fingers
         # for i in range(self.pin_model.nq - 2):
         amp, damp, ddamp = self.quint_traj.get_value_at_t(self.t)
         w = self.w
         sin_wt = np.sin(w * self.t)
         cos_wt = np.cos(w * self.t)
-        for i in self._oscillating_joint_idx:
+        for i in [2, 4]:
             self.q[i] = self.q0[i] + amp * sin_wt
             self.dq[i] = damp * sin_wt + amp * w * cos_wt
             self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
 
-        msg = self.create_message_using_FK_and_RNEA(self.q, self.dq, self.ddq)
+        # Extract the end-effector position and orientation
+        pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
+        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
+
+        ee_pose = self.pin_data.oMf[self.ee_frame_id]
+        xyz_quatxyzw = pin.SE3ToXYZQUAT(ee_pose)
+
+        u = pin.rnea(self.pin_model, self.pin_data, self.q, self.dq, self.ddq)
+
+        # Create the message
+        msg = MpcInput()
+
+        msg.w_q = self.get_weights(self.params.w_q, self.croco_nq)
+        msg.w_qdot = self.get_weights(self.params.w_qdot, self.croco_nq)
+        msg.w_qddot = self.get_weights(self.params.w_qddot, self.croco_nq)
+        msg.w_robot_effort = self.get_weights(self.params.w_robot_effort, self.croco_nq)
+        msg.w_pose = self.get_weights(self.params.w_pose, 6)
+        msg.q = list(self.q[: self.croco_nq])
+        msg.qdot = list(self.dq[: self.croco_nq])
+        msg.qddot = list(self.ddq[: self.croco_nq])
+
+        msg.robot_effort = list(u[: self.croco_nq])
+
+        pose = Pose()
+        pose.position.x = xyz_quatxyzw[0]
+        pose.position.y = xyz_quatxyzw[1]
+        pose.position.z = xyz_quatxyzw[2]
+        pose.orientation.x = xyz_quatxyzw[3]
+        pose.orientation.y = xyz_quatxyzw[4]
+        pose.orientation.z = xyz_quatxyzw[5]
+        pose.orientation.w = xyz_quatxyzw[6]
+        msg.pose = pose
+
+        msg.ee_frame_name = self.ee_frame_name
+
         self.publisher_.publish(msg)
         # self.get_logger().info(f'Published MPC Input: {msg}')
         self.t += self.dt
@@ -320,7 +258,7 @@ class SineWaveTrajectoryPublisher(ReferenceTrajectoryPublisher):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = SineWaveTrajectoryPublisher.build_from_args(args)
+    node = SimpleTrajectoryPublisher()
 
     try:
         rclpy.spin(node)
@@ -332,4 +270,4 @@ def main(args=None):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()
