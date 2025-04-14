@@ -1,8 +1,8 @@
 import numpy as np
-import numpy.typing as npt
 import pinocchio as pin
 
 from agimus_controller.trajectories.quintic_trajectory import QuinticTrajectory
+from agimus_controller.trajectories.trajectory_base import TrajectoryBase
 from agimus_controller.trajectory import (
     TrajectoryPoint,
     TrajectoryPointWeights,
@@ -10,7 +10,9 @@ from agimus_controller.trajectory import (
 )
 
 
-class SinusWaveConfigurationSpace:
+class SinusWaveConfigurationSpace(TrajectoryBase):
+    """ "Define the trajectory of a sine-wave in configuration Space."""
+
     def __init__(
         self,
         w,
@@ -23,34 +25,14 @@ class SinusWaveConfigurationSpace:
         w_robot_effort,
         w_pose,
     ):
+        super().__init__(ee_frame_name)
         self.quint_traj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
         self.w = w
-        self.ee_frame_name = ee_frame_name
         self.w_q = w_q
         self.w_qdot = w_qdot
         self.w_qddot = w_qddot
         self.w_robot_effort = w_robot_effort
         self.w_pose = w_pose
-        self.ee_frame_id = None
-        self.pin_model = None
-        self.pin_data = None
-        self.q0 = None
-        self.q = None
-        self.dq = None
-        self.ddq = None
-
-    def set_init_configuration(self, q0: npt.NDArray[np.float64]) -> None:
-        """Set q0 of the robot."""
-        self.q0 = q0
-        self.q = self.q0.copy()
-        self.dq = np.zeros_like(self.q)
-        self.ddq = np.zeros_like(self.q)
-
-    def set_pin_model(self, pin_model: pin.Model) -> None:
-        """Set pinocchio model of the robot and frame id."""
-        self.pin_model = pin_model
-        self.pin_data = self.pin_model.createData()
-        self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         amp, damp, ddamp = self.quint_traj.get_value_at_t(t)
