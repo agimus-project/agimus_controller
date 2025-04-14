@@ -1,7 +1,5 @@
-from typing import List, Tuple
+from typing import List
 import numpy as np
-import pinocchio as pin
-import numpy.typing as npt
 
 from agimus_msgs.msg import MpcInput
 from std_msgs.msg import String
@@ -12,14 +10,13 @@ from sensor_msgs.msg import JointState
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
-from agimus_controller.trajectory import (
-    TrajectoryPoint,
-    TrajectoryPointWeights,
-    WeightedTrajectoryPoint,
-)
+
 from agimus_controller.factory.robot_model import (
     RobotModelParameters,
     RobotModels,
+)
+from agimus_controller.trajectories.sine_wave_configuration_space import (
+    SinusWaveConfigurationSpace,
 )
 from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
 from agimus_controller_ros.trajectory_weights_parameters import (
@@ -41,111 +38,6 @@ def get_reduced_configuration(q: list[np.float64], joint_idxs: list[np.int64]):
     for idx, joint_idx in enumerate(joint_idxs):
         reduced_q[idx] = q[joint_idx]
     return reduced_q
-
-
-class QuinticTrajectory:
-    """Computes a quintic polynomial trajectory with desired amplitude and duration."""
-
-    def __init__(self, scale_duration: np.float64, amp: np.float64):
-        """Initialize polynomial attributes."""
-        self.amp = amp
-        self.scale_duration = scale_duration
-
-    def get_value_at_t(
-        self, t: np.float64
-    ) -> Tuple[np.float64, np.float64, np.float64]:
-        """Return polynomial value and his derivatives at time t."""
-        if t <= 0:
-            return 0.0, 0.0, 0.0
-        elif t >= self.scale_duration:
-            return self.amp, 0.0, 0.0
-
-        # Normalize time
-        s = t / self.scale_duration
-
-        polynomial = self.amp * (10 * s**3 - 15 * s**4 + 6 * s**5)
-        d_polynomial = (
-            self.amp * (30 * s**2 - 60 * s**3 + 30 * s**4) / self.scale_duration
-        )
-        dd_polynomial = (
-            self.amp * (60 * s - 180 * s**2 + 120 * s**3) / (self.scale_duration**2)
-        )
-        return polynomial, d_polynomial, dd_polynomial
-
-
-class SinusWaveConfigurationSpace:
-    def __init__(
-        self,
-        w,
-        scale_duration: np.float64,
-        amp: np.float64,
-        ee_frame_name,
-        w_q,
-        w_qdot,
-        w_qddot,
-        w_robot_effort,
-        w_pose,
-    ):
-        self.quint_traj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
-        self.w = w
-        self.ee_frame_name = ee_frame_name
-        self.w_q = w_q
-        self.w_qdot = w_qdot
-        self.w_qddot = w_qddot
-        self.w_robot_effort = w_robot_effort
-        self.w_pose = w_pose
-        self.ee_frame_id = None
-        self.pin_model = None
-        self.pin_data = None
-        self.q0 = None
-        self.q = None
-        self.dq = None
-        self.ddq = None
-
-    def set_init_configuration(self, q0: npt.NDArray[np.float64]) -> None:
-        """Set q0 of the robot."""
-        self.q0 = q0
-        self.q = self.q0.copy()
-        self.dq = np.zeros_like(self.q)
-        self.ddq = np.zeros_like(self.q)
-
-    def set_pin_model(self, pin_model: pin.model) -> None:
-        """Set pinocchio model of the robot and frame id."""
-        self.pin_model = pin_model
-        self.pin_data = self.pin_model.createData()
-        self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
-
-    def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
-        amp, damp, ddamp = self.quint_traj.get_value_at_t(t)
-        w = self.w
-        sin_wt = np.sin(w * t)
-        cos_wt = np.cos(w * t)
-        for i in [2, 4]:
-            self.q[i] = self.q0[i] + amp * sin_wt
-            self.dq[i] = damp * sin_wt + amp * w * cos_wt
-            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
-        pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
-        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
-
-        ee_pose = pin.SE3ToXYZQUAT(self.pin_data.oMf[self.ee_frame_id])
-
-        u = pin.rnea(self.pin_model, self.pin_data, self.q, self.dq, self.ddq)
-        traj_point = TrajectoryPoint(
-            time_ns=t,
-            robot_configuration=self.q,
-            robot_velocity=self.dq,
-            robot_acceleration=self.ddq,
-            robot_effort=u,
-            end_effector_poses={self.ee_frame_name: ee_pose},
-        )
-        traj_weights = TrajectoryPointWeights(
-            w_robot_configuration=self.w_q,
-            w_robot_velocity=self.w_qdot,
-            w_robot_acceleration=self.w_qddot,
-            w_robot_effort=self.w_robot_effort,
-            w_end_effector_poses={self.ee_frame_name: self.w_pose},
-        )
-        return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
 
 
 class SimpleTrajectoryPublisher(Node):
