@@ -1,9 +1,9 @@
 from typing import List, Tuple
 import numpy as np
 import pinocchio as pin
+import numpy.typing as npt
 
 from agimus_msgs.msg import MpcInput
-from geometry_msgs.msg import Pose
 from std_msgs.msg import String
 from rclpy.node import Node
 import rclpy
@@ -21,7 +21,7 @@ from agimus_controller.factory.robot_model import (
     RobotModelParameters,
     RobotModels,
 )
-from agimus_controller_ros.ros_utils import array_to_ros_pose
+from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
 )
@@ -74,10 +74,26 @@ class QuinticTrajectory:
 
 
 class SinusWaveConfigurationSpace:
-    def __init__(self, w, scale_duration: np.float64, amp: np.float64, ee_frame_name):
+    def __init__(
+        self,
+        w,
+        scale_duration: np.float64,
+        amp: np.float64,
+        ee_frame_name,
+        w_q,
+        w_qdot,
+        w_qddot,
+        w_robot_effort,
+        w_pose,
+    ):
         self.quint_traj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
         self.w = w
         self.ee_frame_name = ee_frame_name
+        self.w_q = w_q
+        self.w_qdot = w_qdot
+        self.w_qddot = w_qddot
+        self.w_robot_effort = w_robot_effort
+        self.w_pose = w_pose
         self.ee_frame_id = None
         self.pin_model = None
         self.pin_data = None
@@ -86,18 +102,20 @@ class SinusWaveConfigurationSpace:
         self.dq = None
         self.ddq = None
 
-    def set_init_configuration(self, q0):
+    def set_init_configuration(self, q0: npt.NDArray[np.float64]) -> None:
+        """Set q0 of the robot."""
         self.q0 = q0
         self.q = self.q0.copy()
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
 
-    def set_pin_model(self, pin_model):
+    def set_pin_model(self, pin_model: pin.model) -> None:
+        """Set pinocchio model of the robot and frame id."""
         self.pin_model = pin_model
         self.pin_data = self.pin_model.createData()
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
-    def get_traj_point_at_t(self, t):
+    def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         amp, damp, ddamp = self.quint_traj.get_value_at_t(t)
         w = self.w
         sin_wt = np.sin(w * t)
@@ -120,7 +138,14 @@ class SinusWaveConfigurationSpace:
             robot_effort=u,
             end_effector_poses={self.ee_frame_name: ee_pose},
         )
-        return traj_point
+        traj_weights = TrajectoryPointWeights(
+            w_robot_configuration=self.w_q,
+            w_robot_velocity=self.w_qdot,
+            w_robot_acceleration=self.w_qddot,
+            w_robot_effort=self.w_robot_effort,
+            w_end_effector_poses={self.ee_frame_name: self.w_pose},
+        )
+        return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
 
 
 class SimpleTrajectoryPublisher(Node):
@@ -129,20 +154,26 @@ class SimpleTrajectoryPublisher(Node):
     def __init__(self):
         super().__init__("simple_trajectory_publisher")
 
-        self.pin_model = None
-        self.pin_data = None
-        self.ee_frame_id = None
         self.param_listener = trajectory_weights_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
         self.robot_description_msg = None
 
         self.q0 = None
+        self.current_q = None
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
         self.trajectory = SinusWaveConfigurationSpace(
-            w=0.5 * np.pi, scale_duration=0.8, amp=0.2, ee_frame_name=self.ee_frame_name
+            w=0.5 * np.pi,
+            scale_duration=0.8,
+            amp=0.2,
+            ee_frame_name=self.ee_frame_name,
+            w_q=self.get_weights(self.params.w_q, self.croco_nq),
+            w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+            w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+            w_robot_effort=self.get_weights(self.params.w_robot_effort, self.croco_nq),
+            w_pose=self.get_weights(self.params.w_pose, 6),
         )
 
         # Obtained by checking "QoS profile" values in out of:
@@ -201,15 +232,17 @@ class SimpleTrajectoryPublisher(Node):
 
     def joint_states_callback(self, joint_states_msg: JointState) -> None:
         """Set joint state reference."""
-        self.get_logger().warn("Received the joint states.")
         jpos = np.array(joint_states_msg.position)
         # TODO fix this, temp hac to work from sim
-        if np.linalg.norm(jpos) > 1e-2:
-            joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
+        joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
+        if self.q0 is None and np.linalg.norm(jpos) > 1e-2:
             self.q0 = get_reduced_configuration(jpos, joint_idxs)
             self.trajectory.set_init_configuration(q0=self.q0)
-            self.destroy_subscription(self.state_subscriber)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
+        self.current_q = get_reduced_configuration(jpos, joint_idxs)
+        self.current_dq = get_reduced_configuration(
+            np.array(joint_states_msg.velocity), joint_idxs
+        )
 
     def robot_description_callback(self, msg: String) -> None:
         """Create the models of the robot from the urdf string."""
@@ -227,11 +260,10 @@ class SimpleTrajectoryPublisher(Node):
             )
         )
         self.trajectory.set_pin_model(self.robot_models.robot_model)
-        self.pin_model = self.robot_models.robot_model
-        self.pin_data = self.pin_model.createData()
-        self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
 
-        self.get_logger().warn(f"Model loaded, pin_model.nq = {self.pin_model.nq}")
+        self.get_logger().warn(
+            f"Model loaded, pin_model.nq = {self.trajectory.pin_model.nq}"
+        )
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
 
     def get_weights(
@@ -257,30 +289,11 @@ class SimpleTrajectoryPublisher(Node):
 
         if self.trajectory.pin_model is None:
             self.load_models()
-        # Currently not changing the last two joints - fingers
-        # for i in range(self.pin_model.nq - 2):
 
-        traj_point = self.trajectory.get_traj_point_at_t(self.t)
-        # Extract the end-effector position and orientation
-        # Create the message
-        msg = MpcInput()
-
-        msg.w_q = self.get_weights(self.params.w_q, self.croco_nq)
-        msg.w_qdot = self.get_weights(self.params.w_qdot, self.croco_nq)
-        msg.w_qddot = self.get_weights(self.params.w_qddot, self.croco_nq)
-        msg.w_robot_effort = self.get_weights(self.params.w_robot_effort, self.croco_nq)
-        msg.w_pose = self.get_weights(self.params.w_pose, 6)
-        msg.q = list(traj_point.robot_configuration)
-        msg.qdot = list(traj_point.robot_velocity)
-        msg.qddot = list(traj_point.robot_acceleration)
-
-        msg.robot_effort = list(traj_point.robot_effort)
-        msg.pose = array_to_ros_pose(traj_point.end_effector_poses[self.ee_frame_name])
-
-        msg.ee_frame_name = self.ee_frame_name
+        w_traj_point = self.trajectory.get_traj_point_at_t(self.t)
+        msg = weighted_traj_point_to_mpc_msg(w_traj_point)
 
         self.publisher_.publish(msg)
-        # self.get_logger().info(f'Published MPC Input: {msg}')
         self.t += self.dt
 
 
