@@ -24,6 +24,5 @@ class QuinticTrajectory:
 
         polynomial = 10 * s**3 - 15 * s**4 + 6 * s**5
         d_polynomial = (30 * s**2 - 60 * s**3 + 30 * s**4) / self.scale_duration
-
         dd_polynomial = (60 * s - 180 * s**2 + 120 * s**3) / (self.scale_duration**2)
         return polynomial, d_polynomial, dd_polynomial

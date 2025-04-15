@@ -25,6 +25,7 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
         w_robot_effort,
         w_pose,
     ):
+        """Initialize parameters needed for the sine wave in configuration space trajectory."""
         super().__init__(ee_frame_name)
         self.quint_traj = QuinticTrajectory(scale_duration=scale_duration)
         self.amp = amp
