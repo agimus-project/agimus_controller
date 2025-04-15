@@ -57,7 +57,7 @@ class SimpleTrajectoryPublisher(Node):
         self.dt = 0.01
         self.croco_nq = 7
         self.trajectory = SinusWaveConfigurationSpace(
-            w=0.5 * np.pi,
+            period=4.0,
             scale_duration=0.8,
             amp=0.2,
             ee_frame_name=self.ee_frame_name,

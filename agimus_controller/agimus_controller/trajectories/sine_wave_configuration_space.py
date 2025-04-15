@@ -15,7 +15,7 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
 
     def __init__(
         self,
-        w,
+        period,
         scale_duration: np.float64,
         amp: np.float64,
         ee_frame_name,
@@ -26,8 +26,9 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
         w_pose,
     ):
         super().__init__(ee_frame_name)
-        self.quint_traj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
-        self.w = w
+        self.quint_traj = QuinticTrajectory(scale_duration=scale_duration)
+        self.amp = amp
+        self.w = 2.0 * np.pi / period  # pulsation
         self.w_q = w_q
         self.w_qdot = w_qdot
         self.w_qddot = w_qddot
@@ -35,14 +36,16 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
         self.w_pose = w_pose
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
-        amp, damp, ddamp = self.quint_traj.get_value_at_t(t)
+        quint, dquint, ddquint = self.quint_traj.get_value_at_t(t)
         w = self.w
         sin_wt = np.sin(w * t)
         cos_wt = np.cos(w * t)
         for i in [2, 4]:
-            self.q[i] = self.q0[i] + amp * sin_wt
-            self.dq[i] = damp * sin_wt + amp * w * cos_wt
-            self.ddq[i] = ddamp * sin_wt + 2 * damp * w * cos_wt - amp * w * w * sin_wt
+            self.q[i] = self.q0[i] + self.amp * quint * sin_wt
+            self.dq[i] = self.amp * (dquint * sin_wt + quint * w * cos_wt)
+            self.ddq[i] = self.amp * (
+                ddquint * sin_wt + 2 * dquint * w * cos_wt - quint * w * w * sin_wt
+            )
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
         pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
 
