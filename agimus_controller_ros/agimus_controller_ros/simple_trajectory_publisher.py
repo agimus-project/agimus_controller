@@ -18,6 +18,7 @@ from agimus_controller.factory.robot_model import (
 from agimus_controller.trajectories.sine_wave_configuration_space import (
     SinusWaveConfigurationSpace,
 )
+from agimus_controller.trajectories.trajectory_base import TrajectoryBase
 from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
@@ -56,17 +57,7 @@ class SimpleTrajectoryPublisher(Node):
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
-        self.trajectory = SinusWaveConfigurationSpace(
-            period=4.0,
-            scale_duration=0.8,
-            amp=0.2,
-            ee_frame_name=self.ee_frame_name,
-            w_q=self.get_weights(self.params.w_q, self.croco_nq),
-            w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
-            w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
-            w_robot_effort=self.get_weights(self.params.w_robot_effort, self.croco_nq),
-            w_pose=self.get_weights(self.params.w_pose, 6),
-        )
+        self.trajectory = self.get_trajectory(self.params.trajectory_name)
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
@@ -141,6 +132,25 @@ class SimpleTrajectoryPublisher(Node):
         self.get_logger().warn("Received robot description.")
         self.robot_description_msg = msg
         self.destroy_subscription(self.subscriber_robot_description_)
+
+    def get_trajectory(self, trajectory_name: String) -> TrajectoryBase:
+        """Build chosen trajectory."""
+        if trajectory_name == "sine_wave_configuration_space":
+            return SinusWaveConfigurationSpace(
+                period=4.0,
+                scale_duration=0.8,
+                amp=0.2,
+                ee_frame_name=self.ee_frame_name,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+            )
+        else:
+            raise ValueError("Unknown Trajectory.")
 
     def load_models(self):
         """Callback to get robot description and store to object"""
