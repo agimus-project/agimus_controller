@@ -23,6 +23,7 @@ from agimus_controller.trajectories.sine_wave_cartesian_space import (
     SinusWaveCartesianSpace,
 )
 from agimus_controller.trajectories.trajectory_base import TrajectoryBase
+from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
@@ -117,6 +118,9 @@ class SimpleTrajectoryPublisher(Node):
         else:
             raise ValueError("Failed to load moving joint names from LFC")
 
+    def publish(self, trajectory):
+        self.trajectory.add_trajectory(trajectory)
+
     def joint_states_callback(self, msg: Sensor) -> None:
         """Set joint state reference."""
         jpos = np.array(msg.joint_state.position)
@@ -154,6 +158,17 @@ class SimpleTrajectoryPublisher(Node):
         elif trajectory_name == "sine_wave_cartesian_space":
             return SinusWaveCartesianSpace(
                 self.params.sine_wave,
+                ee_frame_name=self.ee_frame_name,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+            )
+        elif trajectory_name == "generic_trajectory":
+            return GenericTrajectory(
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -205,7 +220,15 @@ class SimpleTrajectoryPublisher(Node):
 
         if self.trajectory.pin_model is None:
             self.load_models()
-
+        if (
+            self.params.trajectory_name == "generic_trajectory"
+            and self.trajectory.trajectory is None
+        ):
+            self.get_logger().warn(
+                "Waiting for trajectory to be initialized.",
+                throttle_duration_sec=5.0,
+            )
+            return
         w_traj_point = self.trajectory.get_traj_point_at_t(self.t)
         msg = weighted_traj_point_to_mpc_msg(w_traj_point)
 

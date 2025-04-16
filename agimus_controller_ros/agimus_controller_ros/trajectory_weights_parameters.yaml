@@ -5,7 +5,14 @@ trajectory_weights_params:
     default_value: "sine_wave_configuration_space"
     description: "End-effector name."
     validation:
-      one_of<>: [["sine_wave_configuration_space", "sine_wave_cartesian_space"]]
+      one_of<>:
+        [
+          [
+            "sine_wave_configuration_space",
+            "sine_wave_cartesian_space",
+            "generic_trajectory",
+          ],
+        ]
   ee_frame_name:
     type: string
     description: "End-effector name."
