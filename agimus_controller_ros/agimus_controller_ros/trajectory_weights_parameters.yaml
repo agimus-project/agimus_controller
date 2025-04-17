@@ -25,3 +25,9 @@ trajectory_weights_params:
     description: "End-effector name."
     validation:
       not_empty<>: []
+  trajectory_name:
+    type: string
+    default_value: "sine_wave_configuration_space"
+    description: "End-effector name."
+    validation:
+      one_of<>: [["sine_wave_configuration_space"]]

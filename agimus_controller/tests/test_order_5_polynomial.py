@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 import rclpy
-from agimus_controller_ros.simple_trajectory_publisher import QuinticTrajectory
+from agimus_controller.trajectories.quintic_trajectory import QuinticTrajectory
 
 
 class TestQuinticTrajectory(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestQuinticTrajectory(unittest.TestCase):
         return super().tearDownClass()
 
     def test_quintic_trajectory(self):
-        amp = 1.5
+        amp = 1.0
         scale_duration = 0.7
         obj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
         dt = 1e-5

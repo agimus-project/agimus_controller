@@ -29,6 +29,19 @@ def ros_pose_to_array(pose: Pose) -> npt.NDArray[np.float64]:
     )
 
 
+def array_to_ros_pose(pose_array: Pose) -> npt.NDArray[np.float64]:
+    """Convert geometry_msgs.msg.Pose to a 7d numpy array"""
+    ros_pose = Pose()
+    ros_pose.position.x = pose_array[0]
+    ros_pose.position.y = pose_array[1]
+    ros_pose.position.z = pose_array[2]
+    ros_pose.orientation.x = pose_array[3]
+    ros_pose.orientation.y = pose_array[4]
+    ros_pose.orientation.z = pose_array[5]
+    ros_pose.orientation.w = pose_array[6]
+    return ros_pose
+
+
 def mpc_msg_to_weighted_traj_point(
     msg: MpcInput, time_ns: int
 ) -> WeightedTrajectoryPoint:
@@ -52,6 +65,26 @@ def mpc_msg_to_weighted_traj_point(
     )
 
     return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
+
+
+def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> MpcInput:
+    """Build WeightedTrajectoryPoint object from MPCInput msg."""
+    # get the first key of the dictionary
+    ee_frame_name = next(iter(w_traj_point.point.end_effector_poses.keys()))
+
+    msg = MpcInput()
+    msg.w_q = w_traj_point.weights.w_robot_configuration
+    msg.w_qdot = w_traj_point.weights.w_robot_velocity
+    msg.w_qddot = w_traj_point.weights.w_robot_acceleration
+    msg.w_robot_effort = w_traj_point.weights.w_robot_effort
+    msg.w_pose = next(iter(w_traj_point.weights.w_end_effector_poses.values()))
+    msg.q = list(w_traj_point.point.robot_configuration)
+    msg.qdot = list(w_traj_point.point.robot_velocity)
+    msg.qddot = list(w_traj_point.point.robot_acceleration)
+    msg.robot_effort = list(w_traj_point.point.robot_effort)
+    msg.pose = array_to_ros_pose(w_traj_point.point.end_effector_poses[ee_frame_name])
+    msg.ee_frame_name = ee_frame_name
+    return msg
 
 
 def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
