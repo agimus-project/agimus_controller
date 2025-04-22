@@ -39,7 +39,7 @@ trajectory_weights_params:
     scale_duration:
       type: double
       default_value: 1.0
-      description: "Time for the Quintic polynomial to go from 0 to 1."
+      description: "Time for the Quintic polynomial to go from 0 to default_value."
     amplitude:
       type: double
       default_value: 0.2
