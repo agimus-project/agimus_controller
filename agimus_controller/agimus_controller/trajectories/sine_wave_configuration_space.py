@@ -15,9 +15,7 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
 
     def __init__(
         self,
-        period,
-        scale_duration: np.float64,
-        amp: np.float64,
+        sine_wave_params,
         ee_frame_name,
         w_q,
         w_qdot,
@@ -27,9 +25,11 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
     ):
         """Initialize parameters needed for the sine wave in configuration space trajectory."""
         super().__init__(ee_frame_name)
-        self.quint_traj = QuinticTrajectory(scale_duration=scale_duration)
-        self.amp = amp
-        self.w = 2.0 * np.pi / period  # pulsation
+        self.quint_traj = QuinticTrajectory(
+            scale_duration=sine_wave_params.scale_duration
+        )
+        self.amp = sine_wave_params.amplitude
+        self.w = 2.0 * np.pi / sine_wave_params.period  # pulsation
         self.w_q = w_q
         self.w_qdot = w_qdot
         self.w_qddot = w_qddot
