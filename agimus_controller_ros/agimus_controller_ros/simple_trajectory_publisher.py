@@ -18,6 +18,9 @@ from agimus_controller.factory.robot_model import (
 from agimus_controller.trajectories.sine_wave_configuration_space import (
     SinusWaveConfigurationSpace,
 )
+from agimus_controller.trajectories.sine_wave_cartesian_space import (
+    SinusWaveCartesianSpace,
+)
 from agimus_controller.trajectories.trajectory_base import TrajectoryBase
 from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
 from agimus_controller_ros.trajectory_weights_parameters import (
@@ -137,9 +140,19 @@ class SimpleTrajectoryPublisher(Node):
         """Build chosen trajectory."""
         if trajectory_name == "sine_wave_configuration_space":
             return SinusWaveConfigurationSpace(
-                period=4.0,
-                scale_duration=0.8,
-                amp=0.2,
+                self.params.sine_wave,
+                ee_frame_name=self.ee_frame_name,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+            )
+        elif trajectory_name == "sine_wave_cartesian_space":
+            return SinusWaveCartesianSpace(
+                self.params.sine_wave,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
