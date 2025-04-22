@@ -10,7 +10,7 @@ from agimus_controller.trajectory import (
 )
 
 
-class SinusWaveConfigurationSpace(TrajectoryBase):
+class SinusWaveCartesianSpace(TrajectoryBase):
     """ "Define the trajectory of a sine-wave in configuration Space."""
 
     def __init__(
@@ -37,20 +37,17 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
         self.w_pose = w_pose
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
-        quint, dquint, ddquint = self.quint_traj.get_value_at_t(t)
+        quint, _, _ = self.quint_traj.get_value_at_t(t)
         w = self.w
         sin_wt = np.sin(w * t)
-        cos_wt = np.cos(w * t)
-        for i in [2, 4]:
-            self.q[i] = self.q0[i] + self.amp * quint * sin_wt
-            self.dq[i] = self.amp * (dquint * sin_wt + quint * w * cos_wt)
-            self.ddq[i] = self.amp * (
-                ddquint * sin_wt + 2 * dquint * w * cos_wt - quint * w * w * sin_wt
+        # TODO Implement inv kyn to retrieve correct references
+        self.q = self.q0
+        self.dq = self.dq
+        self.ddq = self.ddq
+        for i in [0, 1]:
+            ee_pose = (
+                self.get_end_effector_pose_from_q(self.q0) + self.amp * quint * sin_wt
             )
-        pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
-        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
-
-        ee_pose = pin.SE3ToXYZQUAT(self.pin_data.oMf[self.ee_frame_id])
 
         u = pin.rnea(self.pin_model, self.pin_data, self.q, self.dq, self.ddq)
         traj_point = TrajectoryPoint(

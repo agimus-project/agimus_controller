@@ -1,5 +1,16 @@
 ---
 trajectory_weights_params:
+  trajectory_name:
+    type: string
+    default_value: "sine_wave_configuration_space"
+    description: "End-effector name."
+    validation:
+      one_of<>: [["sine_wave_configuration_space", "sine_wave_cartesian_space"]]
+  ee_frame_name:
+    type: string
+    description: "End-effector name."
+    validation:
+      not_empty<>: []
   w_q:
     type: double_array
     default_value: [1.0]
@@ -20,14 +31,16 @@ trajectory_weights_params:
     type: double_array
     default_value: [0.1]
     description: "Weights for end-effector position cost."
-  ee_frame_name:
-    type: string
-    description: "End-effector name."
-    validation:
-      not_empty<>: []
-  trajectory_name:
-    type: string
-    default_value: "sine_wave_configuration_space"
-    description: "End-effector name."
-    validation:
-      one_of<>: [["sine_wave_configuration_space"]]
+  sine_wave:
+    period:
+      type: double
+      default_value: 4.0
+      description: "Period of the sinusoid in seconds."
+    scale_duration:
+      type: double
+      default_value: 1.0
+      description: "Time for the Quintic polynomial to go from 0 to default_value."
+    amplitude:
+      type: double
+      default_value: 0.2
+      description: "Amplitude of the sinusoid."

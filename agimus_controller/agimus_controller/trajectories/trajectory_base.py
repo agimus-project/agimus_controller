@@ -35,6 +35,11 @@ class TrajectoryBase(ABC):
         self.dq = np.zeros_like(self.q)
         self.ddq = np.zeros_like(self.q)
 
+    def get_end_effector_pose_from_q(self, q):
+        pin.forwardKinematics(self.pin_model, self.pin_data, q)
+        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
+        return pin.SE3ToXYZQUAT(self.pin_data.oMf[self.ee_frame_id].copy())
+
     @abstractmethod
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         """Return Weighted Trajectory point of the trajectory at time t."""
