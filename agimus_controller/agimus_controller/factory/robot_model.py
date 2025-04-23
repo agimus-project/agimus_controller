@@ -309,9 +309,6 @@ class RobotModels:
             try:
                 geom1_id = self.collision_model.getGeometryId(geom1_name)
                 geom2_id = self.collision_model.getGeometryId(geom2_name)
-                if geom1_id == geom2_id:
-                    print()
-
                 self.collision_model.addCollisionPair(
                     pin.CollisionPair(geom1_id, geom2_id)
                 )
