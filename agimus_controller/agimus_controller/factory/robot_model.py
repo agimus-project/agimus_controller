@@ -305,11 +305,8 @@ class RobotModels:
 
     def _add_collision_pairs(self) -> None:
         """Add collision pairs to the collision model."""
-
-        for collision_pair in self._params.collision_pairs:
+        for geom1_name, geom2_name in self._params.collision_pairs:
             try:
-                geom1_name = collision_pair[0]
-                geom2_name = collision_pair[1]
                 geom1_id = self.collision_model.getGeometryId(geom1_name)
                 geom2_id = self.collision_model.getGeometryId(geom2_name)
                 self.collision_model.addCollisionPair(
@@ -317,7 +314,9 @@ class RobotModels:
                 )
             except Exception as e:
                 raise ValueError(
-                    f"Invalid collision pair with names {geom1_name} {geom2_name} got error : {e}"
+                    f"Invalid collision pair with names {geom1_name} {geom2_name} "
+                    f"and ids {geom1_id} {geom2_id} in collision_model:\n"
+                    f"{self.collision_model}\ngot error : {e}"
                 )
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
