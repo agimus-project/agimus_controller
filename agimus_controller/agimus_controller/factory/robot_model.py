@@ -319,7 +319,7 @@ class RobotModels:
                 raise ValueError(
                     f"Invalid collision pair with names {geom1_name} {geom2_name} "
                     f"and ids {geom1_id} {geom2_id} in collision_model:\n"
-                    f"{self.collision_model}\ngot error : {e}"                    
+                    f"{self.collision_model}\ngot error : {e}"
                 )
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
