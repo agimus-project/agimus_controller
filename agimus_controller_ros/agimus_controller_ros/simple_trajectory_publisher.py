@@ -7,6 +7,7 @@ from rclpy.node import Node
 import rclpy
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
+from linear_feedback_controller_msgs.msg import Sensor
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
@@ -64,7 +65,7 @@ class SimpleTrajectoryPublisher(Node):
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
-        # ros2 topic info -v /joint_states
+        # ros2 topic info -v /sensor
         self.moving_joint_names = self.get_param_from_node(
             "linear_feedback_controller", "moving_joint_names"
         ).string_array_value
@@ -79,8 +80,8 @@ class SimpleTrajectoryPublisher(Node):
             ),
         )
         self.state_subscriber = self.create_subscription(
-            JointState,
-            "joint_states",
+            Sensor,
+            "sensor",
             self.joint_states_callback,
             qos_profile=QoSProfile(
                 depth=10,
@@ -116,18 +117,18 @@ class SimpleTrajectoryPublisher(Node):
         else:
             raise ValueError("Failed to load moving joint names from LFC")
 
-    def joint_states_callback(self, joint_states_msg: JointState) -> None:
+    def joint_states_callback(self, msg: Sensor) -> None:
         """Set joint state reference."""
-        jpos = np.array(joint_states_msg.position)
+        jpos = np.array(msg.joint_state.position)
         # TODO fix this, temp hac to work from sim
-        joint_idxs = get_joint_idxs(self.moving_joint_names, joint_states_msg)
+        joint_idxs = get_joint_idxs(self.moving_joint_names, msg.joint_state)
         if self.q0 is None and np.linalg.norm(jpos) > 1e-2:
             self.q0 = get_reduced_configuration(jpos, joint_idxs)
             self.trajectory.set_init_configuration(q0=self.q0)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
         self.current_q = get_reduced_configuration(jpos, joint_idxs)
         self.current_dq = get_reduced_configuration(
-            np.array(joint_states_msg.velocity), joint_idxs
+            np.array(msg.joint_state.velocity), joint_idxs
         )
 
     def robot_description_callback(self, msg: String) -> None:
