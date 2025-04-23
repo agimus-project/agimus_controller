@@ -149,6 +149,13 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
 
 
 def main(args=None):
+    # Initialize rclpy first to handle ROS 2 arguments
+    rclpy.init(args=args)
+
+    # Filter out ROS 2-specific arguments before passing to argparse
+    filtered_args = rclpy.utilities.remove_ros_args(args)
+
+    # Use argparse to parse the remaining arguments
     parser = argparse.ArgumentParser(
         "mpc_debugger_node",
         description="This node transforms the MPC debug data into a marker array that can be visualized in RViz.",
@@ -166,17 +173,16 @@ def main(args=None):
         help="string passed to field `marker.header.frame_id` in the published messages.",
     )
     parser.add_argument(
-        "--marker-size", type=float, default=0.01, help="set the `marker.ns` field."
+        "--marker-size", type=float, default=0.01, help="set the `marker.scale` field."
     )
     parser.add_argument(
         "--marker-ns",
         type=str,
         default="states_predictions",
-        help="set the `marker.scale` field.",
+        help="set the `marker.ns` field.",
     )
-    arguments = parser.parse_args(args)
 
-    rclpy.init(args=args)
+    arguments = parser.parse_args(filtered_args[1:])  # Skip the script name
 
     node = MPCDebuggerNode(
         frame_name=arguments.frame,
@@ -189,9 +195,9 @@ def main(args=None):
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-
-    node.destroy_node()
-    rclpy.shutdown()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
