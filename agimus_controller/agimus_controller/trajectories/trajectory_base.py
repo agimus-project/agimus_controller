@@ -27,19 +27,24 @@ class TrajectoryBase(ABC):
         """Set pinocchio model of the robot and frame id."""
         self.pin_model = pin_model
         self.pin_data = self.pin_model.createData()
+        assert self.pin_model.existFrame(self.ee_frame_name), "Frame does not exist."
         self.ee_frame_id = self.pin_model.getFrameId(self.ee_frame_name)
+        self.dq = np.zeros(self.pin_model.nv)
+        self.ddq = np.zeros(self.pin_model.nv)
 
     def set_init_configuration(self, q0: npt.NDArray[np.float64]) -> None:
         """Set q0 of the robot."""
         self.q0 = q0
         self.q = self.q0.copy()
-        self.dq = np.zeros_like(self.q)
-        self.ddq = np.zeros_like(self.q)
+
+    def get_end_effector_pose_from_q_as_se3(self, q):
+        pin.forwardKinematics(self.pin_model, self.pin_data, q)
+
+        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
+        return self.pin_data.oMf[self.ee_frame_id].copy()
 
     def get_end_effector_pose_from_q(self, q):
-        pin.forwardKinematics(self.pin_model, self.pin_data, q)
-        pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
-        return pin.SE3ToXYZQUAT(self.pin_data.oMf[self.ee_frame_id].copy())
+        return pin.SE3ToXYZQUAT(self.get_end_effector_pose_from_q())
 
     @abstractmethod
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
