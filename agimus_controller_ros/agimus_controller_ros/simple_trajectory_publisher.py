@@ -5,6 +5,7 @@ from agimus_msgs.msg import MpcInput
 from std_msgs.msg import String
 from rclpy.node import Node
 import rclpy
+from rclpy.task import Future
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from linear_feedback_controller_msgs.msg import Sensor
@@ -23,6 +24,7 @@ from agimus_controller.trajectories.sine_wave_cartesian_space import (
     SinusWaveCartesianSpace,
 )
 from agimus_controller.trajectories.trajectory_base import TrajectoryBase
+from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
@@ -61,6 +63,8 @@ class SimpleTrajectoryPublisher(Node):
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
+        self.future_init_done = Future()
+        self.future_trajectory_done = Future()
         self.trajectory = self.get_trajectory(self.params.trajectory_name)
 
         # Obtained by checking "QoS profile" values in out of:
@@ -117,6 +121,15 @@ class SimpleTrajectoryPublisher(Node):
         else:
             raise ValueError("Failed to load moving joint names from LFC")
 
+    def add_trajectory(self, trajectory):
+        if self.params.trajectory_name == "generic_trajectory":
+            self.trajectory.add_trajectory(trajectory)
+            self.future_trajectory_done = Future()
+        else:
+            raise RuntimeError(
+                f"the function add_trajectory can't be used with trajectory type {self.params.trajectory_name}"
+            )
+
     def joint_states_callback(self, msg: Sensor) -> None:
         """Set joint state reference."""
         jpos = np.array(msg.joint_state.position)
@@ -154,6 +167,17 @@ class SimpleTrajectoryPublisher(Node):
         elif trajectory_name == "sine_wave_cartesian_space":
             return SinusWaveCartesianSpace(
                 self.params.sine_wave,
+                ee_frame_name=self.ee_frame_name,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+            )
+        elif trajectory_name == "generic_trajectory":
+            return GenericTrajectory(
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -205,11 +229,23 @@ class SimpleTrajectoryPublisher(Node):
 
         if self.trajectory.pin_model is None:
             self.load_models()
-
+            self.future_init_done.set_result(True)
+            return
+        if (
+            self.params.trajectory_name == "generic_trajectory"
+            and self.trajectory.trajectory is None
+        ):
+            self.get_logger().warn(
+                "Waiting for trajectory to be initialized.",
+                throttle_duration_sec=5.0,
+            )
+            return
         w_traj_point = self.trajectory.get_traj_point_at_t(self.t)
         msg = weighted_traj_point_to_mpc_msg(w_traj_point)
 
         self.publisher_.publish(msg)
+        if self.trajectory.trajectory_is_done:
+            self.future_trajectory_done.set_result(True)
         self.t += self.dt
 
 

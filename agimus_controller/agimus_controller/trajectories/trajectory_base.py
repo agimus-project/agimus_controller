@@ -13,6 +13,7 @@ class TrajectoryBase(ABC):
 
     def __init__(self, ee_frame_name) -> None:
         self.ee_frame_name = ee_frame_name
+        self.trajectory_is_done = False
         self.ee_frame_id = None
         self.pin_model = None
         self.pin_data = None
