@@ -85,8 +85,10 @@ class TrajectoryPublisherWithVisualServoing(SimpleTrajectoryPublisher):
             self.trajectory.set_visual_servoing_pose(visual_servoing_pose)
 
     def vision_callback(self, vision_msg: Detection2DArray):
-        if vision_msg.detections == []:
+        if vision_msg.detections == [] or self.object_name is None:
             return
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         frame, in_camera_pose_object = get_most_confident_object_pose(
             vision_msg, self.object_name
         )
