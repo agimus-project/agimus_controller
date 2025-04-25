@@ -10,6 +10,10 @@ from agimus_controller.trajectories.sine_wave_cartesian_space import (
     SinusWaveCartesianSpace,
 )
 
+VISUALIZE = True
+if VISUALIZE:
+    import matplotlib.pyplot as plt
+
 
 class TestSinWaveCartesianTrajectory(unittest.TestCase):
     @classmethod
@@ -51,6 +55,11 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             self_collision=True,
             armature=np.linspace(0.1, 0.9, reduced_nq),
         )
+        cls.sine_wave_params = SinWaveParams(
+            amplitude=0.1,
+            period=4.0,
+            scale_duration=0.2,
+        )
 
     def setUp(self):
         """
@@ -59,35 +68,17 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
         """
         self.params = deepcopy(self.params)
         self.robot_models = RobotModels(self.params)
-        self.visualize = False
 
-    def test_sin_wave_cartesian_space_trajectory(self):
-        sine_wave_params = SinWaveParams(
-            amplitude=0.1,
-            period=2.0,
-            scale_duration=0.2,
-        )
-        obj = SinusWaveCartesianSpace(
-            sine_wave_params=sine_wave_params,
-            w_q=np.array([1.0]),
-            w_qdot=np.array([0.1]),
-            w_qddot=np.array([0.000001]),
-            w_robot_effort=np.array([0.0003]),
-            w_pose=np.array([0.1]),
-            ee_frame_name="panda_hand_tcp",
-        )
-        obj.set_pin_model(self.robot_models.robot_model)
-        obj.set_init_configuration(self.params.q0[:7])
-
-        dt = 1e-1
-        duration = sine_wave_params.scale_duration + 2 * sine_wave_params.period
-        times = np.linspace(0, duration, int(duration / dt))
-        traj = [obj.get_traj_point_at_t(t) for t in times]
-        # for idx, traj_point in enumerate(traj):
-        #     # TODO do some testing here.
-        #     pass
-
-        if self.visualize:
+    def plot(self, times, traj, obj):
+        if VISUALIZE:
+            traj_ee_ik = np.array(
+                [
+                    obj.get_end_effector_pose_from_q(
+                        traj_point.point.robot_configuration
+                    )
+                    for traj_point in traj
+                ]
+            )
             traj_ee = np.array(
                 [
                     traj_point.point.end_effector_poses["panda_hand_tcp"]
@@ -97,26 +88,139 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             traj_q = np.array(
                 [traj_point.point.robot_configuration for traj_point in traj]
             )
-            traj_v = np.array([traj_point.point.robot_velocity for traj_point in traj])
-            traj_a = np.array(
-                [traj_point.point.robot_acceleration for traj_point in traj]
-            )
-
-            import matplotlib.pyplot as plt
-
+            traj_dq = np.array([traj_point.point.robot_velocity for traj_point in traj])
             plt.figure()
             plt.xlabel("Time (s)")
-            plt.title("Sine wave cartesian space trajectory")
+            plt.suptitle("Sine wave cartesian space trajectory")
             plt.grid()
             ax = plt.subplot(2, 2, 1)
-            ax.plot(times, traj_ee)
+            ax.set_title("End effector trajectory position")
+            ax.plot(
+                times,
+                np.hstack([traj_ee[:, :3], traj_ee_ik[:, :3]]),
+                label=[
+                    "des ee x",
+                    "des ee y",
+                    "des ee z",
+                    "ik ee x",
+                    "ik ee y",
+                    "ik ee z",
+                ],
+            )
             ax = plt.subplot(2, 2, 2)
+            ax.set_title("Robot configuration trajectory")
             ax.plot(times, traj_q)
             ax = plt.subplot(2, 2, 3)
-            ax.plot(times, traj_v)
+            ax.set_title("Robot velocity trajectory")
+            ax.plot(times, traj_dq)
             ax = plt.subplot(2, 2, 4)
-            ax.plot(times, traj_a)
+            ax.set_title("End effector trajectory quaternion")
+            ax.plot(
+                times,
+                np.hstack([traj_ee[:, 3:], traj_ee_ik[:, 3:]]),
+                label=[
+                    "des ee qx",
+                    "des ee qy",
+                    "des ee qz",
+                    "des ee qw",
+                    "ik ee qx",
+                    "ik ee qy",
+                    "ik ee qz",
+                    "ik ee qw",
+                ],
+            )
+            plt.legend()
             plt.show()
+
+    def test_sin_wave_cartesian_space_trajectory(self):
+        obj = SinusWaveCartesianSpace(
+            sine_wave_params=self.sine_wave_params,
+            w_q=np.array([1.0]),
+            w_qdot=np.array([0.1]),
+            w_qddot=np.array([0.000001]),
+            w_robot_effort=np.array([0.0003]),
+            w_pose=np.array([0.1]),
+            ee_frame_name="panda_hand_tcp",
+            optimize_orientation=True,
+        )
+        obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
+
+        dt = 1e-1
+        duration = (
+            self.sine_wave_params.scale_duration + 2 * self.sine_wave_params.period
+        )
+        times = np.linspace(0, duration, int(duration / dt))
+        traj = [obj.get_traj_point_at_t(t) for t in times]
+        # for idx, traj_point in enumerate(traj):
+        #     # TODO do some testing here.
+        #     pass
+
+        self.plot(times, traj, obj)
+
+    def test_sin_wave_cartesian_space_trajectory_3d(self):
+        obj = SinusWaveCartesianSpace(
+            sine_wave_params=self.sine_wave_params,
+            w_q=np.array([1.0]),
+            w_qdot=np.array([0.1]),
+            w_qddot=np.array([0.000001]),
+            w_robot_effort=np.array([0.0003]),
+            w_pose=np.array([0.1]),
+            ee_frame_name="panda_hand_tcp",
+            optimize_orientation=False,
+        )
+        obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
+
+        dt = 1e-1
+        duration = (
+            self.sine_wave_params.scale_duration + 2 * self.sine_wave_params.period
+        )
+        times = np.linspace(0, duration, int(duration / dt))
+        traj = [obj.get_traj_point_at_t(t) for t in times]
+        # for idx, traj_point in enumerate(traj):
+        #     # TODO do some testing here.
+        #     pass
+
+        self.plot(times, traj, obj)
+
+    def test_ik_6D(self):
+        obj = SinusWaveCartesianSpace(
+            sine_wave_params=self.sine_wave_params,
+            w_q=np.array([1.0]),
+            w_qdot=np.array([0.1]),
+            w_qddot=np.array([0.000001]),
+            w_robot_effort=np.array([0.0003]),
+            w_pose=np.array([0.1]),
+            ee_frame_name="panda_hand_tcp",
+            optimize_orientation=True,
+        )
+        obj.initialize(
+            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
+        )
+        ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
+        ik_q, ik_dq = obj.inverse_kinematics_6d(ee_pos, np.zeros(6))
+        ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
+        np.testing.assert_allclose(ik_q, self.params.q0[:7], atol=1e-3)
+        np.testing.assert_allclose(ik_dq, np.zeros(7), atol=1e-3)
+        np.testing.assert_allclose(ik_ee_pos.homogeneous, ee_pos.homogeneous, atol=1e-3)
+
+    def test_ik_3D(self):
+        obj = SinusWaveCartesianSpace(
+            sine_wave_params=self.sine_wave_params,
+            w_q=np.array([1.0]),
+            w_qdot=np.array([0.1]),
+            w_qddot=np.array([0.000001]),
+            w_robot_effort=np.array([0.0003]),
+            w_pose=np.array([0.1]),
+            ee_frame_name="panda_hand_tcp",
+            optimize_orientation=False,
+        )
+        obj.initialize(
+            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
+        )
+        ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
+        ik_q, _ = obj.inverse_kinematics_3d(ee_pos, np.zeros(6))
+        ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
+        np.testing.assert_allclose(ik_ee_pos.translation, ee_pos.translation, atol=1e-3)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from agimus_controller.factory.robot_model import (
     RobotModelParameters,
     RobotModels,
 )
+from agimus_controller.trajectories.sine_wave_params import SinWaveParams
 from agimus_controller.trajectories.sine_wave_configuration_space import (
     SinusWaveConfigurationSpace,
 )
@@ -56,10 +57,15 @@ class SimpleTrajectoryPublisher(Node):
         self.param_listener = trajectory_weights_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
-        self.robot_description_msg = None
+        self.sine_wave_params = SinWaveParams(
+            amplitude=self.params.sine_wave.amplitude,
+            period=self.params.sine_wave.period,
+            scale_duration=self.params.sine_wave.scale_duration,
+        )
 
         self.q0 = None
         self.current_q = None
+        self.robot_description_msg = None
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
@@ -137,7 +143,6 @@ class SimpleTrajectoryPublisher(Node):
         joint_idxs = get_joint_idxs(self.moving_joint_names, msg.joint_state)
         if self.q0 is None and np.linalg.norm(jpos) > 1e-2:
             self.q0 = get_reduced_configuration(jpos, joint_idxs)
-            self.trajectory.set_init_configuration(q0=self.q0)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
         self.current_q = get_reduced_configuration(jpos, joint_idxs)
         self.current_dq = get_reduced_configuration(
@@ -154,7 +159,7 @@ class SimpleTrajectoryPublisher(Node):
         """Build chosen trajectory."""
         if trajectory_name == "sine_wave_configuration_space":
             return SinusWaveConfigurationSpace(
-                self.params.sine_wave,
+                self.sine_wave_params,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -166,7 +171,7 @@ class SimpleTrajectoryPublisher(Node):
             )
         elif trajectory_name == "sine_wave_cartesian_space":
             return SinusWaveCartesianSpace(
-                self.params.sine_wave,
+                self.sine_wave_params,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -199,10 +204,8 @@ class SimpleTrajectoryPublisher(Node):
                 moving_joint_names=self.moving_joint_names,
             )
         )
-        self.trajectory.set_pin_model(self.robot_models.robot_model)
-
         self.get_logger().warn(
-            f"Model loaded, pin_model.nq = {self.trajectory.pin_model.nq}"
+            f"Model loaded, pin_model.nq = {self.robot_models.robot_model.nq}"
         )
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
 
@@ -227,8 +230,9 @@ class SimpleTrajectoryPublisher(Node):
         if self.robot_description_msg is None or self.q0 is None:
             return
 
-        if self.trajectory.pin_model is None:
+        if not self.trajectory.is_initialized:
             self.load_models()
+            self.trajectory.initialize(self.robot_models.robot_model, self.q0)
             self.future_init_done.set_result(True)
             return
         if (
