@@ -25,7 +25,6 @@ class SinusWaveCartesianSpace(TrajectoryBase):
         w_qddot,
         w_robot_effort,
         w_pose,
-        optimize_orientation=True,
     ):
         """Initialize parameters needed for the sine wave in configuration space trajectory."""
         super().__init__(ee_frame_name)
@@ -39,7 +38,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
         self.w_qddot = w_qddot
         self.w_robot_effort = w_robot_effort
         self.w_pose = w_pose
-        self.optimize_orientation = optimize_orientation
+        self.optimize_orientation = True
 
         # Desired end-effector trajectory parameters.
         self.ee_init_pos = pin.SE3.Identity()

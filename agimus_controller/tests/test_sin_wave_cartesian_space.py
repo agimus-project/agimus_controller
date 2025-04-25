@@ -10,7 +10,7 @@ from agimus_controller.trajectories.sine_wave_cartesian_space import (
     SinusWaveCartesianSpace,
 )
 
-VISUALIZE = True
+VISUALIZE = False
 if VISUALIZE:
     import matplotlib.pyplot as plt
 
@@ -141,7 +141,6 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
-            optimize_orientation=True,
         )
         obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
 
@@ -166,8 +165,8 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
-            optimize_orientation=False,
         )
+        obj.optimize_orientation = False
         obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
 
         dt = 1e-1
@@ -191,7 +190,6 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
-            optimize_orientation=True,
         )
         obj.initialize(
             self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
@@ -212,8 +210,8 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
-            optimize_orientation=False,
         )
+        obj.optimize_orientation = False
         obj.initialize(
             self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
         )
