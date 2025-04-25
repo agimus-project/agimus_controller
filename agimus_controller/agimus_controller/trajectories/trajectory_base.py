@@ -40,7 +40,9 @@ class TrajectoryBase(ABC):
         pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
         return self.pin_data.oMf[self.ee_frame_id].copy()
 
-    def get_end_effector_pose_from_q(self, q):
+    def get_end_effector_pose_from_q(
+        self, q: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
         return pin.SE3ToXYZQUAT(self.get_end_effector_pose_from_q_as_se3(q))
 
     @abstractmethod

@@ -3,7 +3,7 @@ trajectory_weights_params:
   trajectory_name:
     type: string
     default_value: "sine_wave_configuration_space"
-    description: "End-effector name."
+    description: "Choose which trajectory to use."
     validation:
       one_of<>:
         [
@@ -12,6 +12,7 @@ trajectory_weights_params:
             "sine_wave_cartesian_space",
             "sine_wave_cartesian_space_weight_increasing",
             "generic_trajectory",
+            "generic_trajectory_visual_servoing",
           ],
         ]
   mask:
@@ -69,3 +70,25 @@ trajectory_weights_params:
       type: double_array
       default_value: [0.2]
       description: "Amplitude of the sinusoid."
+  generic_trajectory_visual_servoing:
+    start_visual_servoing_distance_threshold:
+      type: double
+      default_value: 0.1
+      description: "When distance to goal is below this threshold, activate visual servoing."
+    simulate_happypose:
+      type: bool
+      default_value: false
+      description: "Wether we simulate or not vision callback from happypose."
+    increasing_weights:
+      max_weight:
+        type: double
+        default_value: 100.0
+        description: "Maximum weight send for visual servoing."
+      percent:
+        type: double
+        default_value: 0.9
+        description: "Percent of the maximum weigth reached when visual servoing time is equal to time_reach_percent."
+      time_reach_percent:
+        type: double
+        default_value: 6.0
+        description: "when visual servoing time is equal to time_reach_percent, the weight sent is the percent of the maximum weigth reached."

@@ -10,12 +10,8 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from linear_feedback_controller_msgs.msg import Sensor
 
-
-from agimus_controller.factory.robot_model import (
-    RobotModelParameters,
-    RobotModels,
-)
 from agimus_controller.trajectories.sine_wave_params import SinWaveParams
+from agimus_controller.factory.robot_model import RobotModelParameters, RobotModels
 from agimus_controller.trajectories.sine_wave_configuration_space import (
     SinusWaveConfigurationSpace,
 )
@@ -237,9 +233,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
             ), "sine_wave_period and moving_joint_names must have the same length"
             assert len(self.sine_wave_parameters.scale_duration) == len(
                 self.moving_joint_names
-            ), (
-                "sine_wave_scale_duration and moving_joint_names must have the same length"
-            )
+            ), "sine_wave_scale_duration and moving_joint_names must have the same length"
             return SinusWaveConfigurationSpace(
                 sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
@@ -252,15 +246,15 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                 w_pose=self.get_weights(self.params.w_pose, 6),
             )
         elif trajectory_name == "sine_wave_cartesian_space":
-            assert len(self.sine_wave_parameters.amplitude) == 3, (
-                "sine_wave_amplitude length must be 3"
-            )
-            assert len(self.sine_wave_parameters.period) == 3, (
-                "sine_wave_period length must be 3"
-            )
-            assert len(self.sine_wave_parameters.scale_duration) == 3, (
-                "sine_wave_scale_duration length must be 3"
-            )
+            assert (
+                len(self.sine_wave_parameters.amplitude) == 3
+            ), "sine_wave_amplitude length must be 3"
+            assert (
+                len(self.sine_wave_parameters.period) == 3
+            ), "sine_wave_period length must be 3"
+            assert (
+                len(self.sine_wave_parameters.scale_duration) == 3
+            ), "sine_wave_scale_duration length must be 3"
             return SinusWaveCartesianSpace(
                 sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
@@ -274,15 +268,15 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                 mask=self.params.mask,
             )
         elif trajectory_name == "sine_wave_cartesian_space_weight_increasing":
-            assert len(self.sine_wave_parameters.amplitude) == 3, (
-                "sine_wave_amplitude length must be 3"
-            )
-            assert len(self.sine_wave_parameters.period) == 3, (
-                "sine_wave_period length must be 3"
-            )
-            assert len(self.sine_wave_parameters.scale_duration) == 3, (
-                "sine_wave_scale_duration length must be 3"
-            )
+            assert (
+                len(self.sine_wave_parameters.amplitude) == 3
+            ), "sine_wave_amplitude length must be 3"
+            assert (
+                len(self.sine_wave_parameters.period) == 3
+            ), "sine_wave_period length must be 3"
+            assert (
+                len(self.sine_wave_parameters.scale_duration) == 3
+            ), "sine_wave_scale_duration length must be 3"
             return SinusWaveCartesianSpaceWeightIncreasing(
                 sine_wave_params=self.sine_wave_params,
                 w_increasing=self.w_increasing,
