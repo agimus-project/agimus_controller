@@ -6,16 +6,16 @@ import unittest
 
 from agimus_controller.factory.robot_model import RobotModelParameters, RobotModels
 from agimus_controller.trajectories.sine_wave_params import SinWaveParams
-from agimus_controller.trajectories.sine_wave_cartesian_space import (
-    SinusWaveCartesianSpace,
+from agimus_controller.trajectories.sine_wave_configuration_space import (
+    SinusWaveConfigurationSpace,
 )
 
-VISUALIZE = True
+VISUALIZE = False
 if VISUALIZE:
     import matplotlib.pyplot as plt
 
 
-class TestSinWaveCartesianTrajectory(unittest.TestCase):
+class TestSinWaveConfigurationTrajectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """
@@ -56,9 +56,9 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             armature=np.linspace(0.1, 0.9, reduced_nq),
         )
         cls.sine_wave_params = SinWaveParams(
-            amplitude=np.array([0.1, 0.1, 0.0]),
-            period=np.array([4.0, 4.0, 4.0]),
-            scale_duration=np.array([0.2, 0.2, 0.2]),
+            amplitude=np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
+            period=np.array([4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0]),
+            scale_duration=np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2]),
         )
 
     def setUp(self):
@@ -91,7 +91,7 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             traj_dq = np.array([traj_point.point.robot_velocity for traj_point in traj])
             plt.figure()
             plt.xlabel("Time (s)")
-            plt.suptitle("Sine wave cartesian space trajectory")
+            plt.suptitle("Sine wave configuration space trajectory")
             plt.grid()
             ax = plt.subplot(2, 2, 1)
             ax.set_title("End effector trajectory position")
@@ -132,8 +132,8 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             plt.legend()
             plt.show()
 
-    def test_sin_wave_cartesian_space_trajectory(self):
-        obj = SinusWaveCartesianSpace(
+    def test_sin_wave_configuration_space_trajectory(self):
+        obj = SinusWaveConfigurationSpace(
             sine_wave_params=self.sine_wave_params,
             w_q=np.array([1.0]),
             w_qdot=np.array([0.1]),
@@ -151,66 +151,6 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
         times = np.linspace(0, duration, int(duration / dt))
         traj = [obj.get_traj_point_at_t(t) for t in times]
         self.plot(times, traj, obj)
-
-    def test_sin_wave_cartesian_space_trajectory_3d(self):
-        obj = SinusWaveCartesianSpace(
-            sine_wave_params=self.sine_wave_params,
-            w_q=np.array([1.0]),
-            w_qdot=np.array([0.1]),
-            w_qddot=np.array([0.000001]),
-            w_robot_effort=np.array([0.0003]),
-            w_pose=np.array([0.1]),
-            ee_frame_name="panda_hand_tcp",
-        )
-        obj.optimize_orientation = False
-        obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
-
-        dt = 1e-1
-        duration = np.max(self.sine_wave_params.scale_duration) + 2 * np.max(
-            self.sine_wave_params.period
-        )
-        times = np.linspace(0, duration, int(duration / dt))
-        traj = [obj.get_traj_point_at_t(t) for t in times]
-        self.plot(times, traj, obj)
-
-    def test_ik_6D(self):
-        obj = SinusWaveCartesianSpace(
-            sine_wave_params=self.sine_wave_params,
-            w_q=np.array([1.0]),
-            w_qdot=np.array([0.1]),
-            w_qddot=np.array([0.000001]),
-            w_robot_effort=np.array([0.0003]),
-            w_pose=np.array([0.1]),
-            ee_frame_name="panda_hand_tcp",
-        )
-        obj.initialize(
-            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
-        )
-        ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
-        ik_q, ik_dq = obj.inverse_kinematics_6d(ee_pos, np.zeros(6))
-        ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
-        np.testing.assert_allclose(ik_q, self.params.q0[:7], atol=1e-3)
-        np.testing.assert_allclose(ik_dq, np.zeros(7), atol=1e-3)
-        np.testing.assert_allclose(ik_ee_pos.homogeneous, ee_pos.homogeneous, atol=1e-3)
-
-    def test_ik_3D(self):
-        obj = SinusWaveCartesianSpace(
-            sine_wave_params=self.sine_wave_params,
-            w_q=np.array([1.0]),
-            w_qdot=np.array([0.1]),
-            w_qddot=np.array([0.000001]),
-            w_robot_effort=np.array([0.0003]),
-            w_pose=np.array([0.1]),
-            ee_frame_name="panda_hand_tcp",
-        )
-        obj.optimize_orientation = False
-        obj.initialize(
-            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
-        )
-        ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
-        ik_q, _ = obj.inverse_kinematics_3d(ee_pos, np.zeros(6))
-        ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
-        np.testing.assert_allclose(ik_ee_pos.translation, ee_pos.translation, atol=1e-3)
 
 
 if __name__ == "__main__":
