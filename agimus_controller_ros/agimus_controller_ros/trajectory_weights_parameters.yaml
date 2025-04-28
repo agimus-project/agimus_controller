@@ -13,6 +13,10 @@ trajectory_weights_params:
             "generic_trajectory",
           ],
         ]
+  mask:
+    type: bool_array
+    default_value: [True, True, True, True, True, True]
+    description: "Mask for the space sine wave DoF to control."
   ee_frame_name:
     type: string
     description: "End-effector name."

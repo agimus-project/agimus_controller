@@ -30,8 +30,8 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
         self.quint_traj = QuinticTrajectory(
             scale_duration=sine_wave_params.scale_duration
         )
-        self.amp = sine_wave_params.amplitude
-        self.w = 2.0 * np.pi / sine_wave_params.period  # pulsation
+        self.amp = np.array(sine_wave_params.amplitude)
+        self.w = np.array(sine_wave_params.pulsation)
         self.w_q = w_q
         self.w_qdot = w_qdot
         self.w_qddot = w_qddot

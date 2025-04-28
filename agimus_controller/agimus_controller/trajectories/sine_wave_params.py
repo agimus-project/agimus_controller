@@ -27,7 +27,7 @@ class SinWaveParams:
 
         :return: Pulsation of the sine wave.
         """
-        return 2 * np.pi / self.period
+        return (2 * np.pi * np.array(self.frequency)).tolist()
 
     @property
     def frequency(self) -> float:
@@ -36,4 +36,6 @@ class SinWaveParams:
 
         :return: Frequency of the sine wave.
         """
-        return 1.0 / self.period
+        safe_array = np.where(np.abs(self.period) < 1e-6, np.nan, self.period)
+        inverted_array = 1.0 / safe_array
+        return np.nan_to_num(inverted_array, nan=0.0).tolist()

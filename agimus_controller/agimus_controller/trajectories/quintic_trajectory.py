@@ -6,10 +6,9 @@ from typing import Tuple
 class QuinticTrajectory:
     """Computes a quintic polynomial trajectory with desired amplitude and duration."""
 
-    def __init__(self, scale_duration: npt.NDArray[np.float64]):
+    def __init__(self, scale_duration: list[float]):
         """Initialize polynomial attributes."""
-
-        self.scale_duration = scale_duration
+        self.scale_duration = np.array(scale_duration)
         self.p = np.zeros(self.scale_duration.size)
         self.v = np.zeros(self.scale_duration.size)
         self.a = np.zeros(self.scale_duration.size)

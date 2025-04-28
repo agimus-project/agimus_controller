@@ -66,7 +66,6 @@ class SimpleTrajectoryPublisher(Node):
         self.croco_nq = 7
         self.future_init_done = Future()
         self.future_trajectory_done = Future()
-        self.trajectory = self.get_trajectory(self.params.trajectory_name)
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
@@ -74,28 +73,6 @@ class SimpleTrajectoryPublisher(Node):
         self.moving_joint_names = self.get_param_from_node(
             "linear_feedback_controller", "moving_joint_names"
         ).string_array_value
-
-        sine_wave_amplitude = self.params.sine_wave.amplitude
-        if len(sine_wave_amplitude) == 1:
-            self.params.sine_wave.amplitude = (sine_wave_amplitude[0],) * len(
-                self.moving_joint_names
-            )
-        sine_wave_period = self.params.sine_wave.period
-        if len(sine_wave_period) == 1:
-            self.params.sine_wave.period = (sine_wave_period[0],) * len(
-                self.moving_joint_names
-            )
-        sine_wave_scale_duration = self.params.sine_wave.scale_duration
-        if len(sine_wave_scale_duration) == 1:
-            self.params.sine_wave.scale_duration = (sine_wave_scale_duration[0],) * len(
-                self.moving_joint_names
-            )
-        self.sine_wave_params = SinWaveParams(
-            amplitude=sine_wave_amplitude,
-            period=sine_wave_period,
-            scale_duration=sine_wave_scale_duration,
-        )
-
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
@@ -123,6 +100,7 @@ class SimpleTrajectoryPublisher(Node):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
+        self.trajectory = self.get_trajectory(self.params.trajectory_name)
         self.timer = self.create_timer(
             0.01, self.publish_mpc_input
         )  # Publish at 100 Hz
@@ -174,9 +152,39 @@ class SimpleTrajectoryPublisher(Node):
 
     def get_trajectory(self, trajectory_name: String) -> TrajectoryBase:
         """Build chosen trajectory."""
+        sine_wave_amplitude = self.params.sine_wave.amplitude
+        if len(sine_wave_amplitude) == 1:
+            self.params.sine_wave.amplitude = (sine_wave_amplitude[0],) * len(
+                self.moving_joint_names
+            )
+        sine_wave_period = self.params.sine_wave.period
+        if len(sine_wave_period) == 1:
+            self.params.sine_wave.period = (sine_wave_period[0],) * len(
+                self.moving_joint_names
+            )
+        sine_wave_scale_duration = self.params.sine_wave.scale_duration
+        if len(sine_wave_scale_duration) == 1:
+            self.params.sine_wave.scale_duration = (sine_wave_scale_duration[0],) * len(
+                self.moving_joint_names
+            )
+        self.sine_wave_parameters = SinWaveParams(
+            amplitude=sine_wave_amplitude,
+            period=sine_wave_period,
+            scale_duration=sine_wave_scale_duration,
+        )
+
         if trajectory_name == "sine_wave_configuration_space":
+            assert len(sine_wave_amplitude) == len(self.moving_joint_names), (
+                "sine_wave_amplitude and moving_joint_names must have the same length"
+            )
+            assert len(sine_wave_period) == len(self.moving_joint_names), (
+                "sine_wave_period and moving_joint_names must have the same length"
+            )
+            assert len(sine_wave_scale_duration) == len(self.moving_joint_names), (
+                "sine_wave_scale_duration and moving_joint_names must have the same length"
+            )
             return SinusWaveConfigurationSpace(
-                self.sine_wave_params,
+                sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -187,8 +195,13 @@ class SimpleTrajectoryPublisher(Node):
                 w_pose=self.get_weights(self.params.w_pose, 6),
             )
         elif trajectory_name == "sine_wave_cartesian_space":
+            assert len(sine_wave_amplitude) == 3, "sine_wave_amplitude length must be 3"
+            assert len(sine_wave_period) == 3, "sine_wave_period length must be 3"
+            assert len(sine_wave_scale_duration) == 3, (
+                "sine_wave_scale_duration length must be 3"
+            )
             return SinusWaveCartesianSpace(
-                self.sine_wave_params,
+                sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -197,6 +210,7 @@ class SimpleTrajectoryPublisher(Node):
                     self.params.w_robot_effort, self.croco_nq
                 ),
                 w_pose=self.get_weights(self.params.w_pose, 6),
+                mask=self.params.mask,
             )
         elif trajectory_name == "generic_trajectory":
             return GenericTrajectory(
