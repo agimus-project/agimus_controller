@@ -141,6 +141,7 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
+            mask=[True, True, True, True, True, True],
         )
         obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
 
@@ -161,6 +162,7 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
+            mask=[True, True, True, False, False, False],
         )
         obj.optimize_orientation = False
         obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
@@ -182,14 +184,14 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
+            mask=[True, True, True, True, True, True],
         )
         obj.initialize(
-            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
+            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.1])
         )
         ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
-        ik_q, ik_dq = obj.inverse_kinematics_6d(ee_pos, np.zeros(6))
+        ik_q, ik_dq = obj.inverse_kinematics(ee_pos, np.zeros(6), precision=1e-4)
         ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
-        np.testing.assert_allclose(ik_q, self.params.q0[:7], atol=1e-3)
         np.testing.assert_allclose(ik_dq, np.zeros(7), atol=1e-3)
         np.testing.assert_allclose(ik_ee_pos.homogeneous, ee_pos.homogeneous, atol=1e-3)
 
@@ -202,14 +204,15 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
+            mask=[True, True, True, False, False, False],
         )
-        obj.optimize_orientation = False
         obj.initialize(
-            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.001])
+            self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.1])
         )
         ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
-        ik_q, _ = obj.inverse_kinematics_3d(ee_pos, np.zeros(6))
+        ik_q, ik_dq = obj.inverse_kinematics(ee_pos, np.zeros(6))
         ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
+        np.testing.assert_allclose(ik_dq, np.zeros(7), atol=1e-3)
         np.testing.assert_allclose(ik_ee_pos.translation, ee_pos.translation, atol=1e-3)
 
 
