@@ -6,7 +6,9 @@ class SinWaveParams:
     Class to store parameters for a sine wave trajectory.
     """
 
-    def __init__(self, amplitude: float, period: float, scale_duration: float):
+    def __init__(
+        self, amplitude: list[float], period: list[float], scale_duration: list[float]
+    ):
         """
         Initialize the sine wave parameters.
 

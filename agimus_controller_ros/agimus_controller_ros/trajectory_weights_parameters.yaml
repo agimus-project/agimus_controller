@@ -40,14 +40,14 @@ trajectory_weights_params:
     description: "Weights for end-effector position cost."
   sine_wave:
     period:
-      type: double
-      default_value: 4.0
+      type: double_array
+      default_value: [4.0]
       description: "Period of the sinusoid in seconds."
     scale_duration:
-      type: double
-      default_value: 1.0
+      type: double_array
+      default_value: [1.0]
       description: "Time for the Quintic polynomial to go from 0 to default_value."
     amplitude:
-      type: double
-      default_value: 0.2
+      type: double_array
+      default_value: [0.2]
       description: "Amplitude of the sinusoid."

@@ -57,11 +57,6 @@ class SimpleTrajectoryPublisher(Node):
         self.param_listener = trajectory_weights_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
-        self.sine_wave_params = SinWaveParams(
-            amplitude=self.params.sine_wave.amplitude,
-            period=self.params.sine_wave.period,
-            scale_duration=self.params.sine_wave.scale_duration,
-        )
 
         self.q0 = None
         self.current_q = None
@@ -79,6 +74,28 @@ class SimpleTrajectoryPublisher(Node):
         self.moving_joint_names = self.get_param_from_node(
             "linear_feedback_controller", "moving_joint_names"
         ).string_array_value
+
+        sine_wave_amplitude = self.params.sine_wave.amplitude
+        if len(sine_wave_amplitude) == 1:
+            self.params.sine_wave.amplitude = (sine_wave_amplitude[0],) * len(
+                self.moving_joint_names
+            )
+        sine_wave_period = self.params.sine_wave.period
+        if len(sine_wave_period) == 1:
+            self.params.sine_wave.period = (sine_wave_period[0],) * len(
+                self.moving_joint_names
+            )
+        sine_wave_scale_duration = self.params.sine_wave.scale_duration
+        if len(sine_wave_scale_duration) == 1:
+            self.params.sine_wave.scale_duration = (sine_wave_scale_duration[0],) * len(
+                self.moving_joint_names
+            )
+        self.sine_wave_params = SinWaveParams(
+            amplitude=sine_wave_amplitude,
+            period=sine_wave_period,
+            scale_duration=sine_wave_scale_duration,
+        )
+
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",

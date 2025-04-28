@@ -43,12 +43,11 @@ class SinusWaveConfigurationSpace(TrajectoryBase):
         w = self.w
         sin_wt = np.sin(w * t)
         cos_wt = np.cos(w * t)
-        for i in [2, 4]:
-            self.q[i] = self.q0[i] + self.amp * quint * sin_wt
-            self.dq[i] = self.amp * (dquint * sin_wt + quint * w * cos_wt)
-            self.ddq[i] = self.amp * (
-                ddquint * sin_wt + 2 * dquint * w * cos_wt - quint * w * w * sin_wt
-            )
+        self.q = self.q0 + self.amp * quint * sin_wt
+        self.dq = self.amp * (dquint * sin_wt + quint * w * cos_wt)
+        self.ddq = self.amp * (
+            ddquint * sin_wt + 2 * dquint * w * cos_wt - quint * w * w * sin_wt
+        )
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
         pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
 
