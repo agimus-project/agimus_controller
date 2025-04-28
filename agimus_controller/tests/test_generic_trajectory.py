@@ -10,7 +10,7 @@ from agimus_controller.trajectories.generic_trajectory import (
     GenericTrajectory,
 )
 
-VISUALIZE = True
+VISUALIZE = False
 if VISUALIZE:
     import matplotlib.pyplot as plt
 

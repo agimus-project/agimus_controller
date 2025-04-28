@@ -10,7 +10,7 @@ from agimus_controller.trajectories.sine_wave_cartesian_space import (
     SinusWaveCartesianSpace,
 )
 
-VISUALIZE = True
+VISUALIZE = False
 if VISUALIZE:
     import matplotlib.pyplot as plt
 
@@ -152,6 +152,12 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
         times = np.linspace(0, duration, int(duration / dt))
         traj = [obj.get_traj_point_at_t(t) for t in times]
         self.plot(times, traj, obj)
+        for traj_point in traj:
+            ik_ee_pos = obj.get_end_effector_pose_from_q(
+                traj_point.point.robot_configuration
+            )
+            ee_pos = traj_point.point.end_effector_poses["panda_hand_tcp"].copy()
+            np.testing.assert_allclose(ik_ee_pos, ee_pos, atol=1e-3)
 
     def test_sin_wave_cartesian_space_trajectory_3d(self):
         obj = SinusWaveCartesianSpace(
@@ -174,6 +180,12 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
         times = np.linspace(0, duration, int(duration / dt))
         traj = [obj.get_traj_point_at_t(t) for t in times]
         self.plot(times, traj, obj)
+        for traj_point in traj:
+            ik_ee_pos = obj.get_end_effector_pose_from_q(
+                traj_point.point.robot_configuration
+            )
+            ee_pos = traj_point.point.end_effector_poses["panda_hand_tcp"].copy()
+            np.testing.assert_allclose(ik_ee_pos[:3], ee_pos[:3], atol=1e-3)
 
     def test_ik_6D(self):
         obj = SinusWaveCartesianSpace(
