@@ -202,9 +202,19 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
             self.robot_models.robot_model, self.params.q0[:7] + np.array(7 * [0.1])
         )
         ee_pos = obj.get_end_effector_pose_from_q_as_se3(self.params.q0[:7])
-        ik_q, ik_dq = obj.inverse_kinematics(ee_pos, np.zeros(6), precision=1e-4)
+        ik_q, ik_dq = obj.inverse_kinematics(
+            ee_pos,
+            np.array([0.1, 0.2, 0.3, 0.0, 0.0, 0.0]),
+            precision=1e-4,
+        )
         ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
-        np.testing.assert_allclose(ik_dq, np.zeros(7), atol=1e-3)
+        np.testing.assert_allclose(
+            ik_dq,
+            np.array(
+                [0.640289, -0.419278, 0.146452, -1.156815, 0.21497, 0.43003, 0.108381]
+            ),
+            atol=1e-6,
+        )
         np.testing.assert_allclose(ik_ee_pos.homogeneous, ee_pos.homogeneous, atol=1e-3)
 
     def test_ik_3D(self):
