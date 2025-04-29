@@ -17,6 +17,7 @@ from agimus_controller.factory.robot_model import (
     RobotModelParameters,
     RobotModels,
 )
+from agimus_controller.trajectories.sine_wave_params import SinWaveParams
 from agimus_controller.trajectories.sine_wave_configuration_space import (
     SinusWaveConfigurationSpace,
 )
@@ -56,16 +57,15 @@ class SimpleTrajectoryPublisher(Node):
         self.param_listener = trajectory_weights_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
-        self.robot_description_msg = None
 
         self.q0 = None
         self.current_q = None
+        self.robot_description_msg = None
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
         self.future_init_done = Future()
         self.future_trajectory_done = Future()
-        self.trajectory = self.get_trajectory(self.params.trajectory_name)
 
         # Obtained by checking "QoS profile" values in out of:
         # ros2 topic info -v /robot_description
@@ -100,6 +100,7 @@ class SimpleTrajectoryPublisher(Node):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
+        self.trajectory = self.get_trajectory(self.params.trajectory_name)
         self.timer = self.create_timer(
             0.01, self.publish_mpc_input
         )  # Publish at 100 Hz
@@ -137,7 +138,6 @@ class SimpleTrajectoryPublisher(Node):
         joint_idxs = get_joint_idxs(self.moving_joint_names, msg.joint_state)
         if self.q0 is None and np.linalg.norm(jpos) > 1e-2:
             self.q0 = get_reduced_configuration(jpos, joint_idxs)
-            self.trajectory.set_init_configuration(q0=self.q0)
             self.get_logger().warn(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
         self.current_q = get_reduced_configuration(jpos, joint_idxs)
         self.current_dq = get_reduced_configuration(
@@ -150,11 +150,47 @@ class SimpleTrajectoryPublisher(Node):
         self.robot_description_msg = msg
         self.destroy_subscription(self.subscriber_robot_description_)
 
+    def get_sine_wave_parameters(self) -> SinWaveParams:
+        """Get sine wave parameters."""
+        sine_wave_amplitude = self.params.sine_wave.amplitude
+        if len(sine_wave_amplitude) == 1:
+            self.params.sine_wave.amplitude = (sine_wave_amplitude[0],) * len(
+                self.moving_joint_names
+            )
+        sine_wave_period = self.params.sine_wave.period
+        if len(sine_wave_period) == 1:
+            self.params.sine_wave.period = (sine_wave_period[0],) * len(
+                self.moving_joint_names
+            )
+        sine_wave_scale_duration = self.params.sine_wave.scale_duration
+        if len(sine_wave_scale_duration) == 1:
+            self.params.sine_wave.scale_duration = (sine_wave_scale_duration[0],) * len(
+                self.moving_joint_names
+            )
+        self.sine_wave_parameters = SinWaveParams(
+            amplitude=sine_wave_amplitude,
+            period=sine_wave_period,
+            scale_duration=sine_wave_scale_duration,
+        )
+        return self.sine_wave_parameters
+
     def get_trajectory(self, trajectory_name: String) -> TrajectoryBase:
         """Build chosen trajectory."""
+        self.sine_wave_parameters = self.get_sine_wave_parameters()
         if trajectory_name == "sine_wave_configuration_space":
+            assert len(self.sine_wave_parameters.amplitude) == len(
+                self.moving_joint_names
+            ), "sine_wave_amplitude and moving_joint_names must have the same length"
+            assert len(self.sine_wave_parameters.period) == len(
+                self.moving_joint_names
+            ), "sine_wave_period and moving_joint_names must have the same length"
+            assert len(self.sine_wave_parameters.scale_duration) == len(
+                self.moving_joint_names
+            ), (
+                "sine_wave_scale_duration and moving_joint_names must have the same length"
+            )
             return SinusWaveConfigurationSpace(
-                self.params.sine_wave,
+                sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -165,8 +201,17 @@ class SimpleTrajectoryPublisher(Node):
                 w_pose=self.get_weights(self.params.w_pose, 6),
             )
         elif trajectory_name == "sine_wave_cartesian_space":
+            assert len(self.sine_wave_parameters.amplitude) == 3, (
+                "sine_wave_amplitude length must be 3"
+            )
+            assert len(self.sine_wave_parameters.period) == 3, (
+                "sine_wave_period length must be 3"
+            )
+            assert len(self.sine_wave_parameters.scale_duration) == 3, (
+                "sine_wave_scale_duration length must be 3"
+            )
             return SinusWaveCartesianSpace(
-                self.params.sine_wave,
+                sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
@@ -175,6 +220,7 @@ class SimpleTrajectoryPublisher(Node):
                     self.params.w_robot_effort, self.croco_nq
                 ),
                 w_pose=self.get_weights(self.params.w_pose, 6),
+                mask=self.params.mask,
             )
         elif trajectory_name == "generic_trajectory":
             return GenericTrajectory(
@@ -199,10 +245,8 @@ class SimpleTrajectoryPublisher(Node):
                 moving_joint_names=self.moving_joint_names,
             )
         )
-        self.trajectory.set_pin_model(self.robot_models.robot_model)
-
         self.get_logger().warn(
-            f"Model loaded, pin_model.nq = {self.trajectory.pin_model.nq}"
+            f"Model loaded, pin_model.nq = {self.robot_models.robot_model.nq}"
         )
         self.get_logger().warn(f"Model loaded, reduced self.q0 = {self.q0}")
 
@@ -227,8 +271,9 @@ class SimpleTrajectoryPublisher(Node):
         if self.robot_description_msg is None or self.q0 is None:
             return
 
-        if self.trajectory.pin_model is None:
+        if not self.trajectory.is_initialized:
             self.load_models()
+            self.trajectory.initialize(self.robot_models.robot_model, self.q0)
             self.future_init_done.set_result(True)
             return
         if (
