@@ -25,7 +25,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
         w_qddot,
         w_robot_effort,
         w_pose,
-        mask=6 * [True],
+        mask=(True, True, True, True, True, True),
     ):
         """Initialize parameters needed for the sine wave in configuration space trajectory.
 
