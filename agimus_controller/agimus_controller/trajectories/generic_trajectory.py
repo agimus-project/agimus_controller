@@ -56,7 +56,7 @@ class GenericTrajectory(TrajectoryBase):
                     robot_velocity=dq_array[idx],
                     robot_acceleration=ddq_array[idx],
                     robot_effort=robot_effort,
-                    end_effector_poses={self.ee_frame_name: ee_pose.copy()},
+                    end_effector_poses={self.ee_frame_name + "_vs": ee_pose.copy()},
                 )
             )
         return trajectory

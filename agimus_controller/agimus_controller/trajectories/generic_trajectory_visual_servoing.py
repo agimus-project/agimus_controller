@@ -1,4 +1,5 @@
 import numpy as np
+import pinocchio as pin
 
 from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller.trajectory import TrajectoryPointWeights, WeightedTrajectoryPoint
@@ -10,11 +11,6 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
     def __init__(
         self,
         ee_frame_name,
-        # start_visual_servoing_distance_threshold,
-        # max_weight,
-        # percent,
-        # time_reach_percent,
-        # simulate_happypose,
         traj_params,
         w_q,
         w_qdot,
@@ -66,7 +62,13 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         if not self.activate_visual_servoing:
             self.visual_servoing_time = 0.0
 
-    def add_trajectory(self, trajectory, use_visual_servoing):
+    def add_trajectory(
+        self, trajectory, use_visual_servoing, init_in_world_M_object=None
+    ):
+        if use_visual_servoing:
+            if init_in_world_M_object:
+                raise ValueError("Init pose detection not set.")
+            self.init_in_world_M_object = pin.XYZQUATToSE3(init_in_world_M_object)
         super().add_trajectory(trajectory)
         self.use_visual_servoing = use_visual_servoing
         if self.use_visual_servoing:
@@ -81,10 +83,12 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self.update_activation_of_visual_servoing()
         traj_point = self.trajectory[self.traj_idx]
         if self.activate_visual_servoing:
-            if self.visual_servoing_pose is None:
-                raise ValueError("Visual Servoing pose is not set.")
+            # if self.visual_servoing_pose is None:
+            #    raise ValueError("Visual Servoing pose is not set.")
             key = next(iter(traj_point.end_effector_poses))
-            traj_point.end_effector_poses[key] = self.visual_servoing_pose
+            in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
+            in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
+            traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
             self.w_pose = [self.get_increasing_weight()] * 6
             self.visual_servoing_time += 0.01
         else:
