@@ -9,9 +9,14 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
 
+import rclpy.time
 from std_msgs.msg import String
 from agimus_msgs.msg import MpcInput, MpcDebug
 import builtin_interfaces
+
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 
 import linear_feedback_controller_msgs_py.lfc_py_types as lfc_py_types
 from linear_feedback_controller_msgs_py.numpy_conversions import (
@@ -35,6 +40,7 @@ from agimus_controller.factory.robot_model import RobotModels, RobotModelParamet
 from agimus_controller_ros.ros_utils import (
     mpc_msg_to_weighted_traj_point,
     mpc_debug_data_to_msg,
+    transform_msg_to_se3,
 )
 
 
@@ -263,6 +269,26 @@ class AgimusController(Node, RobotModelsMixin):
 
         self._init_timer = self.create_timer(0.1, self.initialization_callback)
 
+    def initialize_tf_listener(self):
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+    def update_transforms(self):
+        now = self.get_clock().now()
+        transforms = self.ocp.input_transforms
+        for key in transforms:
+            parent_frame, child_frame = key
+            try:
+                t = self.tf_buffer.lookup_transform(parent_frame, child_frame, now)
+                M = transform_msg_to_se3(t.transform)
+            except TransformException as ex:
+                self.get_logger().info(
+                    f"Could not transform {parent_frame} to {child_frame}: {ex}",
+                    throttle_duration_sec=1.0,
+                )
+                M = None
+            transforms[key] = M
+
     def setup_mpc(self):
         """Creates mpc, ocp, warmstart"""
         yaml_file = self.params.ocp.definition_yaml_file
@@ -270,6 +296,11 @@ class AgimusController(Node, RobotModelsMixin):
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
         self.get_logger().info(f"Loading OCP definition file {yaml_file}")
         ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
+        self.ocp = ocp
+
+        update_transforms = len(ocp.input_transforms) > 0
+        if update_transforms:
+            self.initialize_tf_listener()
 
         ws_shift = WarmStartShiftPreviousSolution()
         ws_shift.setup(self.robot_models, self.ocp_params)
@@ -286,6 +317,9 @@ class AgimusController(Node, RobotModelsMixin):
             robot_acceleration=np.zeros_like(np_sensor_msg.joint_state.velocity),
         )
         reference_trajectory = self.traj_buffer.horizon
+        if update_transforms:
+            # TODO given that we just created the listener, we might need to wait a bit for the transform to be available.
+            self.update_transforms()
         ocp.set_reference_weighted_trajectory(reference_trajectory)
 
         reference_trajectory_points = [el.point for el in reference_trajectory]
@@ -403,6 +437,9 @@ class AgimusController(Node, RobotModelsMixin):
             # Do not use ROS time here because we want to measure the real computation time
             start_compute_time = time.perf_counter()
         self.np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
+
+        # Update the input transforms required by the OCP, if any.
+        self.update_transforms()
 
         x0_traj_point = TrajectoryPoint(
             time_ns=self.get_clock().now().nanoseconds,
