@@ -63,7 +63,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
         self,
         ee_des_pos: pin.SE3,
         ee_des_vel: np.ndarray,
-        precision=1e-12,
+        precision=1e-5,
         it_max=10000,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute the inverse kinematics of the robot to reach the desired end effector pose."""
