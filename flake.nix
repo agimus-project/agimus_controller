@@ -2,138 +2,77 @@
   description = "Whole Body Model Predictive Control in the AGIMUS architecture";
 
   inputs = {
-    gepetto.url = "github:gepetto/nix";
-    flake-parts.follows = "gepetto/flake-parts";
-    nixpkgs.follows = "gepetto/nixpkgs";
-    nix-ros-overlay.follows = "gepetto/nix-ros-overlay";
-    treefmt-nix.follows = "gepetto/treefmt-nix";
+    # develop because mim-solvers is not yet available in master
+    nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay/develop";
+    nixpkgs.follows = "nix-ros-overlay/nixpkgs";
+
+    agimus-msgs = {
+      url = "github:agimus-project/agimus_msgs/humble-devel";
+      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
+    };
+    colmpc = {
+      url = "github:agimus-project/colmpc";
+      inputs.nixpkgs.follows = "nix-ros-overlay/nixpkgs";
+    };
+    linear-feedback-controller-msgs = {
+      url = "github:loco-3d/linear-feedback-controller-msgs/humble-devel";
+      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
+    };
+    franka-description = {
+      url = "github:agimus-project/franka_description/humble-devel";
+      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
+    };
+
+    ## Patches for nixpkgs
+    # init HPP v6.0.0
+    # also: hpp-fcl v2.4.5 -> coal v3.0.0
+    patch-hpp = {
+      url = "https://github.com/nim65s/nixpkgs/pull/2.patch";
+      flake = false;
+    };
   };
 
   outputs =
-    inputs:
-    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [
-        "x86_64-linux"
-        "aarch64-darwin"
-      ];
-      imports = [ inputs.treefmt-nix.flakeModule ];
-      perSystem =
-        {
-          lib,
-          pkgs,
-          system,
-          self',
-          ...
-        }:
-        {
-          # Drop this once crocoddyl >= 3.0.1 reaches nix-ros-overlay
-          _module.args.pkgs =
-            let
-              pkgsForPatching = inputs.nixpkgs.legacyPackages.x86_64-linux;
-              patchedNixpkgs = (
-                pkgsForPatching.applyPatches {
-                  inherit (inputs.gepetto) patches;
-                  name = "patched nixpkgs";
-                  src = inputs.nixpkgs;
-                }
-              );
-            in
-            import patchedNixpkgs {
-              inherit system;
-              overlays = [
-                inputs.nix-ros-overlay.overlays.default
-                inputs.gepetto.overlays.default
-              ];
-            };
-          checks = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
-          packages =
-            let
-              src = lib.fileset.toSource {
-                root = ./.;
-                fileset = lib.fileset.unions [
-                  ./agimus_controller/agimus_controller
-                  ./agimus_controller/resource
-                  ./agimus_controller/tests
-                  ./agimus_controller/package.xml
-                  ./agimus_controller/setup.py
-                ];
+    {
+      agimus-msgs,
+      colmpc,
+      linear-feedback-controller-msgs,
+      franka-description,
+      nix-ros-overlay,
+      nixpkgs,
+      patch-hpp,
+      self,
+      ...
+    }:
+    nix-ros-overlay.inputs.flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = import ./patched-nixpkgs.nix {
+          inherit nixpkgs system;
+          overlays = [ nix-ros-overlay.overlays.default ];
+          patches = [ patch-hpp ];
+        };
+      in
+      {
+        packages = {
+          default = self.packages.${system}.agimus-controller-ros;
+          agimus-controller = pkgs.python3Packages.callPackage ./agimus_controller/default.nix {
+            inherit (colmpc.packages.${system}) colmpc;
+            inherit (franka-description.packages.${system}) franka-description;
+          };
+          agimus-controller-examples =
+            pkgs.python3Packages.callPackage ./agimus_controller_examples/default.nix
+              {
+                inherit (self.packages.${system}) agimus-controller;
+                inherit (franka-description.packages.${system}) franka-description;
               };
-              # src-examples = lib.fileset.toSource {
-              #   root = ./.;
-              #   fileset = lib.fileset.unions [
-              #     ./agimus_controller_examples/agimus_controller_examples
-              #     ./agimus_controller_examples/scripts
-              #     ./agimus_controller_examples/setup.py
-              #   ];
-              # };
-              src-ros = lib.fileset.toSource {
-                root = ./.;
-                fileset = lib.fileset.unions [
-                  ./agimus_controller_ros/agimus_controller_ros
-                  ./agimus_controller_ros/resource
-                  ./agimus_controller_ros/test
-                  ./agimus_controller_ros/package.xml
-                  ./agimus_controller_ros/setup.cfg
-                  ./agimus_controller_ros/setup.py
-                ];
-              };
-            in
-            {
-              default = self'.packages.agimus-controller;
-              agimus-controller = pkgs.python3Packages.agimus-controller.overrideAttrs (oldAttrs: {
-                inherit src;
-                # Add pytest and any other test dependencies
-                nativeBuildInputs = oldAttrs.nativeBuildInputs or [ ] ++ [
-                  pkgs.python3Packages.pytestCheckHook
-                ];
-                nativeCheckInputs = oldAttrs.nativeCheckInputs or [ ] ++ [
-                  pkgs.python3Packages.pytest
-                ];
-                # Explicitly define the checkPhase to run pytest
-                checkPhase = ''
-                  pytest ${src}/agimus_controller/tests
-                '';
-              });
-              # agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples.overrideAttrs {
-              #   inherit src-examples;
-              # };
-              humble-agimus-controller-ros =
-                pkgs.rosPackages.humble.agimus-controller-ros.overrideAttrs
-                  (oldAttrs: {
-                    inherit src-ros;
-                    # Add pytest and any other test dependencies
-                    nativeBuildInputs = oldAttrs.nativeBuildInputs or [ ] ++ [
-                      pkgs.python3Packages.pytestCheckHook
-                    ];
-                    nativeCheckInputs = oldAttrs.nativeCheckInputs or [ ] ++ [
-                      pkgs.python3Packages.pytest
-                    ];
-                    # Explicitly define the checkPhase to run pytest
-                    checkPhase = ''
-                      pytest ${src}/agimus_controller/tests
-                    '';
-                  });
-              jazzy-agimus-controller-ros =
-                pkgs.rosPackages.jazzy.agimus-controller-ros.overrideAttrs
-                  (oldAttrs: {
-                    inherit src-ros;
-                    # Add pytest and any other test dependencies
-                    nativeBuildInputs = oldAttrs.nativeBuildInputs or [ ] ++ [
-                      pkgs.python3Packages.pytestCheckHook
-                    ];
-                    nativeCheckInputs = oldAttrs.nativeCheckInputs or [ ] ++ [
-                      pkgs.python3Packages.pytest
-                    ];
-                    # Explicitly define the checkPhase to run pytest
-                    checkPhase = ''
-                      pytest ${src}/agimus_controller/tests
-                    '';
-                  });
-            };
-          treefmt.programs = {
-            deadnix.enable = true;
-            nixfmt.enable = true;
+          agimus-controller-ros = pkgs.python3Packages.callPackage ./agimus_controller_ros/default.nix {
+            inherit (self.packages.${system}) agimus-controller;
+            inherit (agimus-msgs.packages.${system}) agimus-msgs;
+            inherit (franka-description.packages.${system}) franka-description;
+            inherit (linear-feedback-controller-msgs.packages.${system}) linear-feedback-controller-msgs;
           };
         };
-    };
+      }
+    );
 }
