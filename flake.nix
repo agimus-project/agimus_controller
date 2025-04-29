@@ -87,7 +87,9 @@
               })
             ];
           };
-          checks = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
+          checks = lib.filterAttrs (_n: v: v.meta.available && !v.meta.broken) (
+            lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages
+          );
           packages = {
             default = self'.packages.agimus-controller;
             agimus-controller = pkgs.python3Packages.agimus-controller;
