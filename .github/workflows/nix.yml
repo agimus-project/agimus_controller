@@ -10,8 +10,12 @@ on:
     - humble-devel
     - topic/humble-devel/refactor
 jobs:
-  nix:
-    runs-on: "ubuntu-latest"
+  ci:
+    name: "Nix build on ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}-latest"
+    strategy:
+      matrix:
+        os: [macos, ubuntu]
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
