@@ -83,10 +83,10 @@
               agimus-controller = pkgs.python3Packages.agimus-controller.overrideAttrs (oldAttrs: {
                 inherit src;
                 # Add pytest and any other test dependencies
-                nativeBuildInputs = oldAttrs.nativeBuildInputs or [] ++ [
+                nativeBuildInputs = oldAttrs.nativeBuildInputs or [ ] ++ [
                   pkgs.python3Packages.pytestCheckHook
                 ];
-                nativeCheckInputs = oldAttrs.nativeCheckInputs or [] ++ [
+                nativeCheckInputs = oldAttrs.nativeCheckInputs or [ ] ++ [
                   pkgs.python3Packages.pytest
                 ];
                 # Explicitly define the checkPhase to run pytest
@@ -97,34 +97,38 @@
               # agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples.overrideAttrs {
               #   inherit src-examples;
               # };
-              humble-agimus-controller-ros = pkgs.rosPackages.humble.agimus-controller-ros.overrideAttrs (oldAttrs: {
-                inherit src-ros;
-                  # Add pytest and any other test dependencies
-                nativeBuildInputs = oldAttrs.nativeBuildInputs or [] ++ [
-                  pkgs.python3Packages.pytestCheckHook
-                ];
-                nativeCheckInputs = oldAttrs.nativeCheckInputs or [] ++ [
-                  pkgs.python3Packages.pytest
-                ];
-                # Explicitly define the checkPhase to run pytest
-                checkPhase = ''
-                  pytest ${src}/agimus_controller/tests
-                '';
-              });
-              jazzy-agimus-controller-ros = pkgs.rosPackages.jazzy.agimus-controller-ros.overrideAttrs (oldAttrs: {
-                inherit src-ros;
-                  # Add pytest and any other test dependencies
-                nativeBuildInputs = oldAttrs.nativeBuildInputs or [] ++ [
-                  pkgs.python3Packages.pytestCheckHook
-                ];
-                nativeCheckInputs = oldAttrs.nativeCheckInputs or [] ++ [
-                  pkgs.python3Packages.pytest
-                ];
-                # Explicitly define the checkPhase to run pytest
-                checkPhase = ''
-                  pytest ${src}/agimus_controller/tests
-                '';
-              });
+              humble-agimus-controller-ros =
+                pkgs.rosPackages.humble.agimus-controller-ros.overrideAttrs
+                  (oldAttrs: {
+                    inherit src-ros;
+                    # Add pytest and any other test dependencies
+                    nativeBuildInputs = oldAttrs.nativeBuildInputs or [ ] ++ [
+                      pkgs.python3Packages.pytestCheckHook
+                    ];
+                    nativeCheckInputs = oldAttrs.nativeCheckInputs or [ ] ++ [
+                      pkgs.python3Packages.pytest
+                    ];
+                    # Explicitly define the checkPhase to run pytest
+                    checkPhase = ''
+                      pytest ${src}/agimus_controller/tests
+                    '';
+                  });
+              jazzy-agimus-controller-ros =
+                pkgs.rosPackages.jazzy.agimus-controller-ros.overrideAttrs
+                  (oldAttrs: {
+                    inherit src-ros;
+                    # Add pytest and any other test dependencies
+                    nativeBuildInputs = oldAttrs.nativeBuildInputs or [ ] ++ [
+                      pkgs.python3Packages.pytestCheckHook
+                    ];
+                    nativeCheckInputs = oldAttrs.nativeCheckInputs or [ ] ++ [
+                      pkgs.python3Packages.pytest
+                    ];
+                    # Explicitly define the checkPhase to run pytest
+                    checkPhase = ''
+                      pytest ${src}/agimus_controller/tests
+                    '';
+                  });
             };
           treefmt.programs = {
             deadnix.enable = true;
