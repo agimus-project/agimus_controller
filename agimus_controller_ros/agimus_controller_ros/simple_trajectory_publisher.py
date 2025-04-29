@@ -150,8 +150,8 @@ class SimpleTrajectoryPublisher(Node):
         self.robot_description_msg = msg
         self.destroy_subscription(self.subscriber_robot_description_)
 
-    def get_trajectory(self, trajectory_name: String) -> TrajectoryBase:
-        """Build chosen trajectory."""
+    def get_sine_wave_parameters(self) -> SinWaveParams:
+        """Get sine wave parameters."""
         sine_wave_amplitude = self.params.sine_wave.amplitude
         if len(sine_wave_amplitude) == 1:
             self.params.sine_wave.amplitude = (sine_wave_amplitude[0],) * len(
@@ -172,15 +172,21 @@ class SimpleTrajectoryPublisher(Node):
             period=sine_wave_period,
             scale_duration=sine_wave_scale_duration,
         )
+        return self.sine_wave_parameters
 
+    def get_trajectory(self, trajectory_name: String) -> TrajectoryBase:
+        """Build chosen trajectory."""
+        self.sine_wave_parameters = self.get_sine_wave_parameters()
         if trajectory_name == "sine_wave_configuration_space":
-            assert len(sine_wave_amplitude) == len(self.moving_joint_names), (
-                "sine_wave_amplitude and moving_joint_names must have the same length"
-            )
-            assert len(sine_wave_period) == len(self.moving_joint_names), (
-                "sine_wave_period and moving_joint_names must have the same length"
-            )
-            assert len(sine_wave_scale_duration) == len(self.moving_joint_names), (
+            assert len(self.sine_wave_parameters.amplitude) == len(
+                self.moving_joint_names
+            ), "sine_wave_amplitude and moving_joint_names must have the same length"
+            assert len(self.sine_wave_parameters.period) == len(
+                self.moving_joint_names
+            ), "sine_wave_period and moving_joint_names must have the same length"
+            assert len(self.sine_wave_parameters.scale_duration) == len(
+                self.moving_joint_names
+            ), (
                 "sine_wave_scale_duration and moving_joint_names must have the same length"
             )
             return SinusWaveConfigurationSpace(
@@ -195,9 +201,13 @@ class SimpleTrajectoryPublisher(Node):
                 w_pose=self.get_weights(self.params.w_pose, 6),
             )
         elif trajectory_name == "sine_wave_cartesian_space":
-            assert len(sine_wave_amplitude) == 3, "sine_wave_amplitude length must be 3"
-            assert len(sine_wave_period) == 3, "sine_wave_period length must be 3"
-            assert len(sine_wave_scale_duration) == 3, (
+            assert len(self.sine_wave_parameters.amplitude) == 3, (
+                "sine_wave_amplitude length must be 3"
+            )
+            assert len(self.sine_wave_parameters.period) == 3, (
+                "sine_wave_period length must be 3"
+            )
+            assert len(self.sine_wave_parameters.scale_duration) == 3, (
                 "sine_wave_scale_duration length must be 3"
             )
             return SinusWaveCartesianSpace(
