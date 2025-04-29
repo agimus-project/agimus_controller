@@ -1,5 +1,4 @@
 from copy import deepcopy
-from numpy.linalg import norm, solve
 import numpy as np
 import pinocchio as pin
 
@@ -64,7 +63,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
         self,
         ee_des_pos: pin.SE3,
         ee_des_vel: np.ndarray,
-        precision=1e-3,
+        precision=1e-12,
         it_max=10000,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute the inverse kinematics of the robot to reach the desired end effector pose."""
@@ -74,7 +73,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
             self.ik_ee_pose = self.get_end_effector_pose_from_q_as_se3(self.ik_q)
             dMi = ee_des_pos.actInv(self.ik_ee_pose)
             error = pin.log(dMi).vector[self.mask]
-            if norm(error) < precision:
+            if np.linalg.norm(error) < precision:
                 success = True
                 break
             if i > it_max:
@@ -87,14 +86,14 @@ class SinusWaveCartesianSpace(TrajectoryBase):
                 self.ee_frame_id,
                 pin.ReferenceFrame.LOCAL,
             )[self.mask, :]
-            dq = Jee.T @ solve(Jee @ Jee.T, error)
+            dq = -Jee.T @ np.linalg.solve(Jee @ Jee.T, error)
             self.ik_q[:] = pin.integrate(self.pin_model, self.ik_q, dq)
             i += 1
 
         if not success:
             error_msgs = (
                 f"Inverse kinematics 6D failed to converge with error: "
-                f"{self.ik_error}. Number of iteration: {i}"
+                f"{error}. Number of iteration: {i}"
             )
             raise RuntimeError(error_msgs)
 
@@ -107,7 +106,8 @@ class SinusWaveCartesianSpace(TrajectoryBase):
             self.ee_frame_id,
             pin.ReferenceFrame.LOCAL_WORLD_ALIGNED,
         )[self.mask, :]
-        dq = -Jee.T @ solve(Jee @ Jee.T, ee_des_vel[self.mask])
+        dq = Jee.T @ np.linalg.solve(Jee @ Jee.T, ee_des_vel[self.mask])
+
         return self.ik_q.copy(), dq.copy()
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
