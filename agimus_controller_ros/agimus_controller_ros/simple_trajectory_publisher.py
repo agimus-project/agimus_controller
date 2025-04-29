@@ -24,6 +24,10 @@ from agimus_controller.trajectories.sine_wave_configuration_space import (
 from agimus_controller.trajectories.sine_wave_cartesian_space import (
     SinusWaveCartesianSpace,
 )
+from agimus_controller.trajectories.sine_wave_cartesian_space_weight_increasing import (
+    SinusWaveCartesianSpaceWeightIncreasing,
+)
+from agimus_controller.trajectories.weight_increasing import WeightIncreasing
 from agimus_controller.trajectories.trajectory_base import TrajectoryBase
 from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller_ros.ros_utils import weighted_traj_point_to_mpc_msg
@@ -57,6 +61,16 @@ class SimpleTrajectoryPublisher(Node):
         self.param_listener = trajectory_weights_params.ParamListener(self)
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
+        self.sine_wave_params = SinWaveParams(
+            amplitude=self.params.sine_wave.amplitude,
+            period=self.params.sine_wave.period,
+            scale_duration=self.params.sine_wave.scale_duration,
+        )
+        self.w_increasing = WeightIncreasing(
+            self.params.w_increasing.max_weight,
+            percent=self.params.w_increasing.percent,
+            time_reach_percent=self.params.w_increasing.time_reach_percent,
+        )
 
         self.q0 = None
         self.current_q = None
@@ -212,6 +226,29 @@ class SimpleTrajectoryPublisher(Node):
             )
             return SinusWaveCartesianSpace(
                 sine_wave_params=self.sine_wave_parameters,
+                ee_frame_name=self.ee_frame_name,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+                mask=self.params.mask,
+            )
+        elif trajectory_name == "sine_wave_cartesian_space_weight_increasing":
+            assert len(self.sine_wave_parameters.amplitude) == 3, (
+                "sine_wave_amplitude length must be 3"
+            )
+            assert len(self.sine_wave_parameters.period) == 3, (
+                "sine_wave_period length must be 3"
+            )
+            assert len(self.sine_wave_parameters.scale_duration) == 3, (
+                "sine_wave_scale_duration length must be 3"
+            )
+            return SinusWaveCartesianSpaceWeightIncreasing(
+                sine_wave_params=self.sine_wave_params,
+                w_increasing=self.w_increasing,
                 ee_frame_name=self.ee_frame_name,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
