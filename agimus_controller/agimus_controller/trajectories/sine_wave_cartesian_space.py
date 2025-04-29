@@ -87,7 +87,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
                 self.ee_frame_id,
                 pin.ReferenceFrame.LOCAL,
             )[self.mask, :]
-            dq = -Jee.T @ solve(Jee @ Jee.T, error)
+            dq = Jee.T @ solve(Jee @ Jee.T, error)
             self.ik_q[:] = pin.integrate(self.pin_model, self.ik_q, dq)
             i += 1
 

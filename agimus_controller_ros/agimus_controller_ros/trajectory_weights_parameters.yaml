@@ -16,7 +16,7 @@ trajectory_weights_params:
   mask:
     type: bool_array
     default_value: [True, True, True, True, True, True]
-    description: "Mask for the space sine wave DoF to control."
+    description: "Mask for the cartesian space sine wave DoF to update from the Inverse Kinematic."
   ee_frame_name:
     type: string
     description: "End-effector name."
