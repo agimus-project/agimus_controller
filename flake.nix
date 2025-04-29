@@ -2,77 +2,100 @@
   description = "Whole Body Model Predictive Control in the AGIMUS architecture";
 
   inputs = {
-    # develop because mim-solvers is not yet available in master
-    nix-ros-overlay.url = "github:lopsided98/nix-ros-overlay/develop";
-    nixpkgs.follows = "nix-ros-overlay/nixpkgs";
-
-    agimus-msgs = {
-      url = "github:agimus-project/agimus_msgs/humble-devel";
-      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
-    };
-    colmpc = {
-      url = "github:agimus-project/colmpc";
-      inputs.nixpkgs.follows = "nix-ros-overlay/nixpkgs";
-    };
-    linear-feedback-controller-msgs = {
-      url = "github:loco-3d/linear-feedback-controller-msgs/humble-devel";
-      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
-    };
-    franka-description = {
-      url = "github:agimus-project/franka_description/humble-devel";
-      inputs.nix-ros-overlay.follows = "nix-ros-overlay";
-    };
-
-    ## Patches for nixpkgs
-    # init HPP v6.0.0
-    # also: hpp-fcl v2.4.5 -> coal v3.0.0
-    patch-hpp = {
-      url = "https://github.com/nim65s/nixpkgs/pull/2.patch";
-      flake = false;
-    };
+    gepetto.url = "github:gepetto/nix";
+    flake-parts.follows = "gepetto/flake-parts";
+    nixpkgs.follows = "gepetto/nixpkgs";
+    nix-ros-overlay.follows = "gepetto/nix-ros-overlay";
+    treefmt-nix.follows = "gepetto/treefmt-nix";
   };
 
   outputs =
-    {
-      agimus-msgs,
-      colmpc,
-      linear-feedback-controller-msgs,
-      franka-description,
-      nix-ros-overlay,
-      nixpkgs,
-      patch-hpp,
-      self,
-      ...
-    }:
-    nix-ros-overlay.inputs.flake-utils.lib.eachDefaultSystem (
-      system:
-      let
-        pkgs = import ./patched-nixpkgs.nix {
-          inherit nixpkgs system;
-          overlays = [ nix-ros-overlay.overlays.default ];
-          patches = [ patch-hpp ];
-        };
-      in
-      {
-        packages = {
-          default = self.packages.${system}.agimus-controller-ros;
-          agimus-controller = pkgs.python3Packages.callPackage ./agimus_controller/default.nix {
-            inherit (colmpc.packages.${system}) colmpc;
-            inherit (franka-description.packages.${system}) franka-description;
+    inputs:
+    let
+      pkgsForPatching = inputs.nixpkgs.legacyPackages.x86_64-linux;
+      patchedNixpkgs = (
+        pkgsForPatching.applyPatches {
+          inherit (inputs.gepetto) patches;
+          name = "patched nixpkgs";
+          src = inputs.nixpkgs;
+        }
+      );
+    in
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [ "x86_64-linux" ];
+      imports = [ inputs.treefmt-nix.flakeModule ];
+      perSystem =
+        {
+          lib,
+          pkgs,
+          system,
+          self',
+          ...
+        }:
+        {
+          _module.args.pkgs = import patchedNixpkgs {
+            inherit system;
+            overlays = [
+              inputs.nix-ros-overlay.overlays.default
+              inputs.gepetto.overlays.default
+              (_final: prev: {
+                pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                  (_python-final: python-prev: {
+                    agimus-controller = python-prev.agimus-controller.overrideAttrs {
+                      src = lib.fileset.toSource {
+                        root = ./.;
+                        fileset = lib.fileset.unions [
+                          ./agimus_controller
+                        ];
+                      };
+                    };
+                    agimus-controller-examples = python-prev.agimus-controller-examples.overrideAttrs {
+                      src = lib.fileset.toSource {
+                        root = ./.;
+                        fileset = lib.fileset.unions [
+                          ./agimus_controller_examples
+                        ];
+                      };
+                    };
+                  })
+                ];
+                rosPackages =
+                  let
+                    src = lib.fileset.toSource {
+                      root = ./.;
+                      fileset = lib.fileset.unions [
+                        ./agimus_controller_ros
+                      ];
+                    };
+                  in
+                  prev.rosPackages
+                  // {
+                    humble = prev.rosPackages.humble.overrideScope (
+                      _humble-final: humble-prev: {
+                        agimus-controller-ros = humble-prev.agimus-controller-ros.overrideAttrs { inherit src; };
+                      }
+                    );
+                    jazzy = prev.rosPackages.jazzy.overrideScope (
+                      _jazzy-final: jazzy-prev: {
+                        agimus-controller-ros = jazzy-prev.agimus-controller-ros.overrideAttrs { inherit src; };
+                      }
+                    );
+                  };
+              })
+            ];
           };
-          agimus-controller-examples =
-            pkgs.python3Packages.callPackage ./agimus_controller_examples/default.nix
-              {
-                inherit (self.packages.${system}) agimus-controller;
-                inherit (franka-description.packages.${system}) franka-description;
-              };
-          agimus-controller-ros = pkgs.python3Packages.callPackage ./agimus_controller_ros/default.nix {
-            inherit (self.packages.${system}) agimus-controller;
-            inherit (agimus-msgs.packages.${system}) agimus-msgs;
-            inherit (franka-description.packages.${system}) franka-description;
-            inherit (linear-feedback-controller-msgs.packages.${system}) linear-feedback-controller-msgs;
+          checks = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
+          packages = {
+            default = self'.packages.agimus-controller;
+            agimus-controller = pkgs.python3Packages.agimus-controller;
+            agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples;
+            ros-humble-agimus-controller-examples = pkgs.rosPackages.humble.agimus-controller-ros;
+            ros-jazzy-agimus-controller-examples = pkgs.rosPackages.jazzy.agimus-controller-ros;
+          };
+          treefmt.programs = {
+            deadnix.enable = true;
+            nixfmt.enable = true;
           };
         };
-      }
-    );
+    };
 }
