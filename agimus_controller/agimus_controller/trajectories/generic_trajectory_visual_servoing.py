@@ -37,11 +37,7 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self.visual_servoing_time = 0.0
 
     def get_increasing_weight(self):
-        return self.max_weight * np.tanh(
-            self.visual_servoing_time
-            * np.arctanh(self.percent)
-            / self.time_reach_percent
-        )
+        return self.max_weight
 
     def set_visual_servoing_pose(self, visual_servoing_pose):
         # TODO Only change translation part for now, rotation has to be tested
@@ -66,7 +62,7 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self, trajectory, use_visual_servoing, init_in_world_M_object=None
     ):
         if use_visual_servoing:
-            if init_in_world_M_object:
+            if init_in_world_M_object is None:
                 raise ValueError("Init pose detection not set.")
             self.init_in_world_M_object = pin.XYZQUATToSE3(init_in_world_M_object)
         super().add_trajectory(trajectory)
@@ -82,13 +78,14 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         self.update_activation_of_visual_servoing()
         traj_point = self.trajectory[self.traj_idx]
+        key = next(iter(traj_point.end_effector_poses))
+        in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
+        in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
+        traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
         if self.activate_visual_servoing:
             # if self.visual_servoing_pose is None:
             #    raise ValueError("Visual Servoing pose is not set.")
-            key = next(iter(traj_point.end_effector_poses))
-            in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
-            in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
-            traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
+
             self.w_pose = [self.get_increasing_weight()] * 6
             self.visual_servoing_time += 0.01
         else:
