@@ -35,6 +35,7 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         # Wether current trajectory requires visual servoing or not
         self.use_visual_servoing = False
         self.visual_servoing_time = 0.0
+        self.init_in_world_M_object = None
 
     def get_increasing_weight(self):
         return self.max_weight
@@ -67,21 +68,15 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
             self.init_in_world_M_object = pin.XYZQUATToSE3(init_in_world_M_object)
         super().add_trajectory(trajectory)
         self.use_visual_servoing = use_visual_servoing
-        if self.use_visual_servoing:
-            self.visual_servoing_pose = next(
-                iter(self.trajectory[-1].end_effector_poses.values())
-            )
-            if self.simulate_happypose:
-                self.visual_servoing_pose[0] += 0.03
-                self.visual_servoing_pose[1] += 0.03
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         self.update_activation_of_visual_servoing()
         traj_point = self.trajectory[self.traj_idx]
         key = next(iter(traj_point.end_effector_poses))
-        in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
-        in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
-        traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
+        if self.init_in_world_M_object is not None:
+            in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
+            in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
+            traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
         if self.activate_visual_servoing:
             # if self.visual_servoing_pose is None:
             #    raise ValueError("Visual Servoing pose is not set.")
