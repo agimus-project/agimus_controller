@@ -1,9 +1,10 @@
 import pinocchio as pin
+import eigenpy
 import numpy as np
 import numpy.typing as npt
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Transform
 from agimus_msgs.msg import MpcInput, MpcDebug, Residual
 
 from agimus_controller.trajectory import (
@@ -40,6 +41,68 @@ def array_to_ros_pose(pose_array: Pose) -> npt.NDArray[np.float64]:
     ros_pose.orientation.z = pose_array[5]
     ros_pose.orientation.w = pose_array[6]
     return ros_pose
+
+
+def transform_to_se3(transform: Transform) -> pin.SE3:
+    t = np.array(
+        [
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+        ]
+    )
+    q = eigenpy.Quaternion(
+        transform.rotation.w,
+        transform.rotation.x,
+        transform.rotation.y,
+        transform.rotation.z,
+    )
+    return pin.SE3(q, t)
+
+
+def se3_to_transform(M: pin.SE3) -> Transform:
+    t = Transform()
+    t.translation.x = M.translation[0]
+    t.translation.y = M.translation[1]
+    t.translation.z = M.translation[2]
+
+    q = eigenpy.Quaternion(M.rotation)
+    t.rotation.w = q.w
+    t.rotation.x = q.x
+    t.rotation.y = q.y
+    t.rotation.z = q.z
+    return t
+
+
+def pose_to_se3(pose: Pose) -> pin.SE3:
+    t = np.array(
+        [
+            pose.position.x,
+            pose.position.y,
+            pose.position.z,
+        ]
+    )
+    q = eigenpy.Quaternion(
+        pose.orientation.w,
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+    )
+    return pin.SE3(q, t)
+
+
+def se3_to_pose(M: pin.SE3) -> Pose:
+    t = Pose()
+    t.position.x = M.translation[0]
+    t.position.y = M.translation[1]
+    t.position.z = M.translation[2]
+
+    q = eigenpy.Quaternion(M.rotation)
+    t.orientation.w = q.w
+    t.orientation.x = q.x
+    t.orientation.y = q.y
+    t.orientation.z = q.z
+    return t
 
 
 def mpc_msg_to_weighted_traj_point(
