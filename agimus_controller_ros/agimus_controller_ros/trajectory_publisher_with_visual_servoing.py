@@ -70,10 +70,14 @@ class TrajectoryPublisherWithVisualServoing(SimpleTrajectoryPublisher):
                 qos_profile=qos_profile_system_default,
             )
 
-    def add_trajectory(self, trajectory, use_visual_servoing, object_name):
+    def add_trajectory(
+        self, trajectory, use_visual_servoing, object_name, init_object_pose
+    ):
         if self.params.trajectory_name == "generic_trajectory_visual_servoing":
             self.object_name = object_name
-            self.trajectory.add_trajectory(trajectory, use_visual_servoing)
+            self.trajectory.add_trajectory(
+                trajectory, use_visual_servoing, init_in_world_M_object=init_object_pose
+            )
             self.future_trajectory_done = Future()
         else:
             raise RuntimeError(
