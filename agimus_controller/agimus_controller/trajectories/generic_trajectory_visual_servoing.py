@@ -27,7 +27,6 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self.max_weight = traj_params.increasing_weights.max_weight
         self.percent = traj_params.increasing_weights.percent
         self.time_reach_percent = traj_params.increasing_weights.time_reach_percent
-        self.simulate_happypose = traj_params.simulate_happypose
         # current visual servoing pose
         self.visual_servoing_pose = None
         # boolean to decides to activate visual servoing

@@ -56,10 +56,7 @@ class TrajectoryPublisherWithVisualServoing(SimpleTrajectoryPublisher):
 
     def __init__(self):
         super().__init__()
-        if (
-            self.params.trajectory_name == "generic_trajectory_visual_servoing"
-            and not self.params.generic_trajectory_visual_servoing.simulate_happypose
-        ):
+        if self.params.trajectory_name == "generic_trajectory_visual_servoing":
             self.object_name = None
             self.tf_buffer = tf2_ros.Buffer()
             self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)

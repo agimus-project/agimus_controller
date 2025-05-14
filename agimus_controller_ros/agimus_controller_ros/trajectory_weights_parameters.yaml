@@ -75,10 +75,6 @@ trajectory_weights_params:
       type: double
       default_value: 0.1
       description: "When distance to goal is below this threshold, activate visual servoing."
-    simulate_happypose:
-      type: bool
-      default_value: false
-      description: "Wether we simulate or not vision callback from happypose."
     increasing_weights:
       max_weight:
         type: double
