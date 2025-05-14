@@ -13,7 +13,7 @@ from agimus_controller.trajectory import (
 
 
 class SinusWaveCartesianSpace(TrajectoryBase):
-    """ "Define the trajectory of a sine-wave in configuration Space."""
+    """ "Define the trajectory of a sine-wave in cartesian space."""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class SinusWaveCartesianSpace(TrajectoryBase):
         w_pose,
         mask=(True, True, True, True, True, True),
     ):
-        """Initialize parameters needed for the sine wave in configuration space trajectory.
+        """Initialize parameters needed for the sine wave in cartesian space trajectory.
 
         Args:
             sine_wave_params (SinWaveParams): Sine wave parameters: period, amplitude, scale_duration.

@@ -34,7 +34,7 @@ class SinusWaveCartesianSpaceWeightIncreasing(SinusWaveCartesianSpace):
         w_pose,
         mask=(True, True, True, True, True, True),
     ):
-        """Initialize parameters needed for the sine wave in configuration space trajectory."""
+        """Initialize parameters needed for the sine wave in cartesian space with increasing weight trajectory."""
         super().__init__(
             sine_wave_params,
             ee_frame_name,
@@ -46,53 +46,48 @@ class SinusWaveCartesianSpaceWeightIncreasing(SinusWaveCartesianSpace):
             mask,
         )
         self.w_increasing = w_increasing
-        self.target_1_pose = None
-        self.target_2_pose = None
-        self.cycle_duration = 4.0
+        self.cycle_durations = sine_wave_params.period
 
-    def get_targets_time(self, t):
+    def get_targets_time(self, t, cycle_duration):
         """get cycle's targets time."""
-        cycle_start_time = (
-            int(t / self.cycle_duration) * self.cycle_duration
-        )  # Date of cycle start in ms
-
-        # Compute the absolute time of the shooting interval, modulo the cycle time,
-        # so that 0<=time_a0<self.cycle_duration and 0<time_a1<=self.cycle_duration
+        cycle_start_time = int(t / cycle_duration) * cycle_duration
         time_target_1 = t - cycle_start_time
-        # absolute data of the time of the start of the shooting interval
-        if time_target_1 > self.cycle_duration:
-            time_target_1 -= self.cycle_duration
-
-        # Compute the absolute time of the shooting interval for the second task, modulo the cycle time,
-        # so that 0<=time_b0<self.cycle_duration and 0<time_b1<=self.cycle_duration and [time_a0,time_a1] is in antiphase with [time_b0,time_b1].
-
-        if time_target_1 < self.cycle_duration / 2.0:
-            time_target_2 = time_target_1 + self.cycle_duration / 2.0
-
+        if time_target_1 > cycle_duration:
+            time_target_1 -= cycle_duration
+        if time_target_1 < cycle_duration / 2.0:
+            time_target_2 = time_target_1 + cycle_duration / 2.0
         else:
-            time_target_2 = time_target_1 - self.cycle_duration / 2.0
+            time_target_2 = time_target_1 - cycle_duration / 2.0
         return (time_target_1, time_target_2)
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         quint, dquint, _ = self.quint_traj.get_value_at_t(t)
         sin_wt = np.sin(self.w * t)
         cos_wt = np.cos(self.w * t)
-        time_target_1, time_target_2 = self.get_targets_time(t)
-        ee_des_pos = self.ee_init_pos.copy()
-        ee_des_pos.translation += self.amp * quint * sin_wt
-
         ee_des_vel = np.zeros(6)
         ee_des_vel[:3] = self.amp * (dquint * sin_wt + quint * self.w * cos_wt)
-        q, dq = self.inverse_kinematics(ee_des_pos, ee_des_vel)
-        if time_target_1 < time_target_2:
-            ee_des_pos.translation = self.ee_init_pos.translation + self.amp * quint
-        else:
-            ee_des_pos.translation = self.ee_init_pos.translation - self.amp * quint
+
+        # compute sine wave inverse kinematics
+        sin_wave_ee_des_pos = self.ee_init_pos.copy()
+        sin_wave_ee_des_pos.translation += self.amp * quint * sin_wt
+        q, dq = self.inverse_kinematics(sin_wave_ee_des_pos, ee_des_vel)
+
+        # compute end-effector pose as a switch between the two extrema of the sine wave with increasing weight
+        ee_des_pos = self.ee_init_pos.copy()
+        w_pose = self.w_pose
+        for ax_idx in range(3):
+            time_target_1, time_target_2 = self.get_targets_time(
+                t, self.cycle_durations[ax_idx]
+            )
+            if time_target_1 < time_target_2:
+                ee_des_pos.translation[ax_idx] += self.amp[ax_idx] * quint[ax_idx]
+            else:
+                ee_des_pos.translation[ax_idx] -= self.amp[ax_idx] * quint[ax_idx]
+            w_pose[ax_idx] = self.w_increasing.get_weight_at_t(
+                max(time_target_1, time_target_2)
+            )
 
         u = pin.rnea(self.pin_model, self.pin_data, q, dq, self.ddq)
-        w_pose = np.array(
-            [self.w_increasing.get_weight_at_t(max(time_target_1, time_target_2))] * 6
-        )
         traj_point = TrajectoryPoint(
             time_ns=t,
             robot_configuration=q,
