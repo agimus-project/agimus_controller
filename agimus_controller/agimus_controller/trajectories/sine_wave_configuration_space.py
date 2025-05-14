@@ -13,7 +13,7 @@ from agimus_controller.trajectory import (
 
 
 class SinusWaveConfigurationSpace(TrajectoryBase):
-    """ "Define the trajectory of a sine-wave in configuration Space."""
+    """ "Define the trajectory of a sine-wave in configuration space."""
 
     def __init__(
         self,
