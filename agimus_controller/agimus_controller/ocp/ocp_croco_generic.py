@@ -309,9 +309,9 @@ class ResidualDistanceCollision2(ResidualDistanceCollisionBase):
         return True
 
     def build(self, data: BuildData):
-        assert isinstance(data.state, colmpc.StateMultibody), (
-            "The state should be of type colmpc.StateMultibody"
-        )
+        assert isinstance(
+            data.state, colmpc.StateMultibody
+        ), "The state should be of type colmpc.StateMultibody"
         id = self._collision_pair_id(data.state.geometry)
         # Build the residual
         return colmpc.ResidualDistanceCollision2(data.state, data.actuation.nu, id)
@@ -535,7 +535,8 @@ class OCPCrocoGeneric(OCPBaseCroco):
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
-        self.init_debug_data_references_and_residuals()
+        self._visual_servoing_cost_name = None
+        self.init_debug_data_attributes()
 
     @property
     def _build_data(self) -> BuildData:
@@ -577,17 +578,30 @@ class OCPCrocoGeneric(OCPBaseCroco):
         terminal_model.dt = 0.0
         return terminal_model
 
-    def init_debug_data_references_and_residuals(self) -> None:
-        """Initialize references and residuals of dataclass OCPDebugData."""
+    def init_debug_data_attributes(self) -> None:
+        """
+        Initialize references, residuals and visual servoing
+        cost name of dataclass OCPDebugData.
+        """
         for cost in self._data.running_model.differential.costs:
             if cost.update:
                 self._debug_data.references.append((cost.name, None))
             if cost.publish_residual:
                 self._debug_data.residuals.append((cost.name, None))
+            if isinstance(cost.cost.residual, ResidualModelVisualServoing):
+                self._visual_servoing_cost_name = cost.name
 
     def fill_debug_data(self, res, ocp_results) -> None:
         super().fill_debug_data(res=res, ocp_results=ocp_results)
         model = self._problem.runningModels[0]
+        if self._visual_servoing_cost_name is not None:
+            visual_servoing_cost_weights = model.differential.costs.costs[
+                self._visual_servoing_cost_name
+            ].cost.activation.weights
+            if (visual_servoing_cost_weights == np.zeros(6)).all():
+                self._debug_data.visual_servoing_is_active = False
+            else:
+                self._debug_data.visual_servoing_is_active = True
         # fill references data only for first node because when resetting ocp, we are
         # shifting reference to next node, so we end up publishing all the references
         for reference_idx in range(len(self._debug_data.references)):

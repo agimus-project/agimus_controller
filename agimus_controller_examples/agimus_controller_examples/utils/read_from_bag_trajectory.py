@@ -62,6 +62,7 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
         mpc_data = {}
         mpc_data["states_predictions"] = []
         mpc_data["control_predictions"] = []
+        mpc_data["visual_servoing_is_active"] = []
         mpc_data["kkt_norms"] = []
         mpc_data["nb_iters"] = []
         mpc_data["nb_qp_iters"] = []
@@ -90,6 +91,9 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
                     mpc_data[reference.name + "_references"].append(
                         matrix_msg_to_numpy(reference.data)
                     )
+                mpc_data["visual_servoing_is_active"].append(
+                    mpc_debug_msg.visual_servoing_is_active
+                )
                 mpc_data["kkt_norms"].append(mpc_debug_msg.kkt_norm)
                 mpc_data["nb_iters"].append(mpc_debug_msg.nb_iter)
                 mpc_data["nb_qp_iters"].append(mpc_debug_msg.nb_qp_iter)
