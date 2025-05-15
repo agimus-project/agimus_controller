@@ -10,8 +10,12 @@ on:
     - humble-devel
     - topic/humble-devel/refactor
 jobs:
-  nix:
-    runs-on: "ubuntu-latest"
+  ci:
+    name: "Nix build on ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}-latest"
+    strategy:
+      matrix:
+        os: [macos, ubuntu]
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
@@ -20,4 +24,4 @@ jobs:
           name: gepetto
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: ros
-      - run: nix build -L .#agimus-controller-examples .#agimus-controller-ros
+      - run: nix flake check -L
