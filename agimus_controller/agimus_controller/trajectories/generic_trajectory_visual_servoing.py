@@ -1,6 +1,7 @@
 import numpy as np
 import pinocchio as pin
 
+from agimus_controller.trajectories.weight_increasing import WeightIncreasing
 from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller.trajectory import TrajectoryPointWeights, WeightedTrajectoryPoint
 
@@ -12,21 +13,22 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self,
         ee_frame_name,
         traj_params,
+        dt,
         w_q,
         w_qdot,
         w_qddot,
         w_robot_effort,
         w_pose,
+        w_increasing: WeightIncreasing,
     ):
         super().__init__(ee_frame_name, w_q, w_qdot, w_qddot, w_robot_effort, w_pose)
         self.w_pose_constant = w_pose
         # if distance to goal is below this threshold, start visual servoing
-        self.start_visual_servoing_distance_threshold = (
-            traj_params.start_visual_servoing_distance_threshold
+        self.start_visual_servoing_time_threshold = (
+            traj_params.start_visual_servoing_time_threshold
         )
-        self.max_weight = traj_params.increasing_weights.max_weight
-        self.percent = traj_params.increasing_weights.percent
-        self.time_reach_percent = traj_params.increasing_weights.time_reach_percent
+        self.dt = dt
+        self.w_increasing = w_increasing
         # current visual servoing pose
         self.visual_servoing_pose = None
         # boolean to decides to activate visual servoing
@@ -36,22 +38,15 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self.visual_servoing_time = 0.0
         self.init_in_world_M_object = None
 
-    def get_increasing_weight(self):
-        return self.max_weight
-
     def set_visual_servoing_pose(self, visual_servoing_pose):
         # TODO Only change translation part for now, rotation has to be tested
         self.visual_servoing_pose[:3] = visual_servoing_pose[:3]
 
     def update_activation_of_visual_servoing(self):
         if self.use_visual_servoing:
-            current_ee_pose = next(
-                iter(self.trajectory[self.traj_idx].end_effector_poses.values())
-            )
-            goal_ee_pose = next(iter(self.trajectory[-1].end_effector_poses.values()))
-            distance_to_goal = np.linalg.norm(current_ee_pose[:3] - goal_ee_pose[:3])
+            time_to_reach_goal = (len(self.trajectory) - 1 - self.traj_idx) * self.dt
             self.activate_visual_servoing = (
-                distance_to_goal < self.start_visual_servoing_distance_threshold
+                time_to_reach_goal < self.start_visual_servoing_time_threshold
             )
         else:
             self.activate_visual_servoing = False
@@ -80,7 +75,7 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
             # if self.visual_servoing_pose is None:
             #    raise ValueError("Visual Servoing pose is not set.")
 
-            self.w_pose = [self.get_increasing_weight()] * 6
+            self.w_pose = [self.w_increasing.max_weight] * 6
             self.visual_servoing_time += 0.01
         else:
             self.w_pose = self.w_pose_constant
