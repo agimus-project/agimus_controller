@@ -16,12 +16,20 @@ class TrajectoryPublisherWithVisualServoing(SimpleTrajectoryPublisher):
         super().__init__()
 
     def add_trajectory(
-        self, trajectory, use_visual_servoing, object_name, init_object_pose
+        self,
+        trajectory,
+        use_visual_servoing,
+        object_name,
+        init_object_pose,
+        activate_visual_servoing_idx,
     ):
         if self.params.trajectory_name == "generic_trajectory_visual_servoing":
             self.object_name = object_name
             self.trajectory.add_trajectory(
-                trajectory, use_visual_servoing, init_in_world_M_object=init_object_pose
+                trajectory,
+                use_visual_servoing,
+                init_in_world_M_object=init_object_pose,
+                activate_visual_servoing_idx=activate_visual_servoing_idx,
             )
             self.future_trajectory_done = Future()
         else:

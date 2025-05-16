@@ -27,14 +27,21 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
         self.start_visual_servoing_time_threshold = (
             traj_params.start_visual_servoing_time_threshold
         )
-        self.dt = dt
-        self.w_increasing = w_increasing
+        # another attribute to decide when to activate visual servoing by giving a trajectory index
+        # if set, it has the priority over attribute start_visual_servoing_time_threshold
+        self.activate_visual_servoing_idx = None
+
         # current visual servoing pose
         self.visual_servoing_pose = None
+
         # boolean to decides to activate visual servoing
         self.activate_visual_servoing = False
+
         # Wether current trajectory requires visual servoing or not
         self.use_visual_servoing = False
+
+        self.dt = dt
+        self.w_increasing = w_increasing
         self.visual_servoing_time = 0.0
         self.init_in_world_M_object = None
 
@@ -45,21 +52,33 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
     def update_activation_of_visual_servoing(self):
         if self.use_visual_servoing:
             time_to_reach_goal = (len(self.trajectory) - 1 - self.traj_idx) * self.dt
-            self.activate_visual_servoing = (
-                time_to_reach_goal < self.start_visual_servoing_time_threshold
-            )
+            if self.activate_visual_servoing_idx is not None:
+                self.activate_visual_servoing = (
+                    self.traj_idx >= self.activate_visual_servoing_idx
+                )
+            else:
+                self.activate_visual_servoing = (
+                    time_to_reach_goal < self.start_visual_servoing_time_threshold
+                )
         else:
             self.activate_visual_servoing = False
         if not self.activate_visual_servoing:
             self.visual_servoing_time = 0.0
 
     def add_trajectory(
-        self, trajectory, use_visual_servoing, init_in_world_M_object=None
+        self,
+        trajectory,
+        use_visual_servoing,
+        init_in_world_M_object=None,
+        activate_visual_servoing_idx=None,
     ):
         if use_visual_servoing:
             if init_in_world_M_object is None:
                 raise ValueError("Init pose detection not set.")
             self.init_in_world_M_object = pin.XYZQUATToSE3(init_in_world_M_object)
+            self.activate_visual_servoing_idx = activate_visual_servoing_idx
+        else:
+            self.init_in_world_M_object = None
         super().add_trajectory(trajectory)
         self.use_visual_servoing = use_visual_servoing
 
@@ -75,7 +94,9 @@ class GenericTrajectoryVisualServoing(GenericTrajectory):
             # if self.visual_servoing_pose is None:
             #    raise ValueError("Visual Servoing pose is not set.")
 
-            self.w_pose = [self.w_increasing.max_weight] * 6
+            self.w_pose = [
+                self.w_increasing.get_weight_at_t(self.visual_servoing_time)
+            ] * 6
             self.visual_servoing_time += 0.01
         else:
             self.w_pose = self.w_pose_constant
