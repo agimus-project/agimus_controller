@@ -268,6 +268,7 @@ class AgimusController(Node, RobotModelsMixin):
         yaml_file = self.params.ocp.definition_yaml_file
         if yaml_file == "":
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
+        self.get_logger().error(f"Loading OCP definition file {yaml_file}")
         ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
 
         ws_shift = WarmStartShiftPreviousSolution()

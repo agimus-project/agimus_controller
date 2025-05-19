@@ -1,3 +1,4 @@
+import numpy as np
 import rclpy
 import rclpy.duration
 import sys
@@ -5,11 +6,10 @@ import argparse
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
-import rclpy.time
 from builtin_interfaces.msg import Duration as DurationMsg
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose
-from agimus_msgs.msg import MpcDebug
+from agimus_msgs.msg import MpcDebug, MpcInput
 
 from agimus_controller_ros.agimus_controller import (
     RobotModelsMixin,
@@ -45,7 +45,6 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self,
         frame_name: str,
         parent_frame_name: str,
-        marker_namespace: str,
         marker_size: float,
     ):
         """
@@ -59,13 +58,38 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self._frame_name = frame_name
         self._parent_frame_name = parent_frame_name
         self._marker_size = marker_size
-        self._marker_ns = marker_namespace
 
         self.init_ros_robot_creation()
         mpc_node_name = "agimus_controller_node"
         self._robot_has_free_flyer = get_param_from_node(
             self, mpc_node_name, "free_flyer"
         ).bool_value
+        dt_factors = get_param_from_node(
+            self, mpc_node_name, "ocp.dt_factor_n_seq.factors"
+        ).integer_array_value
+        dt_n_steps = get_param_from_node(
+            self, mpc_node_name, "ocp.dt_factor_n_seq.n_steps"
+        ).integer_array_value
+        self._horizon_indices = np.cumsum(
+            sum(
+                (
+                    (factor,) * n_steps
+                    for factor, n_steps in zip(dt_factors, dt_n_steps)
+                ),
+                (0,),
+            )
+        )
+        self._references: list[MpcInput] = list()
+
+        self._mpc_input_sub = self.create_subscription(
+            MpcInput,
+            "mpc_input",
+            self.mpc_input_callback,
+            qos_profile=QoSProfile(
+                depth=1000,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+            ),
+        )
         self._init_timer = self.create_timer(0.1, self.initialization_callback)
 
     def initialization_callback(self):
@@ -85,17 +109,40 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self.rdata = self.rmodel.createData()
         self._fid = self.rmodel.getFrameId(self._frame_name)
 
-        self._marker_array = MarkerArray()
+        self._pred_marker_array = MarkerArray(
+            markers=self._create_marker_array(
+                namespace="states_predictions",
+                size=len(self._horizon_indices),
+                rgba0=[1.0, 0.0, 0.0, 1.0],
+                rgba1=[0.5, 1.0, 0.0, 0.2],
+            )
+        )
+        self._ref_marker_array = MarkerArray(
+            markers=self._create_marker_array(
+                namespace="states_references",
+                size=len(self._horizon_indices),
+                rgba0=[0.0, 0.0, 1.0, 1.0],
+                rgba1=[0.0, 1.0, 0.5, 0.2],
+            )
+        )
         self._mpc_debug_sub = self.create_subscription(
             MpcDebug,
             "mpc_debug",
-            self.mpc_debug_to_prediction_markers,
+            self.mpc_debug_to_markers,
             qos_profile=QoSProfile(
                 depth=10,
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
-        self._mpc_markers_pub = self.create_publisher(
+        self._mpc_ref_markers_pub = self.create_publisher(
+            MarkerArray,
+            "mpc_states_reference_markers",
+            qos_profile=QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
+        )
+        self._mpc_pred_markers_pub = self.create_publisher(
             MarkerArray,
             "mpc_states_prediction_markers",
             qos_profile=QoSProfile(
@@ -105,16 +152,24 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         )
         self.get_logger().info("init done")
 
-    def _init_marker_array(self, msg: MpcDebug):
-        states = matrix_msg_to_numpy(msg.states_predictions)
-        n = states.shape[0]
-        for i, state in enumerate(states):
+    def mpc_input_callback(self, msg: MpcInput):
+        if len(self._references) > 0:
+            assert msg.id == self._references[-1].id + 1, (
+                "MPC input ids are expected to be a sequence of consecutive increasing integers."
+            )
+        self._references.append(msg)
+
+    def _create_marker_array(
+        self, namespace: str, size: int, rgba0, rgba1
+    ) -> list[Marker]:
+        markers = []
+        for i in range(size):
             marker = Marker()
             marker.header.frame_id = self._parent_frame_name
             # The MPC debug message does not have a stamp so
             # it is not possible to correctly set
             # marker.header.stamp
-            marker.ns = self._marker_ns
+            marker.ns = namespace
             marker.id = i
 
             marker.type = Marker.SPHERE
@@ -125,27 +180,57 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
             marker.scale.y = self._marker_size
             marker.scale.z = self._marker_size
 
-            # From red to green, with a increasing transparency.
-            marker.color.r = (n - 1 - i) / (n - 1)
-            marker.color.g = (i + 1) / (n - 1)
-            marker.color.b = 0.0
-            marker.color.a = 0.2 + 0.8 * (n - 1 - i) / (n - 1)
+            # Interpolate from rgba0 to rgba1
+            r = i / (size - 1)
+            marker.color.r = rgba0[0] + r * (rgba1[0] - rgba0[0])
+            marker.color.g = rgba0[1] + r * (rgba1[1] - rgba0[1])
+            marker.color.b = rgba0[2] + r * (rgba1[2] - rgba0[2])
+            marker.color.a = rgba0[3] + r * (rgba1[3] - rgba0[3])
 
             marker.lifetime = DurationMsg(sec=1)
-            self._marker_array.markers.append(marker)
+            markers.append(marker)
+        return markers
 
-    def mpc_debug_to_prediction_markers(self, msg: MpcDebug):
-        if len(self._marker_array.markers) == 0:
-            self._init_marker_array(msg)
+    def _remove_old_references(self, id: int):
+        while self._references[0].id < id:
+            self._references.pop(0)
 
+    def mpc_debug_to_markers(self, msg: MpcDebug):
         states = matrix_msg_to_numpy(msg.states_predictions)
+        assert states.shape[0] == len(self._pred_marker_array.markers), (
+            f"{states.shape[0]} != {len(self._pred_marker_array.markers)}"
+        )
         nq = self.rmodel.nq
-        for state, marker in zip(states, self._marker_array.markers):
+        for state, marker in zip(states, self._pred_marker_array.markers):
             pinocchio.forwardKinematics(self.rmodel, self.rdata, state[:nq])
             M = pinocchio.updateFramePlacement(self.rmodel, self.rdata, self._fid)
             pinocchio_se3_to_geometry_msg_pose(M, marker.pose)
 
-        self._mpc_markers_pub.publish(self._marker_array)
+        self._remove_old_references(msg.id)
+        if msg.id == self._references[0].id:
+            assert len(self._horizon_indices) == len(self._ref_marker_array.markers), (
+                f"{len(self._horizon_indices)} != {len(self._ref_marker_array.markers)}"
+            )
+            for i, marker in zip(self._horizon_indices, self._ref_marker_array.markers):
+                if i >= len(self._references):
+                    self.get_logger().warn(
+                        f"Not enough references. Nb ref is {len(self._references)}. Need {self._horizon_indices[-1] + 1}",
+                        throttle_duration_sec=1.0,
+                    )
+                    break
+                state = self._references[i].q
+                assert len(state) == nq, f"{len(state)} == {nq}"
+                pinocchio.forwardKinematics(self.rmodel, self.rdata, np.asarray(state))
+                M = pinocchio.updateFramePlacement(self.rmodel, self.rdata, self._fid)
+                pinocchio_se3_to_geometry_msg_pose(M, marker.pose)
+        else:
+            self.get_logger().warn(
+                f"First ref id: {self._references[0].id}. Msg id: {msg.id}",
+                throttle_duration_sec=1.0,
+            )
+
+        self._mpc_pred_markers_pub.publish(self._pred_marker_array)
+        self._mpc_ref_markers_pub.publish(self._ref_marker_array)
 
 
 def main(args=None):
@@ -175,19 +260,12 @@ def main(args=None):
     parser.add_argument(
         "--marker-size", type=float, default=0.01, help="set the `marker.scale` field."
     )
-    parser.add_argument(
-        "--marker-ns",
-        type=str,
-        default="states_predictions",
-        help="set the `marker.ns` field.",
-    )
 
     arguments = parser.parse_args(filtered_args[1:])  # Skip the script name
 
     node = MPCDebuggerNode(
         frame_name=arguments.frame,
         parent_frame_name=arguments.parent_frame,
-        marker_namespace=arguments.marker_ns,
         marker_size=arguments.marker_size,
     )
 

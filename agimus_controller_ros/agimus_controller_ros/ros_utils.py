@@ -48,6 +48,7 @@ def mpc_msg_to_weighted_traj_point(
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     xyz_quat_pose = ros_pose_to_array(msg.pose)
     traj_point = TrajectoryPoint(
+        id=msg.id,
         time_ns=time_ns,
         robot_configuration=np.array(msg.q, dtype=np.float64),
         robot_velocity=np.array(msg.qdot, dtype=np.float64),
@@ -73,6 +74,7 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     ee_frame_name = next(iter(w_traj_point.point.end_effector_poses.keys()))
 
     msg = MpcInput()
+    msg.id = w_traj_point.point.id
     msg.w_q = w_traj_point.weights.w_robot_configuration
     msg.w_qdot = w_traj_point.weights.w_robot_velocity
     msg.w_qddot = w_traj_point.weights.w_robot_acceleration
@@ -105,6 +107,7 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
             Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
 
+    mpc_debug_msg.id = mpc_debug_data.reference_id
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
     mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
     mpc_debug_msg.nb_qp_iter = mpc_debug_data.ocp.nb_qp_iter
