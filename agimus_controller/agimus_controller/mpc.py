@@ -57,6 +57,7 @@ class MPC(object):
 
         # Extract the solution.
         self._mpc_debug_data.ocp = self._ocp.debug_data
+        self._mpc_debug_data.reference_id = reference_trajectory_points[0].id
         self._mpc_debug_data.duration_iteration_ns = timer4 - timer1
         self._mpc_debug_data.duration_horizon_update_ns = timer2 - timer1
         self._mpc_debug_data.duration_generate_warm_start_ns = timer3 - timer2

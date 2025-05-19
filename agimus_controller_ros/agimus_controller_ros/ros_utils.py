@@ -1,9 +1,10 @@
 import pinocchio as pin
+import eigenpy
 import numpy as np
 import numpy.typing as npt
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Transform
 from agimus_msgs.msg import MpcInput, MpcDebug, Residual
 
 from agimus_controller.trajectory import (
@@ -42,12 +43,75 @@ def array_to_ros_pose(pose_array: Pose) -> npt.NDArray[np.float64]:
     return ros_pose
 
 
+def transform_msg_to_se3(transform: Transform) -> pin.SE3:
+    t = np.array(
+        [
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+        ]
+    )
+    q = eigenpy.Quaternion(
+        transform.rotation.w,
+        transform.rotation.x,
+        transform.rotation.y,
+        transform.rotation.z,
+    )
+    return pin.SE3(q, t)
+
+
+def se3_to_transform_msg(M: pin.SE3) -> Transform:
+    t = Transform()
+    t.translation.x = M.translation[0]
+    t.translation.y = M.translation[1]
+    t.translation.z = M.translation[2]
+
+    q = eigenpy.Quaternion(M.rotation)
+    t.rotation.w = q.w
+    t.rotation.x = q.x
+    t.rotation.y = q.y
+    t.rotation.z = q.z
+    return t
+
+
+def pose_msg_to_se3(pose: Pose) -> pin.SE3:
+    t = np.array(
+        [
+            pose.position.x,
+            pose.position.y,
+            pose.position.z,
+        ]
+    )
+    q = eigenpy.Quaternion(
+        pose.orientation.w,
+        pose.orientation.x,
+        pose.orientation.y,
+        pose.orientation.z,
+    )
+    return pin.SE3(q, t)
+
+
+def se3_to_pose_msg(M: pin.SE3) -> Pose:
+    t = Pose()
+    t.position.x = M.translation[0]
+    t.position.y = M.translation[1]
+    t.position.z = M.translation[2]
+
+    q = eigenpy.Quaternion(M.rotation)
+    t.orientation.w = q.w
+    t.orientation.x = q.x
+    t.orientation.y = q.y
+    t.orientation.z = q.z
+    return t
+
+
 def mpc_msg_to_weighted_traj_point(
     msg: MpcInput, time_ns: int
 ) -> WeightedTrajectoryPoint:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     xyz_quat_pose = ros_pose_to_array(msg.pose)
     traj_point = TrajectoryPoint(
+        id=msg.id,
         time_ns=time_ns,
         robot_configuration=np.array(msg.q, dtype=np.float64),
         robot_velocity=np.array(msg.qdot, dtype=np.float64),
@@ -73,6 +137,7 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     ee_frame_name = next(iter(w_traj_point.point.end_effector_poses.keys()))
 
     msg = MpcInput()
+    msg.id = w_traj_point.point.id
     msg.w_q = w_traj_point.weights.w_robot_configuration
     msg.w_qdot = w_traj_point.weights.w_robot_velocity
     msg.w_qddot = w_traj_point.weights.w_robot_acceleration
@@ -105,6 +170,7 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
             Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
 
+    mpc_debug_msg.trajectory_point_id = mpc_debug_data.reference_id
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
     mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
     mpc_debug_msg.nb_qp_iter = mpc_debug_data.ocp.nb_qp_iter

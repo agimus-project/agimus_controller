@@ -75,6 +75,7 @@ class SimpleTrajectoryPublisher(Node):
         self.q0 = None
         self.current_q = None
         self.robot_description_msg = None
+        self._id: int = 0
         self.t = 0.0
         self.dt = 0.01
         self.croco_nq = 7
@@ -306,6 +307,9 @@ class SimpleTrajectoryPublisher(Node):
         """
 
         if self.robot_description_msg is None or self.q0 is None:
+            self.get_logger().info(
+                "Wait for robot model and q0", throttle_duration_sec=1.0
+            )
             return
 
         if not self.trajectory.is_initialized:
@@ -323,7 +327,9 @@ class SimpleTrajectoryPublisher(Node):
             )
             return
         w_traj_point = self.trajectory.get_traj_point_at_t(self.t)
+        w_traj_point.point.id = self._id
         msg = weighted_traj_point_to_mpc_msg(w_traj_point)
+        self._id += 1
 
         self.publisher_.publish(msg)
         if self.trajectory.trajectory_is_done:

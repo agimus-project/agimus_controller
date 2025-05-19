@@ -10,6 +10,7 @@ from agimus_controller.ocp_param_base import DTFactorsNSeq
 class TrajectoryPoint:
     """Trajectory point aiming at being a reference for the MPC."""
 
+    id: int | None = None
     time_ns: int | None = None
     robot_configuration: npt.NDArray[np.float64] | None = None
     robot_velocity: npt.NDArray[np.float64] | None = None
