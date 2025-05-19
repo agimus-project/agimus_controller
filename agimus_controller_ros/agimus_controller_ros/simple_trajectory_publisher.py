@@ -28,6 +28,9 @@ from agimus_controller_ros.ros_utils import (
     weighted_traj_point_to_mpc_msg,
     get_param_from_node,
 )
+from agimus_controller.trajectories.generic_visual_servoing_trajectory import (
+    GenericVisualServoingTrajectory,
+)
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
 )
@@ -189,8 +192,35 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
         self.timer = self.create_timer(0.01, self.publish_mpc_input)
 
     def add_trajectory(self, trajectory):
+        """Add custom trajectory chunk to publish if trajectory is of type generic_trajectory."""
         if self.params.trajectory_name == "generic_trajectory":
             self.trajectory.add_trajectory(trajectory)
+            self.future_trajectory_done = Future()
+        else:
+            raise RuntimeError(
+                f"the function add_trajectory can't be used with trajectory type {self.params.trajectory_name}"
+            )
+
+    def add_visual_servoing_trajectory(
+        self,
+        trajectory,
+        use_visual_servoing,
+        object_name,
+        init_object_pose,
+        activate_visual_servoing_idx,
+    ):
+        """
+        Add custom trajectory chunk to publish if trajectory is of type
+        visual_servoing_generic_trajectory. Visual servoing can be enabled.
+        """
+        if self.params.trajectory_name == "generic_visual_servoing_trajectory":
+            self.object_name = object_name
+            self.trajectory.add_trajectory(
+                trajectory,
+                use_visual_servoing,
+                init_in_world_M_object=init_object_pose,
+                activate_visual_servoing_idx=activate_visual_servoing_idx,
+            )
             self.future_trajectory_done = Future()
         else:
             raise RuntimeError(
@@ -233,9 +263,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
             ), "sine_wave_period and moving_joint_names must have the same length"
             assert len(self.sine_wave_parameters.scale_duration) == len(
                 self.moving_joint_names
-            ), (
-                "sine_wave_scale_duration and moving_joint_names must have the same length"
-            )
+            ), "sine_wave_scale_duration and moving_joint_names must have the same length"
             return SinusWaveConfigurationSpace(
                 sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
@@ -248,15 +276,15 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                 w_pose=self.get_weights(self.params.w_pose, 6),
             )
         elif trajectory_name == "sine_wave_cartesian_space":
-            assert len(self.sine_wave_parameters.amplitude) == 3, (
-                "sine_wave_amplitude length must be 3"
-            )
-            assert len(self.sine_wave_parameters.period) == 3, (
-                "sine_wave_period length must be 3"
-            )
-            assert len(self.sine_wave_parameters.scale_duration) == 3, (
-                "sine_wave_scale_duration length must be 3"
-            )
+            assert (
+                len(self.sine_wave_parameters.amplitude) == 3
+            ), "sine_wave_amplitude length must be 3"
+            assert (
+                len(self.sine_wave_parameters.period) == 3
+            ), "sine_wave_period length must be 3"
+            assert (
+                len(self.sine_wave_parameters.scale_duration) == 3
+            ), "sine_wave_scale_duration length must be 3"
             return SinusWaveCartesianSpace(
                 sine_wave_params=self.sine_wave_parameters,
                 ee_frame_name=self.ee_frame_name,
@@ -302,6 +330,20 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                     self.params.w_robot_effort, self.croco_nq
                 ),
                 w_pose=self.get_weights(self.params.w_pose, 6),
+            )
+        elif trajectory_name == "generic_visual_servoing_trajectory":
+            return GenericVisualServoingTrajectory(
+                ee_frame_name=self.ee_frame_name,
+                traj_params=self.params.generic_trajectory_visual_servoing,
+                dt=self.params.dt,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+                w_increasing=self.w_increasing,
             )
         else:
             raise ValueError("Unknown Trajectory.")

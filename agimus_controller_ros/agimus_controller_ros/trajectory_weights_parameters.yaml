@@ -12,7 +12,7 @@ trajectory_weights_params:
             "sine_wave_cartesian_space",
             "sine_wave_cartesian_space_weight_increasing",
             "generic_trajectory",
-            "generic_trajectory_visual_servoing",
+            "generic_visual_servoing_trajectory",
           ],
         ]
   mask:
