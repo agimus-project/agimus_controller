@@ -206,8 +206,8 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
             M = pinocchio.updateFramePlacement(self.rmodel, self.rdata, self._fid)
             pinocchio_se3_to_geometry_msg_pose(M, marker.pose)
 
-        self._remove_old_references(msg.id)
-        if msg.id == self._references[0].id:
+        self._remove_old_references(msg.trajectory_point_id)
+        if msg.trajectory_point_id == self._references[0].id:
             assert len(self._horizon_indices) == len(self._ref_marker_array.markers), (
                 f"{len(self._horizon_indices)} != {len(self._ref_marker_array.markers)}"
             )
@@ -225,7 +225,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 pinocchio_se3_to_geometry_msg_pose(M, marker.pose)
         else:
             self.get_logger().warn(
-                f"First ref id: {self._references[0].id}. Msg id: {msg.id}",
+                f"First ref id: {self._references[0].id}. Msg id: {msg.trajectory_reference_id}",
                 throttle_duration_sec=1.0,
             )
 

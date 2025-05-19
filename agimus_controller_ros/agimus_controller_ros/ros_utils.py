@@ -43,7 +43,7 @@ def array_to_ros_pose(pose_array: Pose) -> npt.NDArray[np.float64]:
     return ros_pose
 
 
-def transform_to_se3(transform: Transform) -> pin.SE3:
+def transform_msg_to_se3(transform: Transform) -> pin.SE3:
     t = np.array(
         [
             transform.translation.x,
@@ -60,7 +60,7 @@ def transform_to_se3(transform: Transform) -> pin.SE3:
     return pin.SE3(q, t)
 
 
-def se3_to_transform(M: pin.SE3) -> Transform:
+def se3_to_transform_msg(M: pin.SE3) -> Transform:
     t = Transform()
     t.translation.x = M.translation[0]
     t.translation.y = M.translation[1]
@@ -74,7 +74,7 @@ def se3_to_transform(M: pin.SE3) -> Transform:
     return t
 
 
-def pose_to_se3(pose: Pose) -> pin.SE3:
+def pose_msg_to_se3(pose: Pose) -> pin.SE3:
     t = np.array(
         [
             pose.position.x,
@@ -91,7 +91,7 @@ def pose_to_se3(pose: Pose) -> pin.SE3:
     return pin.SE3(q, t)
 
 
-def se3_to_pose(M: pin.SE3) -> Pose:
+def se3_to_pose_msg(M: pin.SE3) -> Pose:
     t = Pose()
     t.position.x = M.translation[0]
     t.position.y = M.translation[1]
@@ -170,7 +170,7 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
             Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
 
-    mpc_debug_msg.id = mpc_debug_data.reference_id
+    mpc_debug_msg.trajectory_point_id = mpc_debug_data.reference_id
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
     mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
     mpc_debug_msg.nb_qp_iter = mpc_debug_data.ocp.nb_qp_iter
