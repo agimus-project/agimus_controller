@@ -61,6 +61,12 @@ class BuildData:
     state: crocoddyl.StateMultibody
     actuation: crocoddyl.ActuationModelAbstract
     collision_model: T.Optional[pinocchio.GeometryModel] = None
+    # Transforms requested by the OCP and that needs to be provided
+    # externally, typically using TF2 when using ROS. The keys are created
+    # at build time. The values should be set before updating the OCP references.
+    transforms: T.Dict[T.Tuple[str, str], T.Optional[pinocchio.SE3]] = (
+        dataclasses.field(default_factory=dict)
+    )
 
 
 @dataclasses.dataclass
@@ -165,6 +171,76 @@ class ResidualModelFramePlacement(ResidualModel):
             assert self.pref
             pref = pinocchio.XYZQUATToSE3(self.pref)
         return crocoddyl.ResidualModelFramePlacement(data.state, id, pref)
+
+
+@dataclasses.dataclass
+class ResidualModelVisualServoing(ResidualModel):
+    """Visual servoing calculated as:
+    wMf_target = wMo_vision * oMf_target
+    where:
+    - wMf_target is the target pose of the frame in the world frame
+    - wMo_vision is the pose of an object frame in the world frame
+    - oMf_target is the target pose of the frame in the object frame
+
+    The frame f above is referred to as the robot frame below. It is the
+    frame that will be controlled by MPC. It can be an end-effector frame,
+    a camera frame (if the goal is to keep an object in the field of view)...
+    """
+
+    class_: T.ClassVar[str] = "ResidualModelVisualServoing"
+    world_frame: str
+    object_frame: str
+    robot_frame: str
+
+    def update(self, data: BuildData, obj, pt: WeightedTrajectoryPoint):
+        assert self.input_key in pt.point.end_effector_poses, (
+            f"end_effector_poses should contains key {self.input_key}"
+        )
+
+        weights = pt.weights.w_end_effector_poses[self.input_key]
+        active = any(np.array(weights) != 0)
+
+        wMo_vision = data.transforms[self.transforms_key]
+        assert not active or wMo_vision is not None, (
+            f"Weights are not all zeros and no transform for {self.transforms_key}"
+        )
+
+        oMf_target = pt.point.end_effector_poses[self.input_key]
+
+        if wMo_vision is None:
+            obj.reference = oMf_target
+        else:
+            obj.reference = wMo_vision * oMf_target
+        return weights
+
+    @staticmethod
+    def _get_id(state: crocoddyl.StateMultibody, name: str):
+        rmodel: pinocchio.Model = state.pinocchio
+        assert rmodel.existFrame(name), (
+            f"{name} not found in model. Frames are {[f.name for f in rmodel.frames]}"
+        )
+        id = rmodel.getFrameId(name)
+        assert isinstance(id, int) and id < rmodel.nframes
+        return id
+
+    def build(self, data: BuildData):
+        world_frame_id = self._get_id(data.state, self.world_frame)
+        f = data.state.pinocchio.frames[world_frame_id]
+        assert f.parentJoint == 0, (
+            f"Parent joint of world frame ({self.world_frame}) should be 0"
+        )
+        assert f.placement.isIdentity(), (
+            f"Placement of world frame ({self.world_frame}) should be identity"
+        )
+
+        self.transforms_key = (self.world_frame, self.object_frame)
+        self.input_key = self.robot_frame + "_vs"
+
+        data.transforms.setdefault(self.transforms_key, None)
+
+        frame_id = self._get_id(data.state, self.robot_frame)
+        pref = pinocchio.SE3.Identity()
+        return crocoddyl.ResidualModelFramePlacement(data.state, frame_id, pref)
 
 
 @dataclasses.dataclass
@@ -390,6 +466,14 @@ class OCPCrocoGeneric(OCPBaseCroco):
                 self._state, self._actuation, self._collision_model
             )
         return self._build_data_obj
+
+    @property
+    def input_transforms(self) -> T.Dict[T.Tuple[str, str], pinocchio.SE3]:
+        """Returns a dictionary of transforms that the OCP needs as input.
+        The keys are tuples of frame names. The first is the parent frame and
+        the second is the child frame.
+        The values are the current transform."""
+        return self._build_data.transforms
 
     def create_running_model_list(self) -> list[crocoddyl.ActionModelAbstract]:
         running_model_list = []
