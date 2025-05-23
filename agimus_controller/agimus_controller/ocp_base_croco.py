@@ -2,6 +2,7 @@ from abc import abstractmethod
 
 import crocoddyl
 import mim_solvers
+import colmpc
 import numpy as np
 import numpy.typing as npt
 
@@ -31,7 +32,9 @@ class OCPBaseCroco(OCPBase):
 
         # Stat and actuation model
         if use_colmpc_state:
-            self._state = colmpc.StateMultibody(self._robot_models.robot_model, self._robot_models.collision_model)
+            self._state = colmpc.StateMultibody(
+                self._robot_models.robot_model, self._robot_models.collision_model
+            )
         else:
             self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)
         self._actuation = crocoddyl.ActuationModelFull(self._state)
@@ -54,6 +57,7 @@ class OCPBaseCroco(OCPBase):
             self._running_model_list,
             self._terminal_model,
         )
+        self._problem.nthreads = ocp_params.n_threads
         # Create solver + callbacks
         self._solver = mim_solvers.SolverCSQP(self._problem)
 

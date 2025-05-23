@@ -36,6 +36,12 @@ agimus_controller_params:
       type: int
       default_value: 10
       description: "Maximum number of iterations of the solver"
+    n_threads:
+      type: int
+      default_value: 1
+      description: "Number of threads use by the solver"
+      validation:
+        gt<>: 0 # Strictly greater than 0
     use_constraints:
       type: bool
       default_value: True

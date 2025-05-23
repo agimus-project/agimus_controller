@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import time
+import os
 
 import rclpy
 from rclpy.duration import Duration
@@ -185,6 +186,12 @@ class AgimusController(Node, RobotModelsMixin):
             )
             for collision_pair_name in self.params.collision_pairs_names
         ]
+        # Check that the number of threads is suitable
+        # Source: https://stackoverflow.com/a/55423170
+        if self.params.ocp.nthreads > len(os.sched_getaffinity(0)):
+            self.get_logger().warn(
+                f"The requested number of threads {self.params.ocp.n_threads} is higher than the number of usable cores {len(os.sched_getaffinity(0))}"
+            )
         self.ocp_params = OCPParamsBaseCroco(
             dt=self.params.ocp.dt,
             dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
@@ -193,6 +200,7 @@ class AgimusController(Node, RobotModelsMixin):
             callbacks=self.params.ocp.activate_callback,
             qp_iters=self.params.ocp.max_qp_iter,
             use_debug_data=self.params.publish_debug_data,
+            n_threads=self.params.ocp.n_threads,
         )
         self.last_point = None
         self.first_run_done = False
