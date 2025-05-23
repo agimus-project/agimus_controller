@@ -106,7 +106,9 @@ class ActivationModelQuadExp(ActivationModel):
 
 @dataclasses.dataclass
 class ResidualModel:
-    pass
+    @staticmethod
+    def needs_colmpc_freefwd_dynamics() -> bool:
+        return False
 
 
 @dataclasses.dataclass
@@ -244,13 +246,11 @@ class ResidualModelVisualServoing(ResidualModel):
 
 
 @dataclasses.dataclass
-class ResidualDistanceCollision(ResidualModel):
-    class_: T.ClassVar[str] = "ResidualDistanceCollision"
+class ResidualDistanceCollisionBase(ResidualModel):
     collision_pair: T.Tuple[str, str]
 
-    def build(self, data: BuildData):
+    def _collision_pair_id(self, cmodel: pinocchio.GeometryModel) -> int:
         assert len(self.collision_pair) == 2
-        cmodel = data.collision_model
         # Check that the collision pair exist in the collision model
         # and find its index in the list of collision pairs.
         cp = []
@@ -260,11 +260,39 @@ class ResidualDistanceCollision(ResidualModel):
         cp = pinocchio.CollisionPair(*cp)
         assert cmodel.existCollisionPair(cp)
         id = cmodel.findCollisionPair(cp)
-        assert id < len(data.collision_model.collisionPairs)
+        assert id < len(cmodel.collisionPairs)
+        return id
+
+
+@dataclasses.dataclass
+class ResidualDistanceCollision(ResidualDistanceCollisionBase):
+    class_: T.ClassVar[str] = "ResidualDistanceCollision"
+
+    def build(self, data: BuildData):
+        cmodel = data.collision_model
+        id = self._collision_pair_id(cmodel)
         # Build the residual
         return colmpc.ResidualDistanceCollision(
             data.state, data.actuation.nu, cmodel, id
         )
+
+
+@dataclasses.dataclass
+class ResidualDistanceCollision2(ResidualDistanceCollisionBase):
+    class_: T.ClassVar[str] = "ResidualDistanceCollision2"
+    collision_pair: T.Tuple[str, str]
+
+    @staticmethod
+    def needs_colmpc_freefwd_dynamics() -> bool:
+        return False
+
+    def build(self, data: BuildData):
+        assert isinstance(data.state, colmpc.StateMultibody), (
+            "The state should be of type colmpc.StateMultibody"
+        )
+        id = self._collision_pair_id(data.state.geometry)
+        # Build the residual
+        return colmpc.ResidualDistanceCollision2(data.state, data.actuation.nu, id)
 
 
 @dataclasses.dataclass
@@ -389,13 +417,33 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
         kwargs["constraints"] = constraints
         return DifferentialActionModelFreeFwdDynamics(**kwargs)
 
+    def needs_colmpc_freefwd_dynamics(self) -> bool:
+        for cost in self.costs:
+            r = cost.cost.residual
+            if r.needs_colmpc_freefwd_dynamics():
+                return True
+        if self.constraints:
+            for constraint in self.constraints:
+                r = constraint.constraint.residual
+                if r.needs_colmpc_freefwd_dynamics():
+                    return True
+        return False
+
     def build(self, data: BuildData):
         costs = crocoddyl.CostModelSum(data.state)
         for cost in self.costs:
             c = cost.cost.build(data)
             costs.addCost(cost.name, c, cost.weight, cost.active)
+        if self.needs_colmpc_freefwd_dynamics():
+            DifferentialActionModelFreeFwdDynamics = (
+                colmpc.DifferentialActionModelFreeFwdDynamics
+            )
+        else:
+            DifferentialActionModelFreeFwdDynamics = (
+                crocoddyl.DifferentialActionModelFreeFwdDynamics
+            )
         if self.constraints is None:
-            return crocoddyl.DifferentialActionModelFreeFwdDynamics(
+            return DifferentialActionModelFreeFwdDynamics(
                 data.state, data.actuation, costs
             )
         else:
@@ -403,7 +451,7 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
             for constraint in self.constraints:
                 c = constraint.constraint.build(data)
                 manager.addConstraint(constraint.name, c, constraint.active)
-            return crocoddyl.DifferentialActionModelFreeFwdDynamics(
+            return DifferentialActionModelFreeFwdDynamics(
                 data.state, data.actuation, costs, manager
             )
 
@@ -441,6 +489,12 @@ class ShootingProblem:
     running_model: IntegratedActionModelAbstract
     terminal_model: IntegratedActionModelAbstract
 
+    def needs_colmpc_state(self) -> bool:
+        return (
+            self.running_model.differential.needs_colmpc_freefwd_dynamics()
+            or self.terminal_model.differential.needs_colmpc_freefwd_dynamics()
+        )
+
     def __post_init__(self):
         self.running_model = create_croco_dataclasses(self.running_model)
         self.terminal_model = create_croco_dataclasses(self.terminal_model)
@@ -456,7 +510,9 @@ class OCPCrocoGeneric(OCPBaseCroco):
         with open(yaml_file, "r") as f:
             data = yaml.safe_load(f)
         self._data = ShootingProblem(**data)
-        super().__init__(robot_models, params)
+        super().__init__(
+            robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
+        )
         self.init_debug_data_references_and_residuals()
 
     @property

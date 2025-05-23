@@ -16,6 +16,7 @@ class OCPBaseCroco(OCPBase):
         self,
         robot_models: RobotModels,
         ocp_params: OCPParamsBaseCroco,
+        use_colmpc_state: bool = False,
     ) -> None:
         """Defines common behavior for all OCP using croccodyl. This is an abstract class with some helpers to design OCPs in a more friendly way.
 
@@ -29,7 +30,10 @@ class OCPBaseCroco(OCPBase):
         self._armature = self._robot_models.armature
 
         # Stat and actuation model
-        self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)
+        if use_colmpc_state:
+            self._state = colmpc.StateMultibody(self._robot_models.robot_model, self._robot_models.collision_model)
+        else:
+            self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)
         self._actuation = crocoddyl.ActuationModelFull(self._state)
 
         # Setting the OCP parameters
