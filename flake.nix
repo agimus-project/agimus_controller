@@ -31,6 +31,14 @@
                       ./agimus_controller
                     ];
                   };
+                  nativeCheckInputs = [ prev.python3Packages.pytest ];
+                  doCheck = true;
+                  preCheck = ''
+                    cd $out
+                  '';
+                  checkPhase = ''
+                    pytest ./tests
+                  '';
                 };
                 agimus-controller-examples = python-prev.agimus-controller-examples.overrideAttrs {
                   src = lib.fileset.toSource {
@@ -39,6 +47,14 @@
                       ./agimus_controller_examples
                     ];
                   };
+                  nativeCheckInputs = [ prev.python3Packages.pytest ];
+                  doCheck = true;
+                  preCheck = ''
+                    cd $out
+                  '';
+                  checkPhase = ''
+                    pytest ./tests
+                  '';
                 };
               })
             ];
@@ -50,17 +66,29 @@
                     ./agimus_controller_ros
                   ];
                 };
+                nativeCheckInputs = [ prev.python3Packages.pytest ];
+                doCheck = true;
+                preCheck = ''
+                  cd $out
+                '';
+                checkPhase = ''
+                  pytest ./tests
+                '';
               in
               prev.rosPackages
               // {
                 humble = prev.rosPackages.humble.overrideScope (
                   _humble-final: humble-prev: {
-                    agimus-controller-ros = humble-prev.agimus-controller-ros.overrideAttrs { inherit src; };
+                    agimus-controller-ros = humble-prev.agimus-controller-ros.overrideAttrs {
+                      inherit src doCheck preCheck checkPhase nativeCheckInputs;
+                    };
                   }
                 );
                 jazzy = prev.rosPackages.jazzy.overrideScope (
                   _jazzy-final: jazzy-prev: {
-                    agimus-controller-ros = jazzy-prev.agimus-controller-ros.overrideAttrs { inherit src; };
+                    agimus-controller-ros = jazzy-prev.agimus-controller-ros.overrideAttrs {
+                      inherit src doCheck preCheck checkPhase nativeCheckInputs;
+                    };
                   }
                 );
               };
