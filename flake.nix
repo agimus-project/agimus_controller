@@ -32,14 +32,8 @@
                     ];
                   };
                   # Remove when the CI passes. And update https://github.com/Gepetto/nix
-                  nativeCheckInputs = [ prev.python3Packages.pytest ];
+                  nativeCheckInputs = [ prev.python3Packages.pytestCheckHook ];
                   doCheck = true;
-                  preCheck = ''
-                    cd $out
-                  '';
-                  checkPhase = ''
-                    pytest ./tests
-                  '';
                 };
                 agimus-controller-examples = python-prev.agimus-controller-examples.overrideAttrs {
                   src = lib.fileset.toSource {
@@ -59,14 +53,8 @@
                     ./agimus_controller_ros
                   ];
                 };
-                nativeCheckInputs = [ prev.python3Packages.pytest ];
+                nativeCheckInputs = [ prev.python3Packages.pytestCheckHook ];
                 doCheck = true;
-                preCheck = ''
-                  cd $out
-                '';
-                checkPhase = ''
-                  pytest ./test
-                '';
               in
               prev.rosPackages
               // {
@@ -76,8 +64,6 @@
                       inherit
                         src
                         doCheck
-                        preCheck
-                        checkPhase
                         nativeCheckInputs
                         ;
                     };
@@ -89,8 +75,6 @@
                       inherit
                         src
                         doCheck
-                        preCheck
-                        checkPhase
                         nativeCheckInputs
                         ;
                     };
