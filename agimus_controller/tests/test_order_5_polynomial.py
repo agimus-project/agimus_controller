@@ -4,7 +4,6 @@ from agimus_controller.trajectories.quintic_trajectory import QuinticTrajectory
 
 
 class TestQuinticTrajectory(unittest.TestCase):
-
     def test_quintic_trajectory(self):
         N = 3
         scale_duration = N * [0.7]
