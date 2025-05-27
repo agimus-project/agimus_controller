@@ -31,6 +31,7 @@
                       ./agimus_controller
                     ];
                   };
+                  # Remove when the CI passes. And update https://github.com/Gepetto/nix
                   nativeCheckInputs = [ prev.python3Packages.pytest ];
                   doCheck = true;
                   preCheck = ''
@@ -47,14 +48,6 @@
                       ./agimus_controller_examples
                     ];
                   };
-                  nativeCheckInputs = [ prev.python3Packages.pytest ];
-                  doCheck = true;
-                  preCheck = ''
-                    cd $out
-                  '';
-                  checkPhase = ''
-                    pytest ./tests
-                  '';
                 };
               })
             ];
@@ -72,7 +65,7 @@
                   cd $out
                 '';
                 checkPhase = ''
-                  pytest ./tests
+                  pytest ./test
                 '';
               in
               prev.rosPackages
@@ -80,14 +73,26 @@
                 humble = prev.rosPackages.humble.overrideScope (
                   _humble-final: humble-prev: {
                     agimus-controller-ros = humble-prev.agimus-controller-ros.overrideAttrs {
-                      inherit src doCheck preCheck checkPhase nativeCheckInputs;
+                      inherit
+                        src
+                        doCheck
+                        preCheck
+                        checkPhase
+                        nativeCheckInputs
+                        ;
                     };
                   }
                 );
                 jazzy = prev.rosPackages.jazzy.overrideScope (
                   _jazzy-final: jazzy-prev: {
                     agimus-controller-ros = jazzy-prev.agimus-controller-ros.overrideAttrs {
-                      inherit src doCheck preCheck checkPhase nativeCheckInputs;
+                      inherit
+                        src
+                        doCheck
+                        preCheck
+                        checkPhase
+                        nativeCheckInputs
+                        ;
                     };
                   }
                 );
