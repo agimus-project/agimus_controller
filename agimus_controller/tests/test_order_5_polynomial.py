@@ -1,45 +1,34 @@
 import numpy as np
 import unittest
-import rclpy
 from agimus_controller.trajectories.quintic_trajectory import QuinticTrajectory
 
 
 class TestQuinticTrajectory(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        rclpy.init()
-        return super().setUpClass()
-
-    @classmethod
-    def tearDownClass(cls):
-        rclpy.shutdown()
-        return super().tearDownClass()
 
     def test_quintic_trajectory(self):
-        amp = 1.0
-        scale_duration = 0.7
-        obj = QuinticTrajectory(scale_duration=scale_duration, amp=amp)
+        N = 3
+        scale_duration = N * [0.7]
+        obj = QuinticTrajectory(scale_duration=scale_duration)
         dt = 1e-5
         precision = 1e-3  # precision for finite difference
-        times = np.linspace(0, obj.scale_duration, int(scale_duration / dt))
+        times = np.linspace(0, obj.scale_duration[0], int(scale_duration[0] / dt))
         positions = [obj.get_value_at_t(t) for t in times]
 
         for idx, position in enumerate(positions):
             polynom, d_polynom, dd_polynom = position
-            self.assertGreaterEqual(polynom, 0)
-            self.assertLessEqual(polynom, obj.amp)
+            np.testing.assert_array_less(np.zeros(N), polynom)
 
             # test derivatives by finite difference
             if idx < len(positions) - 1:
                 next_position = positions[idx + 1]
                 next_polynom, d_next_polynom, dd_next_polynom = next_position
-                self.assertLessEqual(
-                    np.abs((next_polynom - polynom) / dt - d_next_polynom),
-                    precision,
+                np.testing.assert_almost_equal(
+                    (next_polynom - polynom) / dt,
+                    d_next_polynom,
                 )
-                self.assertLessEqual(
-                    np.abs((d_next_polynom - d_polynom) / dt - dd_next_polynom),
-                    precision,
+                np.testing.assert_almost_equal(
+                    (d_next_polynom - d_polynom) / dt,
+                    dd_next_polynom,
                 )
 
         if False:
