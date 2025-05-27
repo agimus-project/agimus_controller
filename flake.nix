@@ -31,6 +31,9 @@
                       ./agimus_controller
                     ];
                   };
+                  # Remove when the CI passes. And update https://github.com/Gepetto/nix
+                  nativeCheckInputs = [ prev.python3Packages.pytestCheckHook ];
+                  doCheck = true;
                 };
                 agimus-controller-examples = python-prev.agimus-controller-examples.overrideAttrs {
                   src = lib.fileset.toSource {
@@ -50,17 +53,31 @@
                     ./agimus_controller_ros
                   ];
                 };
+                nativeCheckInputs = [ prev.python3Packages.pytestCheckHook ];
+                doCheck = true;
               in
               prev.rosPackages
               // {
                 humble = prev.rosPackages.humble.overrideScope (
                   _humble-final: humble-prev: {
-                    agimus-controller-ros = humble-prev.agimus-controller-ros.overrideAttrs { inherit src; };
+                    agimus-controller-ros = humble-prev.agimus-controller-ros.overrideAttrs {
+                      inherit
+                        src
+                        doCheck
+                        nativeCheckInputs
+                        ;
+                    };
                   }
                 );
                 jazzy = prev.rosPackages.jazzy.overrideScope (
                   _jazzy-final: jazzy-prev: {
-                    agimus-controller-ros = jazzy-prev.agimus-controller-ros.overrideAttrs { inherit src; };
+                    agimus-controller-ros = jazzy-prev.agimus-controller-ros.overrideAttrs {
+                      inherit
+                        src
+                        doCheck
+                        nativeCheckInputs
+                        ;
+                    };
                   }
                 );
               };

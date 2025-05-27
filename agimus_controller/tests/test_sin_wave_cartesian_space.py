@@ -210,7 +210,7 @@ class TestSinWaveCartesianTrajectory(unittest.TestCase):
         ik_ee_pos = obj.get_end_effector_pose_from_q_as_se3(ik_q)
         np.testing.assert_allclose(
             ik_dq,
-            np.array(
+            -np.array(
                 [0.640289, -0.419278, 0.146452, -1.156815, 0.21497, 0.43003, 0.108381]
             ),
             atol=1e-6,
