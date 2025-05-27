@@ -9,7 +9,6 @@ class TestQuinticTrajectory(unittest.TestCase):
         scale_duration = N * [0.7]
         obj = QuinticTrajectory(scale_duration=scale_duration)
         dt = 1e-5
-        precision = 1e-3  # precision for finite difference
         times = np.linspace(0, obj.scale_duration[0], int(scale_duration[0] / dt))
         positions = [obj.get_value_at_t(t) for t in times]
 
