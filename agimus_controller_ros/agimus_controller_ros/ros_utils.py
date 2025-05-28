@@ -4,8 +4,12 @@ import numpy as np
 import numpy.typing as npt
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
+import rclpy
 from geometry_msgs.msg import Pose, Transform
 from agimus_msgs.msg import MpcInput, MpcDebug, Residual
+from rclpy.node import Node
+from rcl_interfaces.srv import GetParameters
+from rcl_interfaces.msg import ParameterValue
 
 from agimus_controller.trajectory import (
     TrajectoryPoint,
@@ -175,3 +179,38 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
     mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
     mpc_debug_msg.nb_qp_iter = mpc_debug_data.ocp.nb_qp_iter
     return mpc_debug_msg
+
+
+def get_params_from_node(
+    requester_node: Node, target_node_name: str, target_params_name: list(str)
+) -> list[ParameterValue]:
+    """Returns parameters from a node"""
+    service_name = f"/{target_node_name}/get_parameters"
+    param_client = requester_node.create_client(GetParameters, service_name)
+    while not param_client.wait_for_service(timeout_sec=1.0):
+        requester_node.get_logger().info(
+            f"Service {service_name} not available, waiting again..."
+        )
+    request = GetParameters.Request()
+    request.names = target_params_name
+
+    future = param_client.call_async(request)
+    rclpy.spin_until_future_complete(requester_node, future)
+
+    if future.result() is not None:
+        # Ideally, values should be wrapped in rclpy.Parameter
+        # using its from_parameter_msg method. This would change the
+        # API so it is kept as is.
+        return future.result().values
+    else:
+        raise ValueError(
+            f"Failed to get parameter {target_params_name} from node {target_node_name}"
+        )
+
+
+def get_param_from_node(
+    requester_node: Node, target_node_name: str, target_param_name: str
+) -> ParameterValue:
+    """Returns parameter from a node"""
+    result = get_params_from_node(requester_node, target_node_name, [target_param_name])
+    return result[0]
