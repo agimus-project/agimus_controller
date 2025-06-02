@@ -280,11 +280,10 @@ class ResidualDistanceCollision(ResidualDistanceCollisionBase):
 @dataclasses.dataclass
 class ResidualDistanceCollision2(ResidualDistanceCollisionBase):
     class_: T.ClassVar[str] = "ResidualDistanceCollision2"
-    collision_pair: T.Tuple[str, str]
 
     @staticmethod
     def needs_colmpc_freefwd_dynamics() -> bool:
-        return False
+        return True
 
     def build(self, data: BuildData):
         assert isinstance(data.state, colmpc.StateMultibody), (
