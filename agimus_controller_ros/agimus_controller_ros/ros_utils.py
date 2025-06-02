@@ -34,7 +34,7 @@ def ros_pose_to_array(pose: Pose) -> npt.NDArray[np.float64]:
     )
 
 
-def array_to_ros_pose(pose_array: Pose) -> npt.NDArray[np.float64]:
+def array_to_ros_pose(pose_array: npt.NDArray[np.float64]) -> Pose:
     """Convert geometry_msgs.msg.Pose to a 7d numpy array"""
     ros_pose = Pose()
     ros_pose.position.x = pose_array[0]
@@ -182,7 +182,7 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
 
 
 def get_params_from_node(
-    requester_node: Node, target_node_name: str, target_params_name: list(str)
+    requester_node: Node, target_node_name: str, target_params_name: list[str]
 ) -> list[ParameterValue]:
     """Returns parameters from a node"""
     service_name = f"/{target_node_name}/get_parameters"
