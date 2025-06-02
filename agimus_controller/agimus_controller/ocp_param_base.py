@@ -62,6 +62,7 @@ class OCPParamsBaseCroco:
     callbacks: bool = False  # Flag to enable/disable callbacks.
     use_debug_data: bool = True  # Flag to enable/disable the filling of the debug data.
     use_filter_line_search = False  # Flag to enable/disable the filter line searchs.
+    n_threads: int = 1  # Number of threads use by crocoddyl.
 
     def __post_init__(self):
         self._n_controls = sum(sn for sn in self.dt_factor_n_seq.n_steps)

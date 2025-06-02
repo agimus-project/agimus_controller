@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 import numpy as np
 import time
+import os
 
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from rcl_interfaces.srv import GetParameters
-from rcl_interfaces.msg import ParameterValue
 
 import rclpy.time
 from std_msgs.msg import String
@@ -41,35 +40,12 @@ from agimus_controller_ros.ros_utils import (
     mpc_msg_to_weighted_traj_point,
     mpc_debug_data_to_msg,
     transform_msg_to_se3,
+    get_param_from_node,
 )
 
 
 from agimus_controller.trajectory import TrajectoryBuffer, TrajectoryPoint
 from agimus_controller_ros.agimus_controller_parameters import agimus_controller_params
-
-
-def get_param_from_node(
-    requester_node: Node, target_node_name: str, target_param_name: str
-) -> ParameterValue:
-    """Returns parameter from a node"""
-    service_name = f"/{target_node_name}/get_parameters"
-    param_client = requester_node.create_client(GetParameters, service_name)
-    while not param_client.wait_for_service(timeout_sec=1.0):
-        requester_node.get_logger().info(
-            f"Service {service_name} not available, waiting again..."
-        )
-    request = GetParameters.Request()
-    request.names = [target_param_name]
-
-    future = param_client.call_async(request)
-    rclpy.spin_until_future_complete(requester_node, future)
-
-    if future.result() is not None:
-        return future.result().values[0]
-    else:
-        raise ValueError(
-            f"Failed to get parameter {target_param_name} from node {target_node_name}"
-        )
 
 
 class RobotModelsMixin:
@@ -185,6 +161,12 @@ class AgimusController(Node, RobotModelsMixin):
             )
             for collision_pair_name in self.params.collision_pairs_names
         ]
+        # Check that the number of threads is suitable
+        # Source: https://stackoverflow.com/a/55423170
+        if self.params.ocp.n_threads > len(os.sched_getaffinity(0)):
+            self.get_logger().warn(
+                f"The requested number of threads {self.params.ocp.n_threads} is higher than the number of usable cores {len(os.sched_getaffinity(0))}"
+            )
         self.ocp_params = OCPParamsBaseCroco(
             dt=self.params.ocp.dt,
             dt_factor_n_seq=self.params.ocp.dt_factor_n_seq,
@@ -193,6 +175,7 @@ class AgimusController(Node, RobotModelsMixin):
             callbacks=self.params.ocp.activate_callback,
             qp_iters=self.params.ocp.max_qp_iter,
             use_debug_data=self.params.publish_debug_data,
+            n_threads=self.params.ocp.n_threads,
         )
         self.last_point = None
         self.first_run_done = False

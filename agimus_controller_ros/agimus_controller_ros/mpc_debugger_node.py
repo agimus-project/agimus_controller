@@ -11,10 +11,9 @@ from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose
 from agimus_msgs.msg import MpcDebug, MpcInput
 
-from agimus_controller_ros.agimus_controller import (
-    RobotModelsMixin,
-    get_param_from_node,
-)
+from agimus_controller_ros.agimus_controller import RobotModelsMixin
+from agimus_controller_ros.ros_utils import get_params_from_node
+
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_msg_to_numpy
 import pinocchio
 import eigenpy
@@ -60,16 +59,19 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self._marker_size = marker_size
 
         self.init_ros_robot_creation()
-        mpc_node_name = "agimus_controller_node"
-        self._robot_has_free_flyer = get_param_from_node(
-            self, mpc_node_name, "free_flyer"
-        ).bool_value
-        dt_factors = get_param_from_node(
-            self, mpc_node_name, "ocp.dt_factor_n_seq.factors"
-        ).integer_array_value
-        dt_n_steps = get_param_from_node(
-            self, mpc_node_name, "ocp.dt_factor_n_seq.n_steps"
-        ).integer_array_value
+        params = get_params_from_node(
+            self,
+            "agimus_controller_node",
+            [
+                "free_flyer",
+                "ocp.dt_factor_n_seq.factors",
+                "ocp.dt_factor_n_seq.n_steps",
+            ],
+        )
+
+        self._robot_has_free_flyer = params[0].bool_value
+        dt_factors = params[1].integer_array_value
+        dt_n_steps = params[2].integer_array_value
         self._horizon_indices = np.cumsum(
             sum(
                 (
