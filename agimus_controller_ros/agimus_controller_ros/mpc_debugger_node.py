@@ -1,12 +1,14 @@
 import numpy as np
+import coal
 import rclpy
 import rclpy.duration
 import sys
 import argparse
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 
 from builtin_interfaces.msg import Duration as DurationMsg
+from std_msgs.msg import Header, ColorRGBA
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose
 from agimus_msgs.msg import MpcDebug, MpcInput
@@ -17,6 +19,44 @@ from agimus_controller_ros.ros_utils import get_params_from_node
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_msg_to_numpy
 import pinocchio
 import eigenpy
+
+
+def _capsule_as_markers(
+    cap: coal.Cylinder, M: pinocchio.SE3, parent_name: str, **marker_args
+) -> list[Marker]:
+    marker_args.setdefault("action", Marker.ADD)
+    marker_args.setdefault("color", ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0))
+    marker_args.setdefault("lifetime", DurationMsg(sec=100000))
+    marker_args.setdefault("header", Header(frame_id=parent_name))
+    cylinder = Marker(**marker_args)
+    cylinder.id = 0
+    cylinder.type = Marker.CYLINDER
+    cylinder.scale.x = cap.radius
+    cylinder.scale.y = cap.radius
+    cylinder.scale.z = 2 * cap.halfLength
+    pinocchio_se3_to_geometry_msg_pose(M, cylinder.pose)
+
+    M2 = pinocchio.SE3.Identity()
+
+    sphere1 = Marker(**marker_args)
+    sphere1.id = 1
+    sphere1.type = Marker.SPHERE
+    sphere1.scale.x = cap.radius
+    sphere1.scale.y = cap.radius
+    sphere1.scale.z = cap.radius
+    M2.translation[2] = cap.halfLength
+    pinocchio_se3_to_geometry_msg_pose(M * M2, sphere1.pose)
+
+    sphere2 = Marker(**marker_args)
+    sphere2.id = 2
+    sphere2.type = Marker.SPHERE
+    sphere2.scale.x = cap.radius
+    sphere2.scale.y = cap.radius
+    sphere2.scale.z = cap.radius
+    M2.translation[2] = -cap.halfLength
+    pinocchio_se3_to_geometry_msg_pose(M * M2, sphere2.pose)
+
+    return cylinder, sphere1, sphere2
 
 
 def pinocchio_se3_to_geometry_msg_pose(M: pinocchio.SE3, pose: Pose) -> Pose:
@@ -37,7 +77,11 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
     """ROS node class to assist users of the AgimusController ROS node.
 
     Features:
-    - publishes the current MPC prediction as markers that can be viewed in RViz.
+    - publishes the current MPC prediction as markers.
+    - publishes the current MPC references as markers.
+    - publishes the capsules used for collision avoidance as markers.
+
+    The markers can be visualized in RViz.
     """
 
     def __init__(
@@ -66,12 +110,18 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 "free_flyer",
                 "ocp.dt_factor_n_seq.factors",
                 "ocp.dt_factor_n_seq.n_steps",
+                "collision_as_capsule",
+                "self_collision",
+                "ocp.armature",
             ],
         )
-
         self._robot_has_free_flyer = params[0].bool_value
         dt_factors = params[1].integer_array_value
         dt_n_steps = params[2].integer_array_value
+
+        self._collision_as_capsule = params[3].bool_value
+        self._self_collision = params[4].bool_value
+        self._ocp_armature = np.array(params[5].double_array_value)
         self._horizon_indices = np.cumsum(
             sum(
                 (
@@ -105,11 +155,40 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self.destroy_timer(self._init_timer)
 
         self.get_logger().info("create robot...")
-        self.create_robot_models(free_flyer=self._robot_has_free_flyer)
+        self.create_robot_models(
+            free_flyer=self._robot_has_free_flyer,
+            collision_as_capsule=self._collision_as_capsule,
+            self_collision=self._self_collision,
+            armature=self._ocp_armature,
+        )
         frame_name_ok = self.rmodel.existFrame(self._frame_name)
         assert frame_name_ok, f"Frame {self._frame_name} could not be found."
         self.rdata = self.rmodel.createData()
         self._fid = self.rmodel.getFrameId(self._frame_name)
+
+        capsules = []
+        for i, go in enumerate(self.robot_models.collision_model.geometryObjects):
+            if isinstance(go.geometry, coal.Capsule):
+                frame = self.rmodel.frames[go.parentFrame]
+                while (
+                    frame.parentFrame > 0
+                    and self.rmodel.frames[frame.parentFrame].type != pinocchio.JOINT
+                ):
+                    frame = self.rmodel.frames[frame.parentFrame]
+
+                capsules.extend(
+                    _capsule_as_markers(
+                        go.geometry,
+                        M=frame.placement.inverse() * go.placement,
+                        parent_name=frame.name,
+                        ns=go.name,
+                    )
+                )
+        self._capsule_markers = MarkerArray(markers=capsules)
+        if len(self._capsule_markers) == 0:
+            self.get_logger().warn(
+                "No capsule found in the robot model. If you expect some, make sure you passed the same URDF as agimus_controller_node."
+            )
 
         self._pred_marker_array = MarkerArray(
             markers=self._create_marker_array(
@@ -152,6 +231,16 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 reliability=ReliabilityPolicy.RELIABLE,
             ),
         )
+        self._capsules_markers_pub = self.create_publisher(
+            MarkerArray,
+            "capsules_markers",
+            qos_profile=QoSProfile(
+                depth=1,
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                history=HistoryPolicy.KEEP_LAST,
+            ),
+        )
+        self._capsules_markers_pub.publish(self._capsule_markers)
         self.get_logger().info("init done")
 
     def mpc_input_callback(self, msg: MpcInput):
@@ -233,6 +322,8 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
 
         self._mpc_pred_markers_pub.publish(self._pred_marker_array)
         self._mpc_ref_markers_pub.publish(self._ref_marker_array)
+        if msg.trajectory_point_id % 10 == 0:
+            self._capsules_markers_pub.publish(self._capsule_markers)
 
 
 def main(args=None):
