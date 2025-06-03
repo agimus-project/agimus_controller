@@ -151,14 +151,14 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     msg.qdot = list(w_traj_point.point.robot_velocity)
     msg.qddot = list(w_traj_point.point.robot_acceleration)
     msg.robot_effort = list(w_traj_point.point.robot_effort)
-    M = w_traj_point.point.end_effector_poses[ee_frame_name]
-    if isinstance(M, pin.SE3):
+    wMee = w_traj_point.point.end_effector_poses[ee_frame_name]
+    if isinstance(wMee, pin.SE3):
         # This is the type defined in the annotation of the class definition
         # However, this is not enforced, hence the else.
-        M = pin.SE3ToXYZQUAT(M)
+        wMee = pin.SE3ToXYZQUAT(wMee)
     else:
         pass
-    msg.pose = array_to_ros_pose(M)
+    msg.pose = array_to_ros_pose(wMee)
     msg.ee_frame_name = ee_frame_name
     return msg
 

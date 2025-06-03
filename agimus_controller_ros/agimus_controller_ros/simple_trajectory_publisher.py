@@ -61,8 +61,8 @@ class TrajectoryPublisherBase(Node):
     - getting the robot initial joint values.
     - creating the ROS publisher.
 
-    When initialization is completed, the function `ready_callback`. Child
-    classes should reimplement this function to start publishing.
+    When initialization is completed, the function `ready_callback` is called.
+    Child classes should reimplement this function to start publishing.
     """
 
     def __init__(self, name="trajectory_publisher"):
