@@ -124,6 +124,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self._marker_size = marker_size
 
         self._mpl_lock = threading.Lock()
+        self._ocp_update_requested = threading.Event()
         self._mpl_data_ready = False
         self._stop_requested = False
 
@@ -280,6 +281,9 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
     def _evaluate_ocp(
         self, states: npt.NDArray[np.float64], controls: npt.NDArray[np.float64]
     ):
+        if self._ocp_update_requested.is_set():
+            return
+
         # Step 1: Update references
         # Read transforms from TF. Note that doing do introduces a delay.
         now = self.get_clock().now()
@@ -331,6 +335,8 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 idof += d.Lx.shape[0] + d.Lu.shape[0]
 
         assert idof == self._ocp_cost_jacobian.shape[1]
+
+        self._ocp_update_requested.set()
         self._mpl_data_ready = True
 
     def _init_cost_plot(self):
@@ -393,7 +399,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         Returns:
             Axes object for matplotlib
         """
-        if not self._mpl_data_ready:
+        if not self._ocp_update_requested.is_set():
             return
 
         if self._stop_requested:
@@ -414,6 +420,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 np.save("/tmp/data.npy", self._ocp_cost_jacobian)
                 self._mpl_image.set_data(self._ocp_cost_jacobian / s)
 
+            self._ocp_update_requested.clear()
             return self._mpl_ax_value, self._mpl_ax_jacobian
 
     def plot_cost(self, update_interval_ms=250):
