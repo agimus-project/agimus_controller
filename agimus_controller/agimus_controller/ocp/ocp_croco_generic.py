@@ -279,6 +279,8 @@ class ResidualDistanceCollisionBase(ResidualModel):
             assert cmodel.existGeometryName(name), f"Geometry object {name} not found."
             cp.append(cmodel.getGeometryId(name))
         cp = pinocchio.CollisionPair(*cp)
+        if not cmodel.existCollisionPair(cp):
+            cmodel.addCollisionPair(cp)
         assert cmodel.existCollisionPair(cp)
         id = cmodel.findCollisionPair(cp)
         assert id < len(cmodel.collisionPairs)
