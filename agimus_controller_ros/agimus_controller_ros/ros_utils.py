@@ -202,7 +202,11 @@ def get_params_from_node(
     request.names = target_params_name
 
     future = param_client.call_async(request)
-    rclpy.spin_until_future_complete(requester_node, future)
+    while not future.done():
+        rclpy.spin_until_future_complete(requester_node, future, timeout_sec=1.0)
+        requester_node.get_logger().info(
+            f"Waiting for reply from service {service_name}..."
+        )
 
     if future.result() is not None:
         # Ideally, values should be wrapped in rclpy.Parameter
