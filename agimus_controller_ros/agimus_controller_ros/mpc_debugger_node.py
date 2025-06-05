@@ -216,6 +216,11 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         )
         self._capsules_markers_pub.publish(self._capsule_markers)
 
+    def _ocp_node_models(self):
+        return itertools.chain(
+            self._ocp._problem.runningModels, [self._ocp._problem.terminalModel]
+        )
+
     def _ocp_node_datas(self):
         return itertools.chain(
             self._ocp._problem.runningDatas, [self._ocp._problem.terminalData]
@@ -246,21 +251,31 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
 
         cost_keys = {}
         self._ocp_cost_idx = []
+        ocp_ndof = 0
+
         for data in self._ocp_node_datas():
             idx = []
+            node_ndof = None
             for cost_item in data.differential.costs.costs:
                 name = cost_item.key()
-                if name not in cost_keys:
-                    cost_keys[name] = len(cost_keys)
-                idx.append(cost_keys[name])
+                idx.append(cost_keys.setdefault(name, len(cost_keys)))
+                cost_data = cost_item.data()
+                if node_ndof is None:
+                    node_ndof = cost_data.Lx.shape[0] + cost_data.Lu.shape[0]
+                else:
+                    assert node_ndof == cost_data.Lx.shape[0] + cost_data.Lu.shape[0]
+            ocp_ndof += node_ndof
 
             self._ocp_cost_idx.append(idx)
 
-        self._ocp_cost_keys = dict(map(reversed, cost_keys.items()))
-        self._ocp_cost_data = np.empty(
-            (self._ocp._problem.T + 1, len(cost_keys)), np.float64
+        self._ocp_cost_keys = sorted(cost_keys.keys(), key=cost_keys.__getitem__)
+        self._ocp_cost_value = np.empty(
+            (len(cost_keys), self._ocp._problem.T + 1), np.float64
         )
-        self._ocp_cost_data[:] = np.nan
+        self._ocp_cost_value[:] = np.nan
+
+        self._ocp_cost_jacobian = np.empty((len(cost_keys), ocp_ndof), np.float64)
+        self._ocp_cost_jacobian[:] = 0.0
 
     def _evaluate_ocp(
         self, states: npt.NDArray[np.float64], controls: npt.NDArray[np.float64]
@@ -291,38 +306,83 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         u = [np.asarray(control) for control in controls]
         problem = self._ocp._problem
         problem.calc(x, u)
+        problem.calcDiff(x, u)
 
         # Step 3: retrieve the individual cost items.
+        idof = 0
         with self._mpl_lock:
-            for r, (cost_idx, data) in enumerate(
-                zip(self._ocp_cost_idx, self._ocp_node_datas())
+            for c, (cost_idx, model, data) in enumerate(
+                zip(self._ocp_cost_idx, self._ocp_node_models(), self._ocp_node_datas())
             ):
-                for c, cost_item in zip(cost_idx, data.differential.costs.costs):
-                    self._ocp_cost_data[r, c] = cost_item.data().cost
+                for r, cost_model, cost_data in zip(
+                    cost_idx,
+                    model.differential.costs.costs,
+                    data.differential.costs.costs,
+                ):
+                    d = cost_data.data()
+                    w = cost_model.data().weight
+                    # CostModelSum adds the weight only when calculating the global cost so we need
+                    # to take it into account here.
+                    self._ocp_cost_value[r, c] = w * d.cost
+                    cj = idof
+                    self._ocp_cost_jacobian[r, cj : cj + d.Lx.shape[0]] = w * d.Lx
+                    cj += d.Lx.shape[0]
+                    self._ocp_cost_jacobian[r, cj : cj + d.Lu.shape[0]] = w * d.Lu
+                idof += d.Lx.shape[0] + d.Lu.shape[0]
 
+        assert idof == self._ocp_cost_jacobian.shape[1]
         self._mpl_data_ready = True
 
     def _init_cost_plot(self):
-        x = np.arange(self._ocp_cost_data.shape[0])  # the label locations
-        width = 0.9 / self._ocp_cost_data.shape[1]  # the width of the bars
+        x = np.arange(self._ocp_cost_value.shape[1])  # the label locations
+        width = 0.9 / self._ocp_cost_value.shape[0]  # the width of the bars
         multiplier = 0
 
         self._mpl_rects = []
-        for ic, cost in enumerate(self._ocp_cost_data.T):
+        for ic, cost in enumerate(self._ocp_cost_value):
             offset = width * multiplier
-            rects = self._mpl_ax.bar(
+            rects = self._mpl_ax_value.bar(
                 x + offset, cost, width, label=self._ocp_cost_keys[ic]
             )
             self._mpl_rects.append(rects)
             multiplier += 1
 
         dt = self._agimus_controller_node_params["ocp.dt"].double_value
-        self._mpl_ax.set_ylabel("cost value")
-        self._mpl_ax.set_xlabel("OCP node (ms)")
-        self._mpl_ax.set_xticks(
+        self._mpl_ax_value.set_ylabel("cost value")
+        self._mpl_ax_value.set_xlabel("OCP node (ms)")
+        self._mpl_ax_value.set_xticks(
             x + 0.45, [f"{int(dt * 1000 * i)}" for i in self._horizon_indices]
         )
-        self._mpl_ax.legend(loc="upper center")
+        self._mpl_ax_value.legend(loc="upper center")
+
+        self._mpl_image = self._mpl_ax_jacobian.imshow(
+            self._ocp_cost_jacobian,
+            cmap="bwr",
+            interpolation="none",
+            aspect="auto",
+            vmin=-1.0,
+            vmax=1.0,
+        )
+        self._mpl_ax_jacobian.set_yticks(
+            np.arange(len(self._ocp_cost_keys)), self._ocp_cost_keys
+        )
+
+        idof = 0
+        xticks, xticks_label = list(), list()
+        for c, (data) in enumerate(self._ocp_node_datas()):
+            cost_data = next(iter(data.differential.costs.costs))
+            d = cost_data.data()
+            xticks.extend([idof, idof + d.Lx.shape[0]])
+            xticks_label.extend([f"x{c}", f"u{c}"])
+            idof += d.Lx.shape[0] + d.Lu.shape[0]
+
+        self._mpl_ax_jacobian.set_xticks(xticks[0::2], xticks_label[0::2])
+        self._mpl_ax_jacobian.set_xticks(xticks[1::2], xticks_label[1::2], minor=True)
+        self._mpl_ax_jacobian.grid(axis="x", which="major", ls="-")
+        self._mpl_ax_jacobian.grid(axis="x", which="minor", ls="--")
+        self._mpl_ax_jacobian.set_title("Normalized Jacobian of the cost function")
+        self._mpl_ax_jacobian.set_xlabel("OCP variables")
+        plt.colorbar(self._mpl_image, ax=self._mpl_ax_jacobian, location="bottom")
 
     def _update_cost_plot(self, _):
         """Function for for adding data to axis.
@@ -338,28 +398,36 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
 
         if self._stop_requested:
             self._mpl_ani.pause()
-            return self._mpl_ax
+            return self._mpl_ax_value
 
         # lock thread
         with self._mpl_lock:
             if not hasattr(self, "_mpl_rects"):
                 self._init_cost_plot()
             else:
-                for rects, costs in zip(self._mpl_rects, self._ocp_cost_data.T):
+                for rects, costs in zip(self._mpl_rects, self._ocp_cost_value):
                     for rect, cost in zip(rects, costs):
                         rect.set_height(cost)
+                self._mpl_ax_value.set_ylim(ymax=np.nanmax(self._ocp_cost_value))
 
-            self._mpl_ax.set_ylim(ymax=np.nanmax(self._ocp_cost_data))
-            return self._mpl_ax
+                s = np.max(np.abs(self._ocp_cost_jacobian))
+                np.save("/tmp/data.npy", self._ocp_cost_jacobian)
+                self._mpl_image.set_data(self._ocp_cost_jacobian / s)
 
-    def plot_cost(self):
+            return self._mpl_ax_value, self._mpl_ax_jacobian
+
+    def plot_cost(self, update_interval_ms=250):
         """Function for initializing and showing matplotlib animation."""
-        self._mpl_fig, self._mpl_ax = plt.subplots()
+        self._mpl_fig, (self._mpl_ax_value, self._mpl_ax_jacobian) = plt.subplots(
+            nrows=2,
+            ncols=1,
+            layout="tight",
+        )
 
         self._mpl_ani = mpl_anim.FuncAnimation(
             self._mpl_fig,
             self._update_cost_plot,
-            interval=500,
+            interval=update_interval_ms,
         )
         plt.show()
 
