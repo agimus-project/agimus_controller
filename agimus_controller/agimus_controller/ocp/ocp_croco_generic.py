@@ -9,6 +9,11 @@ import yaml
 import pinocchio as pin
 import typing as T
 
+try:
+    import force_feedback_mpc
+except ImportError:
+    force_feedback_mpc = None
+
 from agimus_controller.ocp_base_croco import (
     OCPBaseCroco,
     RobotModels,
@@ -464,6 +469,81 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
 
 
 @dataclasses.dataclass
+class DAMSoftContactAugmentedFwdDynamics(DifferentialActionModel):
+    class_: T.ClassVar[str] = "DAMSoftContactAugmentedFwdDynamics"
+    costs: T.List[CostModelSumItem]
+    frame_name: str
+    Kp: list[float]
+    Kv: list[float]
+    oPc: tuple[float, float, float]
+
+    with_gravity_torque: bool = False
+
+    enabled_directions: tuple[bool, bool, bool] = (True, True, True)
+
+    def __post_init__(self):
+        assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
+
+        self._dimension = sum(self.enabled_directions)
+        assert self._dimension in [1, 3], "Soft contact is either 1D or 3D."
+
+    @property
+    def _dam_cls_and_kwargs(self) -> tuple[type, dict]:
+        if self._dimension == 1:
+            axis = "xyz"[self.enabled_directions.index(1)]
+            return force_feedback_mpc.DAMSoftContact1DAugmentedFwdDynamics, {
+                "type": getattr(force_feedback_mpc.Vector3MaskType, axis)
+            }
+        if self._dimension == 3:
+            return force_feedback_mpc.DAMSoftContact3DAugmentedFwdDynamics, {}
+        raise ValueError("Soft contact is either 1D or 3D.")
+
+    def build(self, data: BuildData):
+        costs = self.build_costs(data)
+        fid = data.get_frame_id(self.frame_name)
+        dam_cls, extra_kwargs = self._dam_cls_and_kwargs
+        dam = dam_cls(
+            state=data.state,
+            actuation=data.actuation,
+            costs=costs,
+            frameId=fid,
+            Kp=np.asarray(self.Kp),
+            Kv=np.asarray(self.Kv),
+            oPc=np.asarray(self.oPc),
+            **extra_kwargs,
+        )
+        dam.with_gravity_torque_reg = self.with_gravity_torque_reg
+        dam.tau_grav_weight = 0.0
+        dam.with_force_cost = True
+        dam.f_des = np.zeros(dam.nc)
+        dam.f_weight = np.zeros(dam.nc)
+
+    def update(self, data, dam, pt: WeightedTrajectoryPoint):
+        for cost in self.costs:
+            if cost.update:
+                cost.cost.update(data, dam.costs.costs[cost.name].cost, pt)
+
+        # Update the desired force.
+        assert len(pt.point.forces) == 1, (
+            "Only one end-effector force tracking reference is allowed."
+        )
+        assert len(pt.weights.w_forces) == 1, (
+            "Only one end-effector force tracking reference is allowed."
+        )
+        name, f_weight = next(iter(pt.weights.w_forces.items()))
+        if np.sum(np.abs(f_weight)) > 1e-9:
+            dam.active_contact = True
+            dam.with_force_cost = True
+            dam.f_des = pt.point.forces[name]
+            dam.f_weight = f_weight
+        else:
+            dam.active_contact = False
+            dam.with_force_cost = False
+            dam.f_des = np.zeros(dam.nc)
+            dam.f_weight = np.zeros(dam.nc)
+
+
+@dataclasses.dataclass
 class IntegratedActionModelAbstract:
     differential: DifferentialActionModel
     step_time: float = 0.0
@@ -480,6 +560,20 @@ class IntegratedActionModelEuler(IntegratedActionModelAbstract):
     def build(self, data: BuildData):
         differential = self.differential.build(data)
         return crocoddyl.IntegratedActionModelEuler(
+            differential, self.step_time, self.with_cost_residual
+        )
+
+
+@dataclasses.dataclass
+class IAMSoftContactAugmented(IntegratedActionModelAbstract):
+    class_: T.ClassVar[str] = "IAMSoftContactAugmented"
+
+    def __post_init__(self):
+        assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
+
+    def build(self, data: BuildData):
+        differential = self.differential.build(data)
+        return force_feedback_mpc.IAMSoftContactAugmented(
             differential, self.step_time, self.with_cost_residual
         )
 
