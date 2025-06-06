@@ -386,28 +386,39 @@ class ConstraintListItem:
 
 @dataclasses.dataclass
 class DifferentialActionModel:
-    pass
+    costs: T.List[CostModelSumItem]
+
+    @classmethod
+    def from_dict(cls, kwargs: T.Dict[str, T.Any]):
+        for key, item_cls in (("costs", CostModelSumItem),):
+            kwargs[key] = [
+                create_nested_dataclass(item_cls, v) for v in kwargs.get(key, [])
+            ]
+        return cls(**kwargs)
+
+    def build_costs(self, data: BuildData) -> crocoddyl.CostModelSum:
+        costs = crocoddyl.CostModelSum(data.state)
+        for cost in self.costs:
+            c = cost.cost.build(data)
+            costs.addCost(cost.name, c, cost.weight, cost.active)
+        return costs
 
 
 @dataclasses.dataclass
 class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
     class_: T.ClassVar[str] = "DifferentialActionModelFreeFwdDynamics"
-    costs: T.List[CostModelSumItem]
     constraints: T.List[ConstraintListItem] = dataclasses.field(default_factory=list)
 
     @classmethod
     def from_dict(cls, kwargs: T.Dict[str, T.Any]):
-        costs = [
-            create_nested_dataclass(CostModelSumItem, v)
-            for v in kwargs.get("costs", [])
-        ]
-        kwargs["costs"] = costs
-        constraints = [
-            create_nested_dataclass(ConstraintListItem, v)
-            for v in kwargs.get("constraints", [])
-        ]
-        kwargs["constraints"] = constraints
-        return DifferentialActionModelFreeFwdDynamics(**kwargs)
+        for key, item_cls in (
+            ("costs", CostModelSumItem),
+            ("constraints", ConstraintListItem),
+        ):
+            kwargs[key] = [
+                create_nested_dataclass(item_cls, v) for v in kwargs.get(key, [])
+            ]
+        return cls(**kwargs)
 
     def needs_colmpc_freefwd_dynamics(self) -> bool:
         for cost in self.costs:
@@ -422,10 +433,7 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
         return False
 
     def build(self, data: BuildData):
-        costs = crocoddyl.CostModelSum(data.state)
-        for cost in self.costs:
-            c = cost.cost.build(data)
-            costs.addCost(cost.name, c, cost.weight, cost.active)
+        costs = self.build_costs(data)
         if self.needs_colmpc_freefwd_dynamics():
             DifferentialActionModelFreeFwdDynamics = (
                 colmpc.DifferentialActionModelFreeFwdDynamics
