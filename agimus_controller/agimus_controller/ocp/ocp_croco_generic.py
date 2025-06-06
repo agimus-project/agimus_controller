@@ -68,6 +68,18 @@ class BuildData:
         dataclasses.field(default_factory=dict)
     )
 
+    def get_frame_id(self, id: int | str) -> int:
+        rmodel: pinocchio.Model = self.state.pinocchio
+        if isinstance(id, str):
+            assert rmodel.existFrame(id), (
+                f"Frame {id} not found in robot model. Available frames are\n{[f.name for f in rmodel.frames]}"
+            )
+            id = rmodel.getFrameId(id)
+        assert isinstance(id, int) and id < rmodel.nframes, (
+            f"Frame index {id} out of range [0, {rmodel.nframes}[."
+        )
+        return id
+
 
 @dataclasses.dataclass
 class ActivationModel:
@@ -149,24 +161,15 @@ class ResidualModelFramePlacement(ResidualModel):
     id: T.Union[str, int]
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
-    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+    def update(self, data: BuildData, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_poses) == 1
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
-        obj.id = self._get_id(data.state, ee_name)
+        obj.id = data.get_frame_id(ee_name)
         obj.reference = ee_pose
         return pt.weights.w_end_effector_poses[ee_name]
 
-    @staticmethod
-    def _get_id(state, id):
-        rmodel: pinocchio.Model = state.pinocchio
-        if isinstance(id, str):
-            assert rmodel.existFrame(id)
-            id = rmodel.getFrameId(id)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
-
     def build(self, data: BuildData):
-        id = self._get_id(data.state, self.id)
+        id = data.get_frame_id(self.id)
         if self.pref is None:
             pref = pinocchio.SE3.Identity()
         else:
@@ -215,18 +218,8 @@ class ResidualModelVisualServoing(ResidualModel):
             obj.reference = wMo_vision * oMf_target
         return weights
 
-    @staticmethod
-    def _get_id(state: crocoddyl.StateMultibody, name: str):
-        rmodel: pinocchio.Model = state.pinocchio
-        assert rmodel.existFrame(name), (
-            f"{name} not found in model. Frames are {[f.name for f in rmodel.frames]}"
-        )
-        id = rmodel.getFrameId(name)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
-
     def build(self, data: BuildData):
-        world_frame_id = self._get_id(data.state, self.world_frame)
+        world_frame_id = data.get_frame_id(self.world_frame)
         f = data.state.pinocchio.frames[world_frame_id]
         assert f.parentJoint == 0, (
             f"Parent joint of world frame ({self.world_frame}) should be 0"
@@ -240,7 +233,7 @@ class ResidualModelVisualServoing(ResidualModel):
 
         data.transforms.setdefault(self.transforms_key, None)
 
-        frame_id = self._get_id(data.state, self.robot_frame)
+        frame_id = data.get_frame_id(self.robot_frame)
         pref = pinocchio.SE3.Identity()
         return crocoddyl.ResidualModelFramePlacement(data.state, frame_id, pref)
 
