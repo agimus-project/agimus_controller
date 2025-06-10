@@ -95,13 +95,32 @@ class ActivationModelWeightedQuad(ActivationModel):
 
 
 @dataclasses.dataclass
-class ActivationModelQuadExp(ActivationModel):
-    class_: T.ClassVar[str] = "ActivationModelQuadExp"
+class ActivationModelExp(ActivationModel):
+    class_: T.ClassVar[str] = "ActivationModelExp"
     alpha: float = 1.0
+    exponent: int = 1
 
     def build(self, data: BuildData, residual: crocoddyl.CostModelResidual):
+        assert self.exponent in [1, 2]
+        cls = (
+            colmpc.ActivationModelExp
+            if self.exponent == 1
+            else colmpc.ActivationModelQuadExp
+        )
         # float() is required to allow parsing a float in scientific notation.
-        return colmpc.ActivationModelQuadExp(residual.nr, float(self.alpha))
+        return cls(residual.nr, float(self.alpha))
+
+
+# For backward compatibility
+@dataclasses.dataclass
+class ActivationModelQuadExp(ActivationModelExp):
+    class_: T.ClassVar[str] = "ActivationModelQuadExp"
+    exponent: int = 2
+
+    def __post_init__(self):
+        assert self.exponent == 2, (
+            "ActivationModelQuadExp is provided for backward compatibility. exponent should not be 2 (the default)."
+        )
 
 
 @dataclasses.dataclass
@@ -247,6 +266,8 @@ class ResidualModelVisualServoing(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualDistanceCollisionBase(ResidualModel):
+    # Ideally, this should go with an activation of type
+    # ActivationModelExp with exponent 1.
     collision_pair: T.Tuple[str, str]
 
     def _collision_pair_id(self, cmodel: pinocchio.GeometryModel) -> int:
@@ -258,6 +279,8 @@ class ResidualDistanceCollisionBase(ResidualModel):
             assert cmodel.existGeometryName(name), f"Geometry object {name} not found."
             cp.append(cmodel.getGeometryId(name))
         cp = pinocchio.CollisionPair(*cp)
+        if not cmodel.existCollisionPair(cp):
+            cmodel.addCollisionPair(cp)
         assert cmodel.existCollisionPair(cp)
         id = cmodel.findCollisionPair(cp)
         assert id < len(cmodel.collisionPairs)
