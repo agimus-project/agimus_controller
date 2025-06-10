@@ -278,18 +278,16 @@ class AgimusController(Node, RobotModelsMixin):
         if yaml_file == "":
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
         self.get_logger().info(f"Loading OCP definition file {yaml_file}")
-        ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
-        self.ocp = ocp
+        self.ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
 
-        if len(ocp.input_transforms) > 0:
+        if len(self.ocp.input_transforms) > 0:
             self.initialize_tf_listener()
 
-        ws_shift = WarmStartShiftPreviousSolution()
-        self._ws_shift = ws_shift
-        ws_shift.setup(self.robot_models, self.ocp_params)
+        self._ws_shift = WarmStartShiftPreviousSolution()
+        self._ws_shift.setup(self.robot_models, self.ocp_params)
 
         self.mpc = MPC()
-        self.mpc.setup(ocp=ocp, warm_start=self._ws_shift, buffer=self.traj_buffer)
+        self.mpc.setup(ocp=self.ocp, warm_start=self._ws_shift, buffer=self.traj_buffer)
 
     def setup_mpc_initial_guess(self):
         # Use WarmStartReference for initialization

@@ -17,7 +17,6 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPo
 from builtin_interfaces.msg import Duration as DurationMsg
 from std_msgs.msg import Header, ColorRGBA
 from visualization_msgs.msg import MarkerArray, Marker
-from geometry_msgs.msg import Pose
 from agimus_msgs.msg import MpcDebug, MpcInput
 
 from tf2_ros import TransformException
@@ -34,11 +33,11 @@ from agimus_controller_ros.ros_utils import (
     get_params_from_node,
     mpc_msg_to_weighted_traj_point,
     transform_msg_to_se3,
+    se3_to_pose_msg,
 )
 
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_msg_to_numpy
 import pinocchio
-import eigenpy
 
 
 def _capsule_as_markers(
@@ -54,7 +53,7 @@ def _capsule_as_markers(
     cylinder.scale.x = cap.radius
     cylinder.scale.y = cap.radius
     cylinder.scale.z = 2 * cap.halfLength
-    pinocchio_se3_to_geometry_msg_pose(M, cylinder.pose)
+    cylinder.pose = se3_to_pose_msg(M)
 
     M2 = pinocchio.SE3.Identity()
 
@@ -65,7 +64,7 @@ def _capsule_as_markers(
     sphere1.scale.y = cap.radius
     sphere1.scale.z = cap.radius
     M2.translation[2] = cap.halfLength
-    pinocchio_se3_to_geometry_msg_pose(M * M2, sphere1.pose)
+    sphere1.pose = se3_to_pose_msg(M * M2)
 
     sphere2 = Marker(**marker_args)
     sphere2.id = 2
@@ -74,23 +73,9 @@ def _capsule_as_markers(
     sphere2.scale.y = cap.radius
     sphere2.scale.z = cap.radius
     M2.translation[2] = -cap.halfLength
-    pinocchio_se3_to_geometry_msg_pose(M * M2, sphere2.pose)
+    sphere2.pose = se3_to_pose_msg(M * M2)
 
     return cylinder, sphere1, sphere2
-
-
-def pinocchio_se3_to_geometry_msg_pose(M: pinocchio.SE3, pose: Pose) -> Pose:
-    "Store in `pose` message the transform `M`"
-    pose.position.x = M.translation[0]
-    pose.position.y = M.translation[1]
-    pose.position.z = M.translation[2]
-
-    q = eigenpy.Quaternion(M.rotation)
-    pose.orientation.x = q.x
-    pose.orientation.y = q.y
-    pose.orientation.z = q.z
-    pose.orientation.w = q.w
-    return pose
 
 
 class MPCDebuggerNode(Node, RobotModelsMixin):
@@ -561,7 +546,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         for state, marker in zip(states, self._pred_marker_array.markers):
             pinocchio.forwardKinematics(self.rmodel, self.rdata, state[:nq])
             M = pinocchio.updateFramePlacement(self.rmodel, self.rdata, self._fid)
-            pinocchio_se3_to_geometry_msg_pose(M, marker.pose)
+            marker.pose = se3_to_pose_msg(M)
 
         self._remove_old_references(msg.trajectory_point_id)
         if msg.trajectory_point_id == self._references[0].point.id:
@@ -579,7 +564,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 assert len(state) == nq, f"{len(state)} == {nq}"
                 pinocchio.forwardKinematics(self.rmodel, self.rdata, np.asarray(state))
                 M = pinocchio.updateFramePlacement(self.rmodel, self.rdata, self._fid)
-                pinocchio_se3_to_geometry_msg_pose(M, marker.pose)
+                marker.pose = se3_to_pose_msg(M)
 
             if len(self._references) > self._horizon_indices[-1]:
                 controls = matrix_msg_to_numpy(msg.control_predictions)
