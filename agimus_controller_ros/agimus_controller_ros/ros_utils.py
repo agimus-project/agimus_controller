@@ -200,6 +200,7 @@ def mpc_msg_to_weighted_traj_point(
 def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> MpcInput:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     # get the first key of the dictionary
+
     ee_frame_name = next(iter(w_traj_point.point.end_effector_poses.keys()))
 
     msg = MpcInput()
@@ -208,27 +209,42 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     msg.w_qdot = list(w_traj_point.weights.w_robot_velocity)
     msg.w_qddot = list(w_traj_point.weights.w_robot_acceleration)
     msg.w_robot_effort = list(w_traj_point.weights.w_robot_effort)
-    msg.w_pose = list(next(iter(w_traj_point.weights.w_end_effector_poses.values())))
-    msg.w_twist = list(
-        next(iter(w_traj_point.weights.w_end_effector_velocities.values()))
-    )
-    msg.w_force = list(next(iter(w_traj_point.weights.w_forces.values())))
+
+    w_poses = w_traj_point.weights.w_end_effector_poses
+    if w_poses and len(w_poses) > 0:
+        msg.w_pose = w_poses[ee_frame_name]
+
+    w_vel = w_traj_point.weights.w_end_effector_velocities
+    if w_vel and len(w_vel) > 0:
+        msg.w_twist = w_vel[ee_frame_name]
+
+    w_force = w_traj_point.weights.w_forces
+    if w_force and len(w_force) > 0:
+        msg.w_force = w_force[ee_frame_name]
+
     msg.q = list(w_traj_point.point.robot_configuration)
     msg.qdot = list(w_traj_point.point.robot_velocity)
     msg.qddot = list(w_traj_point.point.robot_acceleration)
     msg.robot_effort = list(w_traj_point.point.robot_effort)
-    wMee = w_traj_point.point.end_effector_poses[ee_frame_name]
-    if isinstance(wMee, pin.SE3):
-        # This is the type defined in the annotation of the class definition
-        # However, this is not enforced, hence the else.
-        wMee = pin.SE3ToXYZQUAT(wMee)
-    else:
-        pass
-    msg.pose = array_to_ros_pose(wMee)
-    msg.twist = motion_to_ros_twist(
-        w_traj_point.point.end_effector_velocities[ee_frame_name]
-    )
-    msg.force = force_to_ros_wrench(w_traj_point.point.forces[ee_frame_name])
+
+    pose = w_traj_point.point.end_effector_poses
+    if pose and len(pose) > 0:
+        wMee = pose[ee_frame_name]
+        if isinstance(wMee, pin.SE3):
+            # This is the type defined in the annotation of the class definition
+            # However, this is not enforced, hence the else.
+            wMee = pin.SE3ToXYZQUAT(wMee)
+        else:
+            pass
+        msg.pose = array_to_ros_pose(wMee)
+
+    vel = w_traj_point.point.end_effector_velocities
+    if vel and len(vel) > 0:
+        msg.twist = motion_to_ros_twist(vel[ee_frame_name])
+
+    force = w_traj_point.point.forces
+    if force and len(force):
+        msg.force = force_to_ros_wrench(force[ee_frame_name])
 
     msg.ee_frame_name = ee_frame_name
     return msg
