@@ -5,7 +5,7 @@ import numpy.typing as npt
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
 import rclpy
-from geometry_msgs.msg import Pose, Transform
+from geometry_msgs.msg import Pose, Transform, Twist, Wrench
 from agimus_msgs.msg import MpcInput, MpcDebug, Residual
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
@@ -45,6 +45,62 @@ def array_to_ros_pose(pose_array: npt.NDArray[np.float64]) -> Pose:
     ros_pose.orientation.z = pose_array[5]
     ros_pose.orientation.w = pose_array[6]
     return ros_pose
+
+
+def ros_twist_to_motion(twist: Twist) -> pin.Motion:
+    """Convert geometry_msgs.msg.Twist to a pinocchio.Motion object"""
+    return pin.Motion(
+        np.array(
+            [
+                twist.linear.x,
+                twist.linear.y,
+                twist.linear.z,
+                twist.angular.x,
+                twist.angular.y,
+                twist.angular.z,
+            ]
+        )
+    )
+
+
+def motion_to_ros_twist(motion: pin.Motion) -> Twist:
+    """Convert pinocchio.Motion object to geometry_msgs.msg.Twist"""
+    ros_twist = Twist()
+    ros_twist.linear.x = motion.linear[0]
+    ros_twist.linear.y = motion.linear[1]
+    ros_twist.linear.z = motion.linear[2]
+    ros_twist.angular.x = motion.angular[0]
+    ros_twist.angular.y = motion.angular[1]
+    ros_twist.angular.z = motion.angular[2]
+    return ros_twist
+
+
+def ros_wrench_to_force(wrench: Wrench) -> pin.Force:
+    """Convert geometry_msgs.msg.Wrench to a pinocchio.Force object"""
+    return pin.Force(
+        np.array(
+            [
+                wrench.force.x,
+                wrench.force.y,
+                wrench.force.z,
+                wrench.torque.x,
+                wrench.torque.y,
+                wrench.torque.z,
+            ]
+        )
+    )
+
+
+def force_to_ros_wrench(force: pin.Force) -> Wrench:
+    """Convert pinocchio.Force object to geometry_msgs.msg.Wrench"""
+    ros_wrench = Wrench()
+    ros_wrench.force.x = force.linear[0]
+    ros_wrench.force.y = force.linear[1]
+    ros_wrench.force.z = force.linear[2]
+    ros_wrench.torque.x = force.angular[0]
+    ros_wrench.torque.y = force.angular[1]
+    ros_wrench.torque.z = force.angular[2]
+    return ros_wrench
 
 
 def transform_msg_to_se3(transform: Transform) -> pin.SE3:
@@ -114,6 +170,8 @@ def mpc_msg_to_weighted_traj_point(
 ) -> WeightedTrajectoryPoint:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     xyz_quat_pose = ros_pose_to_array(msg.pose)
+    twist = ros_twist_to_motion(msg.twist)
+    force = ros_wrench_to_force(msg.force)
     traj_point = TrajectoryPoint(
         id=msg.id,
         time_ns=time_ns,
@@ -122,6 +180,8 @@ def mpc_msg_to_weighted_traj_point(
         robot_acceleration=np.array(msg.qddot, dtype=np.float64),
         robot_effort=np.array(msg.robot_effort, dtype=np.float64),
         end_effector_poses={msg.ee_frame_name: pin.XYZQUATToSE3(xyz_quat_pose)},
+        end_effector_velocities={msg.ee_frame_name: twist},
+        forces={msg.ee_frame_name: force},
     )
 
     traj_weights = TrajectoryPointWeights(
@@ -129,7 +189,9 @@ def mpc_msg_to_weighted_traj_point(
         w_robot_velocity=np.array(msg.w_qdot, dtype=np.float64),
         w_robot_acceleration=np.array(msg.w_qddot, dtype=np.float64),
         w_robot_effort=np.array(msg.w_robot_effort, dtype=np.float64),
-        w_end_effector_poses={msg.ee_frame_name: msg.w_pose},
+        w_end_effector_poses={msg.ee_frame_name: np.array(msg.w_pose)},
+        w_end_effector_velocities={msg.ee_frame_name: np.array(msg.w_twist)},
+        w_forces={msg.ee_frame_name: np.array(msg.w_force)},
     )
 
     return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
@@ -138,6 +200,7 @@ def mpc_msg_to_weighted_traj_point(
 def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> MpcInput:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     # get the first key of the dictionary
+
     ee_frame_name = next(iter(w_traj_point.point.end_effector_poses.keys()))
 
     msg = MpcInput()
@@ -146,19 +209,43 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     msg.w_qdot = list(w_traj_point.weights.w_robot_velocity)
     msg.w_qddot = list(w_traj_point.weights.w_robot_acceleration)
     msg.w_robot_effort = list(w_traj_point.weights.w_robot_effort)
-    msg.w_pose = list(next(iter(w_traj_point.weights.w_end_effector_poses.values())))
+
+    w_poses = w_traj_point.weights.w_end_effector_poses
+    if w_poses and len(w_poses) > 0:
+        msg.w_pose = w_poses[ee_frame_name]
+
+    w_vel = w_traj_point.weights.w_end_effector_velocities
+    if w_vel and len(w_vel) > 0:
+        msg.w_twist = w_vel[ee_frame_name]
+
+    w_force = w_traj_point.weights.w_forces
+    if w_force and len(w_force) > 0:
+        msg.w_force = w_force[ee_frame_name]
+
     msg.q = list(w_traj_point.point.robot_configuration)
     msg.qdot = list(w_traj_point.point.robot_velocity)
     msg.qddot = list(w_traj_point.point.robot_acceleration)
     msg.robot_effort = list(w_traj_point.point.robot_effort)
-    wMee = w_traj_point.point.end_effector_poses[ee_frame_name]
-    if isinstance(wMee, pin.SE3):
-        # This is the type defined in the annotation of the class definition
-        # However, this is not enforced, hence the else.
-        wMee = pin.SE3ToXYZQUAT(wMee)
-    else:
-        pass
-    msg.pose = array_to_ros_pose(wMee)
+
+    pose = w_traj_point.point.end_effector_poses
+    if pose and len(pose) > 0:
+        wMee = pose[ee_frame_name]
+        if isinstance(wMee, pin.SE3):
+            # This is the type defined in the annotation of the class definition
+            # However, this is not enforced, hence the else.
+            wMee = pin.SE3ToXYZQUAT(wMee)
+        else:
+            pass
+        msg.pose = array_to_ros_pose(wMee)
+
+    vel = w_traj_point.point.end_effector_velocities
+    if vel and len(vel) > 0:
+        msg.twist = motion_to_ros_twist(vel[ee_frame_name])
+
+    force = w_traj_point.point.forces
+    if force and len(force):
+        msg.force = force_to_ros_wrench(force[ee_frame_name])
+
     msg.ee_frame_name = ee_frame_name
     return msg
 

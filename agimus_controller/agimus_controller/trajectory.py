@@ -2,7 +2,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
-from pinocchio import SE3, Force
+from pinocchio import Force, Motion, SE3
 from agimus_controller.ocp_param_base import DTFactorsNSeq
 
 
@@ -18,6 +18,9 @@ class TrajectoryPoint:
     robot_effort: npt.NDArray[np.float64] | None = None
     forces: dict[Force] | None = None  # Dictionary of pinocchio.Force
     end_effector_poses: dict[SE3] | None = None  # Dictionary of pinocchio.SE3
+    end_effector_velocities: dict[Motion] | None = (
+        None  # Dictionary of pinocchio.Motion
+    )
 
     @property
     def robot_state(self) -> npt.NDArray[np.float64]:
@@ -71,6 +74,9 @@ class TrajectoryPoint:
         if self.end_effector_poses != other.end_effector_poses:
             return False
 
+        if self.end_effector_velocities != other.end_effector_velocities:
+            return False
+
         return True
 
 
@@ -84,6 +90,7 @@ class TrajectoryPointWeights:
     w_robot_effort: npt.NDArray[np.float64] | None = None
     w_forces: dict[npt.NDArray[np.float64]] | None = None
     w_end_effector_poses: dict[npt.NDArray[np.float64]] | None = None
+    w_end_effector_velocities: dict[npt.NDArray[np.float64]] | None = None
 
     @property
     def w_robot_state(self) -> npt.NDArray[np.float64]:
@@ -138,6 +145,9 @@ class TrajectoryPointWeights:
             return False
 
         if self.w_end_effector_poses != other.w_end_effector_poses:
+            return False
+
+        if self.w_end_effector_velocities != other.w_end_effector_velocities:
             return False
 
         return True
