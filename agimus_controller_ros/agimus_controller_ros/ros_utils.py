@@ -5,7 +5,7 @@ import numpy.typing as npt
 from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to_msg
 
 import rclpy
-from geometry_msgs.msg import Pose, Transform, Twist
+from geometry_msgs.msg import Pose, Transform, Twist, Wrench
 from agimus_msgs.msg import MpcInput, MpcDebug, Residual
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
@@ -73,6 +73,34 @@ def motion_to_ros_twist(motion: pin.Motion) -> Twist:
     ros_twist.angular.y = motion.angular[1]
     ros_twist.angular.z = motion.angular[2]
     return ros_twist
+
+
+def ros_wrench_to_force(wrench: Wrench) -> pin.Force:
+    """Convert geometry_msgs.msg.Wrench to a pinocchio.Force object"""
+    return pin.Force(
+        np.array(
+            [
+                wrench.force.x,
+                wrench.force.y,
+                wrench.force.z,
+                wrench.torque.x,
+                wrench.torque.y,
+                wrench.torque.z,
+            ]
+        )
+    )
+
+
+def force_to_ros_wrench(force: pin.Force) -> Wrench:
+    """Convert pinocchio.Force object to geometry_msgs.msg.Wrench"""
+    ros_wrench = Wrench()
+    ros_wrench.force.x = force.linear[0]
+    ros_wrench.force.y = force.linear[1]
+    ros_wrench.force.z = force.linear[2]
+    ros_wrench.torque.x = force.angular[0]
+    ros_wrench.torque.y = force.angular[1]
+    ros_wrench.torque.z = force.angular[2]
+    return ros_wrench
 
 
 def transform_msg_to_se3(transform: Transform) -> pin.SE3:
@@ -143,6 +171,7 @@ def mpc_msg_to_weighted_traj_point(
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     xyz_quat_pose = ros_pose_to_array(msg.pose)
     twist = ros_twist_to_motion(msg.twist)
+    force = ros_wrench_to_force(msg.force)
     traj_point = TrajectoryPoint(
         id=msg.id,
         time_ns=time_ns,
@@ -152,6 +181,7 @@ def mpc_msg_to_weighted_traj_point(
         robot_effort=np.array(msg.robot_effort, dtype=np.float64),
         end_effector_poses={msg.ee_frame_name: pin.XYZQUATToSE3(xyz_quat_pose)},
         end_effector_velocities={msg.ee_frame_name: twist},
+        forces={msg.ee_frame_name: force},
     )
 
     traj_weights = TrajectoryPointWeights(
@@ -161,6 +191,7 @@ def mpc_msg_to_weighted_traj_point(
         w_robot_effort=np.array(msg.w_robot_effort, dtype=np.float64),
         w_end_effector_poses={msg.ee_frame_name: np.array(msg.w_pose)},
         w_end_effector_velocities={msg.ee_frame_name: np.array(msg.w_twist)},
+        w_forces={msg.ee_frame_name: np.array(msg.w_force)},
     )
 
     return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
@@ -181,6 +212,7 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     msg.w_twist = list(
         next(iter(w_traj_point.weights.w_end_effector_velocities.values()))
     )
+    msg.w_force = list(next(iter(w_traj_point.weights.w_forces.values())))
     msg.q = list(w_traj_point.point.robot_configuration)
     msg.qdot = list(w_traj_point.point.robot_velocity)
     msg.qddot = list(w_traj_point.point.robot_acceleration)
@@ -196,6 +228,8 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     msg.twist = motion_to_ros_twist(
         w_traj_point.point.end_effector_velocities[ee_frame_name]
     )
+    msg.force = force_to_ros_wrench(w_traj_point.point.forces[ee_frame_name])
+
     msg.ee_frame_name = ee_frame_name
     return msg
 
