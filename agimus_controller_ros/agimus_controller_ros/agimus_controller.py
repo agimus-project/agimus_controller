@@ -278,16 +278,18 @@ class AgimusController(Node, RobotModelsMixin):
         if yaml_file == "":
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
         self.get_logger().info(f"Loading OCP definition file {yaml_file}")
-        ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
-        self.ocp = ocp
+        self.ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
 
-        update_transforms = len(ocp.input_transforms) > 0
-        if update_transforms:
+        if len(self.ocp.input_transforms) > 0:
             self.initialize_tf_listener()
 
-        ws_shift = WarmStartShiftPreviousSolution()
-        ws_shift.setup(self.robot_models, self.ocp_params)
+        self._ws_shift = WarmStartShiftPreviousSolution()
+        self._ws_shift.setup(self.robot_models, self.ocp_params)
 
+        self.mpc = MPC()
+        self.mpc.setup(ocp=self.ocp, warm_start=self._ws_shift, buffer=self.traj_buffer)
+
+    def setup_mpc_initial_guess(self):
         # Use WarmStartReference for initialization
         ws_ref = WarmStartReference()
         ws_ref.setup(self.robot_models._robot_model)
@@ -300,18 +302,16 @@ class AgimusController(Node, RobotModelsMixin):
             robot_acceleration=np.zeros_like(np_sensor_msg.joint_state.velocity),
         )
         reference_trajectory = self.traj_buffer.horizon
-        if update_transforms:
-            # TODO given that we just created the listener, we might need to wait a bit for the transform to be available.
+        if len(self.ocp.input_transforms) > 0:
+            # We assume that TF buffer has been given enough time between setup_mpc and setup_mpc_initial_guess
+            # for the transforms to be available.
             self.update_transforms()
-        ocp.set_reference_weighted_trajectory(reference_trajectory)
+        self.ocp.set_reference_weighted_trajectory(reference_trajectory)
 
         reference_trajectory_points = [el.point for el in reference_trajectory]
         x0, x_init, u_init = ws_ref.generate(initial_state, reference_trajectory_points)
-        ocp.solve(x0, x_init, u_init, use_iteration_limits_and_timeout=False)
-        ws_shift.update_previous_solution(ocp.ocp_results)
-
-        self.mpc = MPC()
-        self.mpc.setup(ocp=ocp, warm_start=ws_shift, buffer=self.traj_buffer)
+        self.ocp.solve(x0, x_init, u_init, use_iteration_limits_and_timeout=False)
+        self._ws_shift.update_previous_solution(self.ocp.ocp_results)
 
     def sensor_callback(self, sensor_msg: Sensor) -> None:
         """Update the sensor_msg attribute of the class."""
@@ -361,6 +361,19 @@ class AgimusController(Node, RobotModelsMixin):
             )
             return
 
+        if self.mpc is None:
+            self.create_robot_models(
+                free_flyer=self.params.free_flyer,
+                collision_as_capsule=self.params.collision_as_capsule,
+                self_collision=self.params.self_collision,
+                armature=self.params.ocp.armature,
+                collision_pairs=self.params.collision_pairs,
+            )
+            self.setup_mpc()
+            # It is necessary to return, even if the reference buffer has enough data.
+            # This gives some time to fill TF buffer.
+            return
+
         # Wait for enough data in buffer
         if not self.buffer_has_enough_data(2):
             self.get_logger().warn(
@@ -371,14 +384,7 @@ class AgimusController(Node, RobotModelsMixin):
 
         # Stop the initialization loop.
         self.destroy_timer(self._init_timer)
-        self.create_robot_models(
-            free_flyer=self.params.free_flyer,
-            collision_as_capsule=self.params.collision_as_capsule,
-            self_collision=self.params.self_collision,
-            armature=self.params.ocp.armature,
-            collision_pairs=self.params.collision_pairs,
-        )
-        self.setup_mpc()
+        self.setup_mpc_initial_guess()
 
         self.get_logger().info(
             "MPC is initialized and buffer has enough data. Starting to compute controls."
