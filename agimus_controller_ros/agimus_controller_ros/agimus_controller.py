@@ -257,13 +257,28 @@ class AgimusController(Node, RobotModelsMixin):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
     def update_transforms(self):
-        now = self.get_clock().now()
+        latest_time = rclpy.time.Time()
+        current_time = self.get_clock().now()
         transforms = self.ocp.input_transforms
         for key in transforms:
             parent_frame, child_frame = key
             try:
-                t = self.tf_buffer.lookup_transform(parent_frame, child_frame, now)
-                M = transform_msg_to_se3(t.transform)
+                # Note that `latest_time` is used and not `current_time` because
+                # the latter leads to an interpolation into the future.
+                # see https://docs.ros.org/en/humble/Tutorials/Intermediate/Tf2/Learning-About-Tf2-And-Time-Cpp.html#update-the-listener-node
+                t = self.tf_buffer.lookup_transform(
+                    parent_frame, child_frame, latest_time
+                )
+                if (
+                    current_time - rclpy.time.Time.from_msg(t.header.stamp)
+                ).nanoseconds > 0.5e9:
+                    self.get_logger().info(
+                        f"Transform {parent_frame} to {child_frame} is too old. Latest time is {t.header.stamp}",
+                        throttle_duration_sec=1.0,
+                    )
+                    M = None
+                else:
+                    M = transform_msg_to_se3(t.transform)
             except TransformException as ex:
                 self.get_logger().info(
                     f"Could not transform {parent_frame} to {child_frame}: {ex}",
