@@ -1,15 +1,11 @@
 import time
 from agimus_controller_examples.hpp_interface import HppInterface
 from agimus_controller.mpc import MPC
-from agimus_controller.utils.path_finder import get_package_path, get_mpc_params_dict
+from agimus_controller_examples.utils.set_models_and_mpc import get_mpc
 from agimus_controller.visualization.plots import MPCPlots
 from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
-from agimus_controller.robot_model.panda_model import (
-    PandaRobotModel,
-    PandaRobotModelParameters,
-)
-from agimus_controller.ocps.parameters import OCPParameters
 from agimus_controller_examples.main.servers import Servers
+from agimus_controller_examples.utils.set_models_and_mpc import get_panda_models
 
 
 class APP(object):
@@ -18,22 +14,11 @@ class APP(object):
             self.servers = Servers()
             self.servers.spawn_servers(use_gui)
 
-        panda_params = PandaRobotModelParameters()
-        panda_params.collision_as_capsule = True
-        panda_params.self_collision = False
-        agimus_demos_description_dir = get_package_path("agimus_demos_description")
-        collision_file_path = (
-            agimus_demos_description_dir / "pick_and_place" / "obstacle_params.yaml"
-        )
-        pandawrapper = PandaRobotModel.load_model(
-            params=panda_params, env=collision_file_path
-        )
-        mpc_params_dict = get_mpc_params_dict(task_name="pick_and_place")
-        ocp_params = OCPParameters()
-        ocp_params.set_parameters_from_dict(mpc_params_dict["ocp"])
-        rmodel = pandawrapper.get_reduced_robot_model()
-        cmodel = pandawrapper.get_reduced_collision_model()
-        ee_frame_name = panda_params.ee_frame_name
+        robot_models = get_panda_models("agimus_demo_03_mpc_dummy_traj")
+        mpc = get_mpc()
+        rmodel = robot_models.get_reduced_robot_model()
+        cmodel = robot_models.get_reduced_collision_model()
+        ee_frame_name = ""
 
         hpp_interface = HppInterface()
         q_init, q_goal = hpp_interface.get_panda_q_init_q_goal()
@@ -41,7 +26,7 @@ class APP(object):
         viewer = hpp_interface.get_viewer()
         x_plan, a_plan, _ = hpp_interface.get_hpp_x_a_planning(1e-2)
 
-        ocp = OCPCrocoHPP(rmodel, cmodel, ocp_params)
+        ocp = OCPCrocoHPP(rmodel, cmodel)
 
         mpc = MPC(ocp, x_plan, a_plan, rmodel, cmodel)
 
@@ -56,7 +41,7 @@ class APP(object):
             whole_x_plan=x_plan,
             whole_u_plan=u_plan,
             rmodel=rmodel,
-            vmodel=pandawrapper.get_reduced_visual_model(),
+            # vmodel=robot_models.,
             cmodel=cmodel,
             DT=mpc.ocp.params.dt,
             ee_frame_name=ee_frame_name,

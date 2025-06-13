@@ -3,12 +3,12 @@ import numpy as np
 from hpp.corbaserver import Client, Robot, ProblemSolver
 from hpp.gepetto import ViewerFactory
 import pinocchio as pin
-from ..robot_model.robot_model import RobotModel
+from agimus_controller.factory.robot_model import RobotModels
 from .scenes import Scene
 
 
 class Planner:
-    def __init__(self, robot_model: RobotModel, scene: Scene, T: int) -> None:
+    def __init__(self, robot_models: RobotModels, scene: Scene, T: int) -> None:
         """Instatiate a motion planning class taking the pinocchio model and the geometry model.
 
         Args:
@@ -18,23 +18,19 @@ class Planner:
             T (int): number of nodes describing the trajectory.
         """
         # Copy args.
-        self._robot_model = robot_model
+        self._robot_models = robot_models
         self._scene = scene
         self._T = T
 
         # Models of the robot.
-        self._robot_model_params = self._robot_model.get_model_parameters()
-        self._rmodel = self._robot_model.get_reduced_robot_model()
-        self._cmodel = self._robot_model.get_reduced_collision_model()
-        self._end_effector_id = self._rmodel.getFrameId(
-            self._robot_model_params.ee_frame_name
-        )
+        self._rmodel = robot_models.robot_model
+        self._cmodel = robot_models.collision_model
 
         # Visualizer
         self._v = None
 
     def _create_planning_scene(self, use_gepetto_gui):
-        Robot.urdfFilename = str(self._robot_model_params.urdf)
+        Robot.urdfFilename = str(self._robot_models.params.robot_urdf)
         Robot.srdfFilename = str(self._robot_model_params.srdf)
 
         Client().problem.resetProblem()
@@ -134,51 +130,3 @@ class Planner:
         cdata = self._cmodel.createData()
         col = pin.computeCollisions(self._rmodel, rdata, self._cmodel, cdata, q, True)
         return col
-
-    def _inverse_kinematics(
-        self, target_pose, initial_guess=None, max_iters=1000, tol=1e-6
-    ):
-        """
-        Solve the inverse kinematics problem for a given robot and target pose.
-
-        Args:
-        target_pose (pin.SE3): Desired end-effector pose (as a pin.SE3 object)
-        initial_guess (np.ndarray): Initial guess for the joint configuration (optional)
-        max_iters (int): Maximum number of iterations
-        tol (float): Tolerance for convergence
-
-        Returns:
-        q_sol (np.ndarray): Joint configuration that achieves the target pose
-        """
-
-        rdata = self._rmodel.createData()
-
-        if initial_guess is None:
-            q = pin.neutral(
-                self._rmodel
-            )  # Use the neutral configuration as the initial guess
-        else:
-            q = initial_guess
-
-        for i in range(max_iters):
-            # Compute the current end-effector pose
-            pin.forwardKinematics(self._rmodel, rdata, q)
-            pin.updateFramePlacements(self._rmodel, rdata)
-            current_pose = rdata.oMf[self._end_effector_id]
-
-            # Compute the error between current and target poses
-            error = pin.log6(current_pose.inverse() * target_pose).vector
-            if np.linalg.norm(error) < tol:
-                print(f"Converged in {i} iterations.")
-                return q
-
-            # Compute the Jacobian of the end effector
-            J = pin.computeFrameJacobian(self._rmodel, rdata, q, self._end_effector_id)
-
-            # Compute the change in joint configuration using the pseudo-inverse of the Jacobian
-            dq = np.linalg.pinv(J) @ error
-
-            # Update the joint configuration
-            q = pin.integrate(self._rmodel, q, dq)
-
-        raise RuntimeError("Inverse kinematics did not converge")
