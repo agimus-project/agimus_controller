@@ -1,62 +1,175 @@
 import time
-from agimus_controller_examples.hpp_interface import HppInterface
-from agimus_controller.mpc import MPC
-from agimus_controller_examples.utils.set_models_and_mpc import get_mpc
-from agimus_controller.visualization.plots import MPCPlots
-from agimus_controller.ocps.ocp_croco_hpp import OCPCrocoHPP
-from agimus_controller_examples.main.servers import Servers
-from agimus_controller_examples.utils.set_models_and_mpc import get_panda_models
+import numpy as np
+from pathlib import Path
+
+from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
+import agimus_controller_examples
+from agimus_controller_examples.utils.set_models_and_mpc import (
+    get_panda_models,
+    get_mpc,
+    get_traj_parameters,
+)
+from agimus_demo_05_pick_and_place.hpp_client import (
+    HPPInterface,
+    get_q_dq_ddq_arrays_from_path,
+)
+from mpc_utils.plots_utils import plot_mpc_data
+
+
+def get_weights(weights, size):
+    """
+    Return weights with right size if user sent only one value, otherwise
+    directly returns weights.
+    """
+    if len(weights) == 1:
+        return np.array(weights * size)
+    else:
+        return np.array(weights)
 
 
 class APP(object):
-    def main(self, use_gui=False, spawn_servers=False):
-        if spawn_servers:
-            self.servers = Servers()
-            self.servers.spawn_servers(use_gui)
+    def __init__(self):
+        self.mpc_data = {}
+        self.mpc_data["states_predictions"] = []
+        self.mpc_data["control_predictions"] = []
+        self.mpc_data["kkt_norms"] = []
+        self.mpc_data["nb_iters"] = []
+        self.mpc_data["nb_qp_iters"] = []
+        self.mpc_data["trajectory_point_id"] = []
+        self.mpc_data["solve_time"] = []
 
-        robot_models = get_panda_models("agimus_demo_03_mpc_dummy_traj")
-        mpc = get_mpc()
-        rmodel = robot_models.get_reduced_robot_model()
-        cmodel = robot_models.get_reduced_collision_model()
-        ee_frame_name = ""
+    def fill_mpc_data(self, solve_time):
+        self.mpc_data["solve_time"].append(solve_time)
+        self.mpc_data["states_predictions"].append(
+            np.array(self.mpc.mpc_debug_data.ocp.result.states)
+        )
+        self.mpc_data["control_predictions"].append(
+            np.array(self.mpc.mpc_debug_data.ocp.result.feed_forward_terms)
+        )
+        self.mpc_data["kkt_norms"].append(
+            np.array(self.mpc.mpc_debug_data.ocp.kkt_norm)
+        )
+        self.mpc_data["nb_iters"].append(np.array(self.mpc.mpc_debug_data.ocp.nb_iter))
+        self.mpc_data["nb_qp_iters"].append(
+            np.array(self.mpc.mpc_debug_data.ocp.nb_qp_iter)
+        )
+        self.mpc_data["trajectory_point_id"].append(
+            self.mpc.mpc_debug_data.reference_id
+        )
+        for name, data in self.mpc.mpc_debug_data.ocp.references:
+            if name + "_references" not in self.mpc_data.keys():
+                self.mpc_data[name + "_references"] = []
+            self.mpc_data[name + "_references"].append(np.asarray(data.copy()))
 
-        hpp_interface = HppInterface()
-        q_init, q_goal = hpp_interface.get_panda_q_init_q_goal()
-        hpp_interface.set_panda_planning(q_init, q_goal, use_gepetto_gui=use_gui)
-        viewer = hpp_interface.get_viewer()
-        x_plan, a_plan, _ = hpp_interface.get_hpp_x_a_planning(1e-2)
+    def main(self):
+        # get parameters
+        nq = 7
+        config_folder_path = (
+            Path(agimus_controller_examples.__path__[0]) / "main" / "panda" / "config"
+        )
+        robot_models = get_panda_models(config_folder_path)
+        self.mpc = get_mpc(config_folder_path)
+        traj_params = get_traj_parameters(config_folder_path)
+        params = self.mpc._ocp._ocp_params
+        start_obj_pose = (
+            "panda/support_link",
+            [0.1, -0.2, 1.0, 0.0, 0.0, 0.707, 0.707],
+        )
+        goal_obj_pose = ("dest_box/base_link", [0.0, 0.0, 0.3, 0.0, 0.0, 0.0, 1.0])
+        q_init = [
+            -0.3619834760502907,
+            -1.3575006398318104,
+            0.969610481368033,
+            -2.6028532848927295,
+            0.2040785081450368,
+            1.9436352693107668,
+            0.6423896937386857,
+            0.0,
+            0.0,
+        ]
+        q_above_source_bin = [
+            -0.37749851551808805,
+            -0.24527851252273686,
+            0.37860498360790074,
+            -2.390846227478563,
+            0.07986644285218328,
+            2.1525887422066345,
+            0.6495647583792291,
+            0.03897743672132492,
+            0.03897743672132492,
+        ]
+        self.gen_traj = GenericTrajectory(
+            traj_params["ee_frame_name"],
+            get_weights(traj_params["w_q"], nq),
+            get_weights(traj_params["w_qdot"], nq),
+            get_weights(traj_params["w_qddot"], nq),
+            get_weights(traj_params["w_robot_effort"], nq),
+            get_weights(traj_params["w_pose"], 6),
+        )
+        self.gen_traj.initialize(robot_models._robot_model, q_init)
 
-        ocp = OCPCrocoHPP(rmodel, cmodel)
+        # make path planning
+        self.hpp_interface = HPPInterface(
+            object_name="obj_31",
+            use_spline_gradient_based_opt=False,
+        )
+        self.hpp_interface.set_relative_start_obj_pose(
+            start_obj_pose[1], q_init, start_obj_pose[0]
+        )
+        self.hpp_interface.set_goal_obj_pose(goal_obj_pose[0], goal_obj_pose[1][:3])
 
-        mpc = MPC(ocp, x_plan, a_plan, rmodel, cmodel)
-
-        start = time.time()
-        mpc.simulate_mpc(save_predictions=False)
-        end = time.time()
-        print("Time of solving: ", end - start)
-        u_plan = mpc.ocp.get_u_plan(x_plan, a_plan)
-        self.mpc_plots = MPCPlots(
-            croco_xs=mpc.croco_xs,
-            croco_us=mpc.croco_us,
-            whole_x_plan=x_plan,
-            whole_u_plan=u_plan,
-            rmodel=rmodel,
-            # vmodel=robot_models.,
-            cmodel=cmodel,
-            DT=mpc.ocp.params.dt,
-            ee_frame_name=ee_frame_name,
-            viewer=viewer,
+        grasp_path, placing_path, freefly_path = self.hpp_interface.plan_pick_and_place(
+            q_init=q_init,
+            q_above_source_bin=q_above_source_bin,
         )
 
-        if use_gui:
-            self.mpc_plots.display_path_gepetto_gui()
+        # add trajectory points in mpc buffer and make mpc iteration
+        t = 0.0
+        for path in [grasp_path, placing_path, freefly_path]:
+            q_array, dq_array, ddq_array = get_q_dq_ddq_arrays_from_path(
+                path, dt=params.dt
+            )
+            traj = self.gen_traj.build_trajectory_from_q_dq_ddq_arrays(
+                q_array, dq_array, ddq_array
+            )
+            self.gen_traj.add_trajectory(traj)
+
+            for _ in range(len(q_array)):
+                w_traj_point = self.gen_traj.get_traj_point_at_t(t)
+                t += traj_params["dt"]
+                self.mpc._buffer.append(w_traj_point)
+                self.mpc_debug_data_list = []
+
+                if len(self.mpc._buffer) > self.mpc._buffer.horizon_indexes[-1]:
+                    start_solve_time = time.time()
+                    x0_traj_point = self.mpc._buffer._buffer[0]
+                    self.mpc.run(
+                        initial_state=x0_traj_point.point,
+                        current_time_ns=x0_traj_point.point.time_ns,
+                    )
+                    solve_time = time.time() - start_solve_time
+                    self.fill_mpc_data(solve_time)
+
+        # plots
+        which_plots = [
+            "computation_time",
+            "iter",
+            "predictions",
+        ]
+        mpc_config = {
+            "dt_ocp": 0.01,
+            "mpc_freq": 100,
+            "nb_running_nodes": 60,
+            "endeff_name": "fer_hand_tcp",
+        }
+        plot_mpc_data(self.mpc_data, mpc_config, robot_models._robot_model, which_plots)
         return True
 
 
 def main():
-    return APP().main(use_gui=False, spawn_servers=False)
+    return APP().main()
 
 
 if __name__ == "__main__":
     app = APP()
-    app.main(use_gui=True, spawn_servers=True)
+    app.main()

@@ -1,10 +1,18 @@
-from os.path import join
 import numpy as np
-from hpp.corbaserver import Client, Robot, ProblemSolver
+from hpp.corbaserver import Robot, ProblemSolver
 from hpp.gepetto import ViewerFactory
 import pinocchio as pin
 from agimus_controller.factory.robot_model import RobotModels
 from .scenes import Scene
+
+
+def hack_for_ros2_support_in_hpp():
+    import os
+
+    if "ROS_PACKAGE_PATH" not in os.environ and "AMENT_PREFIX_PATH" in os.environ:
+        os.environ["ROS_PACKAGE_PATH"] = ":".join(
+            v + "/share" for v in os.environ["AMENT_PREFIX_PATH"].split(":")
+        )
 
 
 class Planner:
@@ -30,43 +38,48 @@ class Planner:
         self._v = None
 
     def _create_planning_scene(self, use_gepetto_gui):
-        Robot.urdfFilename = str(self._robot_models.params.robot_urdf)
-        Robot.srdfFilename = str(self._robot_model_params.srdf)
+        # Robot.urdfFilename = str(self._robot_models.params.robot_urdf)
+        # Robot.srdfFilename = str(self._robot_models.params.srdf)
 
-        Client().problem.resetProblem()
-
+        # Client().problem.resetProblem()
+        #
+        hack_for_ros2_support_in_hpp()
+        # package_location = "package://agimus_demo_05_pick_and_place"
+        # urdf_string = process_xacro(package_location + "/urdf/demo.urdf.xacro")
+        Robot.urdfString = self._robot_models._params.robot_urdf
+        Robot.srdfString = ""
+        # Client().problem.resetProblem()
+        # robot = Robot("robot", "panda", rootJointType="anchor")
         robot = Robot("panda", rootJointType="anchor")
         self._ps = ProblemSolver(robot)
-        self._ps.loadObstacleFromUrdf(
-            str(self._scene.urdf_model_path), self._scene._name_scene + "/"
-        )
+        # self._ps.loadObstacleFromUrdf(
+        #    str(self._scene.urdf_model_path), self._scene._name_scene + "/"
+        # )
         if use_gepetto_gui:
             vf = ViewerFactory(self._ps)
             vf.loadObstacleModel(
                 str(self._scene.urdf_model_path), self._scene._name_scene, guiOnly=True
             )
-        for obstacle in self._cmodel.geometryObjects:
-            if "obstacle" in obstacle.name:
-                name = join(self._scene._name_scene, obstacle.name)
-                scene_obs_pose = self._scene.obstacle_pose
-                hpp_obs_pos = self._ps.getObstaclePosition(name)
-                hpp_obs_pos[:3] += scene_obs_pose.translation[:3]
-                self._ps.moveObstacle(name, hpp_obs_pos)
-                if use_gepetto_gui:
-                    vf.moveObstacle(name, hpp_obs_pos, guiOnly=True)
+        # for obstacle in self._cmodel.geometryObjects:
+        #    if "obstacle" in obstacle.name:
+        #        name = join(self._scene._name_scene, obstacle.name)
+        #        scene_obs_pose = self._scene.obstacle_pose
+        #        hpp_obs_pos = self._ps.getObstaclePosition(name)
+        #        hpp_obs_pos[:3] += scene_obs_pose.translation[:3]
+        #        self._ps.moveObstacle(name, hpp_obs_pos)
+        #        if use_gepetto_gui:
+        #            vf.moveObstacle(name, hpp_obs_pos, guiOnly=True)
         if use_gepetto_gui:
             self._v = vf.createViewer(collisionURDF=True)
 
-    def setup_planner(self, q_init, q_goal, use_gepetto_gui):
+    def setup_planner(self, q_init, q_goal, use_gepetto_gui=False):
         self._create_planning_scene(use_gepetto_gui)
 
         # Joints 8, and 9 are locked
-        self._q_init = [*q_init, 0.03969, 0.03969]
-        self._q_goal = [*q_goal, 0.03969, 0.03969]
+        self._q_init = q_init + [0.0, 0.0]
+        self._q_goal = [*q_goal, 0.03969, 0.0]
         q_init_list = self._q_init
         q_goal_list = self._q_goal
-        if use_gepetto_gui:
-            self._v(q_init_list)
         self._ps.selectPathPlanner("BiRRT*")
         self._ps.setMaxIterPathPlanning(100)
         self._ps.setInitialConfig(q_init_list)

@@ -11,7 +11,7 @@ import numpy as np
 from hpp.corbaserver import loadServerPlugin
 from agimus_controller.trajectory import TrajectoryPoint
 from agimus_controller_examples.hpp_panda.planner import Planner as PandaPlanner
-from agimus_controller_examples.hpp_panda.scenes import Scene
+from agimus_controller_examples.hpp_panda.planner import Scene
 from agimus_controller_examples.utils.set_models_and_mpc import get_panda_models
 
 
@@ -36,7 +36,7 @@ class HppInterface:
         self.trajectory = []
         self.viewer = None
 
-    def set_panda_planning(self, q_init, q_goal, use_gepetto_gui=False):
+    def set_panda_planning(self, q_init, q_goal):
         self.q_init = q_init
         self.q_goal = q_goal
         loadServerPlugin("corbaserver", "manipulation-corba.so")
@@ -50,7 +50,7 @@ class HppInterface:
             params=panda_params,
             env=Path(__file__).resolve().parent / "resources" / "panda_env.yaml",
         )"""
-
+        """
         self.scene = Scene("wall", self.q_init)
         (
             self.robot_models.robot_model,
@@ -60,9 +60,11 @@ class HppInterface:
             _,
         ) = self.scene.create_scene_from_urdf(
             self.robot_models.robot_model, self.robot_models.collision_model
-        )
+        )"""
+        # self.scene = ""
+        self.scene = Scene("wall", self.q_init)
         self.planner = PandaPlanner(self.robot_models, self.scene, self.T)
-        self.planner.setup_planner(q_init, q_goal, use_gepetto_gui)
+        self.planner.setup_planner(q_init, q_goal)
         _, _, self.X = self.planner.solve_and_optimize()
         self.planner._ps.optimizePath(self.planner._ps.numberPaths() - 1)
         self.ps = self.planner._ps
@@ -138,13 +140,13 @@ class HppInterface:
 
     def get_panda_q_init_q_goal(self):
         q_init = [
-            0.0011252369260450479,
-            0.0006049034973703016,
-            -0.0008132459264533765,
-            -1.573963485445721,
-            -0.0034107252065869176,
-            1.5572160817164562,
-            0.7840735791072078,
+            -0.3619834760502907,
+            -1.3575006398318104,
+            0.969610481368033,
+            -2.6028532848927295,
+            0.2040785081450368,
+            1.9436352693107668,
+            0.6423896937386857,
         ]
 
         q_goal = [

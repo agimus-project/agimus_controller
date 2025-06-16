@@ -1,4 +1,4 @@
-from agimus_controller.utils.process_handler import (
+from agimus_controller_examples.utils.process_handler import (
     HppCorbaServer,
     GepettoGuiServer,
     MeshcatServer,
