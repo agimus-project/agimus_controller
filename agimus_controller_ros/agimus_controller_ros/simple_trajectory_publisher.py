@@ -202,24 +202,17 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
             )
 
     def add_visual_servoing_trajectory(
-        self,
-        trajectory,
-        use_visual_servoing,
-        object_name,
-        init_object_pose,
-        activate_visual_servoing_idx,
+        self, trajectory, visual_servoing_idx_range, init_object_pose
     ):
         """
         Add custom trajectory chunk to publish if trajectory is of type
         visual_servoing_generic_trajectory. Visual servoing can be enabled.
         """
         if self.params.trajectory_name == "generic_visual_servoing_trajectory":
-            self.object_name = object_name
             self.trajectory.add_trajectory(
                 trajectory,
-                use_visual_servoing,
+                visual_servoing_idx_range,
                 init_in_world_M_object=init_object_pose,
-                activate_visual_servoing_idx=activate_visual_servoing_idx,
             )
             self.future_trajectory_done = Future()
         else:

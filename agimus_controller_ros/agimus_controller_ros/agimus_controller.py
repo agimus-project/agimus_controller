@@ -273,12 +273,10 @@ class AgimusController(Node, RobotModelsMixin):
                     current_time - rclpy.time.Time.from_msg(t.header.stamp)
                 ).nanoseconds > 0.5e9:
                     self.get_logger().info(
-                        f"Transform {parent_frame} to {child_frame} is too old. Latest time is {t.header.stamp}",
+                        f"Transform {parent_frame} to {child_frame} is old. Latest time is {t.header.stamp}",
                         throttle_duration_sec=1.0,
                     )
-                    M = None
-                else:
-                    M = transform_msg_to_se3(t.transform)
+                M = transform_msg_to_se3(t.transform)
             except TransformException as ex:
                 self.get_logger().info(
                     f"Could not transform {parent_frame} to {child_frame}: {ex}",

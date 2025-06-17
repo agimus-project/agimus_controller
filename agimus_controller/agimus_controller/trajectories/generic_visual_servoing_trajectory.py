@@ -5,6 +5,16 @@ from agimus_controller.trajectories.weight_increasing import WeightIncreasing
 from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller.trajectory import TrajectoryPointWeights, WeightedTrajectoryPoint
 
+from enum import Enum
+
+
+class VisualServoingState(Enum):
+    """Enum of the possible states for visual servoing."""
+
+    IDLE = 1
+    USING_VISUAL_SERVOING = 2
+    COMING_BACK_TO_IDLE = 3
+
 
 class GenericVisualServoingTrajectory(GenericTrajectory):
     """
@@ -27,60 +37,50 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
         super().__init__(ee_frame_name, w_q, w_qdot, w_qddot, w_robot_effort, w_pose)
         self.w_pose_constant = w_pose
         self.w_increasing = w_increasing
+        self.w_increasing_max_rotation = traj_params.w_increasing_max_rotation
+        self.visual_servoing_state = VisualServoingState.IDLE
         self.dt = dt
         self.visual_servoing_time = 0.0
         self.init_in_world_M_object = None
+        self.robot_frame = self.ee_frame_name + "_vs"
 
         # if distance to goal is below this threshold, start visual servoing
         self.start_visual_servoing_time_threshold = (
             traj_params.start_visual_servoing_time_threshold
         )
 
-        # another attribute to decide when to activate visual servoing by giving a trajectory index
-        # if set, it has the priority over attribute start_visual_servoing_time_threshold
-        self.activate_visual_servoing_idx = None
-
-        # boolean to decides to activate visual servoing
-        self.activate_visual_servoing = False
-
-        # Wether current trajectory requires visual servoing or not
-        self.use_visual_servoing = False
+        # current trajectory indexes range that specifies when visual trajectory starts and ends
+        self.visual_servoing_idx_range = (0, 0)
 
     def update_activation_of_visual_servoing(self):
-        """Update boolean regarding activation of visual servoing."""
-        if self.use_visual_servoing:
-            if self.activate_visual_servoing_idx is not None:
-                self.activate_visual_servoing = (
-                    self.traj_idx >= self.activate_visual_servoing_idx
-                )
-            else:
-                time_to_reach_goal = (
-                    len(self.trajectory) - 1 - self.traj_idx
-                ) * self.dt
-                self.activate_visual_servoing = (
-                    time_to_reach_goal < self.start_visual_servoing_time_threshold
-                )
+        """Update visual servoing state machine."""
+        if (
+            self.visual_servoing_idx_range[0]
+            <= self.traj_idx
+            < self.visual_servoing_idx_range[1]
+        ):
+            if self.visual_servoing_state != VisualServoingState.USING_VISUAL_SERVOING:
+                self.visual_servoing_time = 0.0
+            self.visual_servoing_state = VisualServoingState.USING_VISUAL_SERVOING
+        elif self.visual_servoing_time > 0.0:
+            self.visual_servoing_state = VisualServoingState.COMING_BACK_TO_IDLE
         else:
-            self.activate_visual_servoing = False
-        if not self.activate_visual_servoing:
-            self.visual_servoing_time = 0.0
+            self.visual_servoing_state = VisualServoingState.IDLE
 
     def add_trajectory(
-        self,
-        trajectory,
-        use_visual_servoing,
-        init_in_world_M_object=None,
-        activate_visual_servoing_idx=None,
+        self, trajectory, visual_servoing_idx_range, init_in_world_M_object=None
     ):
-        if use_visual_servoing:
-            if init_in_world_M_object is None:
-                raise ValueError("Init pose detection not set.")
+        if (
+            init_in_world_M_object is None
+            and visual_servoing_idx_range[0] != visual_servoing_idx_range[1]
+        ):
+            raise ValueError("Init pose detection not set.")
+        if init_in_world_M_object is not None:
             self.init_in_world_M_object = pin.XYZQUATToSE3(init_in_world_M_object)
-            self.activate_visual_servoing_idx = activate_visual_servoing_idx
-        else:
-            self.init_in_world_M_object = None
         super().add_trajectory(trajectory)
-        self.use_visual_servoing = use_visual_servoing
+        self.visual_servoing_idx_range = visual_servoing_idx_range
+        self.traj_idx = 0
+        self.trajectory = trajectory
 
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:
         self.update_activation_of_visual_servoing()
@@ -90,14 +90,28 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
             in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
             in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
             traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
-        if self.activate_visual_servoing:
-            self.w_pose = [
-                self.w_increasing.get_weight_at_t(self.visual_servoing_time)
-            ] * 6
-            self.visual_servoing_time += 0.01
+        if self.visual_servoing_state == VisualServoingState.USING_VISUAL_SERVOING:
+            w_increasing = self.w_increasing.get_weight_at_t(self.visual_servoing_time)
+            w_rot_increasing = (
+                w_increasing
+                * self.w_increasing_max_rotation
+                / self.w_increasing.max_weight
+            )
+            self.w_pose = [w_increasing] * 3 + [w_rot_increasing] * 3
+            self.visual_servoing_time = min(
+                self.visual_servoing_time + 0.01, self.w_increasing.time_reach_percent
+            )
+        elif self.visual_servoing_state == VisualServoingState.COMING_BACK_TO_IDLE:
+            w_increasing = self.w_increasing.get_weight_at_t(self.visual_servoing_time)
+            w_rot_increasing = (
+                w_increasing
+                * self.w_increasing_max_rotation
+                / self.w_increasing.max_weight
+            )
+            self.w_pose = [w_increasing] * 3 + [w_rot_increasing] * 3
+            self.visual_servoing_time -= 0.01
         else:
             self.w_pose = self.w_pose_constant
-
         self.trajectory_is_done = self.traj_idx == len(self.trajectory) - 1
         self.traj_idx = min(self.traj_idx + 1, len(self.trajectory) - 1)
         traj_weights = TrajectoryPointWeights(
@@ -105,6 +119,6 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
             w_robot_velocity=self.w_qdot,
             w_robot_acceleration=self.w_qddot,
             w_robot_effort=self.w_robot_effort,
-            w_end_effector_poses={self.ee_frame_name: self.w_pose},
+            w_end_effector_poses={self.robot_frame: self.w_pose},
         )
         return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)

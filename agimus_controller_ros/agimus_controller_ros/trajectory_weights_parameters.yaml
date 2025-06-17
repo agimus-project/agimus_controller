@@ -79,3 +79,7 @@ trajectory_weights_params:
       type: double
       default_value: 1.0
       description: "When time before being at goal is below this threshold, activate visual servoing."
+    w_increasing_max_rotation:
+      type: double
+      default_value: 15.0
+      description: "Maximum weight for the the rotation part of the end-effector pose cost weights."
