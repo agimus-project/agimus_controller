@@ -23,7 +23,6 @@ class OCPDebugData:
     residuals: list[T.Tuple[str, T.List[npt.NDArray[np.float64]]]] = field(
         default_factory=list
     )
-    visual_servoing_is_active: bool = False
 
     # Solver infos
     kkt_norm: np.float64 = 0.0

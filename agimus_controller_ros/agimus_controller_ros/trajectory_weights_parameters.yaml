@@ -24,10 +24,6 @@ trajectory_weights_params:
     description: "End-effector name."
     validation:
       not_empty<>: []
-  dt:
-    type: double
-    default_value: 0.01
-    description: "discretization step of the trajectory."
   w_q:
     type: double_array
     default_value: [1.0]
@@ -75,10 +71,6 @@ trajectory_weights_params:
       default_value: [0.2]
       description: "Amplitude of the sinusoid."
   generic_trajectory_visual_servoing:
-    start_visual_servoing_time_threshold:
-      type: double
-      default_value: 1.0
-      description: "When time before being at goal is below this threshold, activate visual servoing."
     w_increasing_max_rotation:
       type: double
       default_value: 15.0

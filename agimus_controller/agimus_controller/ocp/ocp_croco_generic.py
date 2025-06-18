@@ -535,7 +535,6 @@ class OCPCrocoGeneric(OCPBaseCroco):
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
-        self._visual_servoing_cost_name = None
         self.init_debug_data_attributes()
 
     @property
@@ -545,14 +544,6 @@ class OCPCrocoGeneric(OCPBaseCroco):
                 self._state, self._actuation, self._collision_model
             )
         return self._build_data_obj
-
-    @property
-    def input_transforms(self) -> T.Dict[T.Tuple[str, str], pinocchio.SE3]:
-        """Returns a dictionary of transforms that the OCP needs as input.
-        The keys are tuples of frame names. The first is the parent frame and
-        the second is the child frame.
-        The values are the current transform."""
-        return self._build_data.transforms
 
     @property
     def input_transforms(self) -> T.Dict[T.Tuple[str, str], pinocchio.SE3]:
@@ -580,28 +571,17 @@ class OCPCrocoGeneric(OCPBaseCroco):
 
     def init_debug_data_attributes(self) -> None:
         """
-        Initialize references, residuals and visual servoing
-        cost name of dataclass OCPDebugData.
+        Initialize references and residuals of dataclass OCPDebugData.
         """
         for cost in self._data.running_model.differential.costs:
             if cost.update:
                 self._debug_data.references.append((cost.name, None))
             if cost.publish_residual:
                 self._debug_data.residuals.append((cost.name, None))
-            if isinstance(cost.cost.residual, ResidualModelVisualServoing):
-                self._visual_servoing_cost_name = cost.name
 
     def fill_debug_data(self, res, ocp_results) -> None:
         super().fill_debug_data(res=res, ocp_results=ocp_results)
         model = self._problem.runningModels[0]
-        if self._visual_servoing_cost_name is not None:
-            visual_servoing_cost_weights = model.differential.costs.costs[
-                self._visual_servoing_cost_name
-            ].cost.activation.weights
-            if (visual_servoing_cost_weights == np.zeros(6)).all():
-                self._debug_data.visual_servoing_is_active = False
-            else:
-                self._debug_data.visual_servoing_is_active = True
         # fill references data only for first node because when resetting ocp, we are
         # shifting reference to next node, so we end up publishing all the references
         for reference_idx in range(len(self._debug_data.references)):

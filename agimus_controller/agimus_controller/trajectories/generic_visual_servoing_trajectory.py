@@ -44,11 +44,6 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
         self.init_in_world_M_object = None
         self.robot_frame = self.ee_frame_name + "_vs"
 
-        # if distance to goal is below this threshold, start visual servoing
-        self.start_visual_servoing_time_threshold = (
-            traj_params.start_visual_servoing_time_threshold
-        )
-
         # current trajectory indexes range that specifies when visual trajectory starts and ends
         self.visual_servoing_idx_range = (0, 0)
 
@@ -99,7 +94,8 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
             )
             self.w_pose = [w_increasing] * 3 + [w_rot_increasing] * 3
             self.visual_servoing_time = min(
-                self.visual_servoing_time + 0.01, self.w_increasing.time_reach_percent
+                self.visual_servoing_time + self.dt,
+                self.w_increasing.time_reach_percent,
             )
         elif self.visual_servoing_state == VisualServoingState.COMING_BACK_TO_IDLE:
             w_increasing = self.w_increasing.get_weight_at_t(self.visual_servoing_time)
@@ -109,10 +105,10 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
                 / self.w_increasing.max_weight
             )
             self.w_pose = [w_increasing] * 3 + [w_rot_increasing] * 3
-            self.visual_servoing_time -= 0.01
+            self.visual_servoing_time -= self.dt
         else:
-            self.w_pose = self.w_pose_constant
-        self.trajectory_is_done = self.traj_idx == len(self.trajectory) - 1
+            self.w_pose = np.zeros(6)
+        self.trajectory_is_done = self.traj_idx == (len(self.trajectory) - 1)
         self.traj_idx = min(self.traj_idx + 1, len(self.trajectory) - 1)
         traj_weights = TrajectoryPointWeights(
             w_robot_configuration=self.w_q,

@@ -166,6 +166,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
         super().__init__("simple_trajectory_publisher")
 
         self.param_listener = trajectory_weights_params.ParamListener(self)
+
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
         self.sine_wave_params = SinWaveParams(
@@ -180,7 +181,9 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
         )
         self._id: int = 0
         self.t = 0.0
-        self.dt = 0.01
+        self.dt = get_param_from_node(
+            self, "agimus_controller_node", "ocp.dt"
+        ).double_value
         self.croco_nq = 7
         self.future_init_done = Future()
         self.future_trajectory_done = Future()
@@ -330,7 +333,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
             return GenericVisualServoingTrajectory(
                 ee_frame_name=self.ee_frame_name,
                 traj_params=self.params.generic_trajectory_visual_servoing,
-                dt=self.params.dt,
+                dt=self.dt,
                 w_q=self.get_weights(self.params.w_q, self.croco_nq),
                 w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
                 w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),

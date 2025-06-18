@@ -269,9 +269,6 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
         )
 
     mpc_debug_msg.trajectory_point_id = mpc_debug_data.reference_id
-    # mpc_debug_msg.visual_servoing_is_active = (
-    #    mpc_debug_data.ocp.visual_servoing_is_active
-    # )
     mpc_debug_msg.kkt_norm = mpc_debug_data.ocp.kkt_norm
     mpc_debug_msg.nb_iter = mpc_debug_data.ocp.nb_iter
     mpc_debug_msg.nb_qp_iter = mpc_debug_data.ocp.nb_qp_iter

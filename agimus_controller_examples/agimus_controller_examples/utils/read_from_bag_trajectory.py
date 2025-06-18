@@ -63,7 +63,6 @@ def save_rosbag_outputs_to_pickle(bag_file_path, pickle_file_path):
         mpc_data = {}
         mpc_data["states_predictions"] = []
         mpc_data["control_predictions"] = []
-        mpc_data["visual_servoing_is_active"] = []
         mpc_data["kkt_norms"] = []
         mpc_data["nb_iters"] = []
         mpc_data["nb_qp_iters"] = []
