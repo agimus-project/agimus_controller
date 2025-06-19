@@ -30,6 +30,7 @@ class GenericTrajectory(TrajectoryBase):
         self.w_qddot = w_qddot
         self.w_robot_effort = w_robot_effort
         self.w_pose = w_pose
+        self.robot_frame = self.ee_frame_name
 
     def build_trajectory_from_q_dq_ddq_arrays(
         self,
@@ -48,17 +49,15 @@ class GenericTrajectory(TrajectoryBase):
                 q_array[idx],
                 dq_array[idx],
                 ddq_array[idx],
-            )
-            pin.forwardKinematics(self.pin_model, self.pin_data, self.q)
-            pin.updateFramePlacement(self.pin_model, self.pin_data, self.ee_frame_id)
-            ee_pose = pin.SE3ToXYZQUAT(self.pin_data.oMf[self.ee_frame_id])
+            ).copy()
+            ee_pose = self.get_end_effector_pose_from_q(q_array[idx])
             trajectory.append(
                 TrajectoryPoint(
                     robot_configuration=q_array[idx],
                     robot_velocity=dq_array[idx],
                     robot_acceleration=ddq_array[idx],
                     robot_effort=robot_effort,
-                    end_effector_poses={self.ee_frame_name: ee_pose},
+                    end_effector_poses={self.robot_frame: ee_pose.copy()},
                 )
             )
         return trajectory
@@ -80,6 +79,6 @@ class GenericTrajectory(TrajectoryBase):
             w_robot_velocity=self.w_qdot,
             w_robot_acceleration=self.w_qddot,
             w_robot_effort=self.w_robot_effort,
-            w_end_effector_poses={self.ee_frame_name: self.w_pose},
+            w_end_effector_poses={self.robot_frame: self.w_pose},
         )
         return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)

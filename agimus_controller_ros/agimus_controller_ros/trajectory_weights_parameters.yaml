@@ -3,7 +3,7 @@ trajectory_weights_params:
   trajectory_name:
     type: string
     default_value: "sine_wave_configuration_space"
-    description: "End-effector name."
+    description: "Choose which trajectory to use."
     validation:
       one_of<>:
         [
@@ -12,6 +12,7 @@ trajectory_weights_params:
             "sine_wave_cartesian_space",
             "sine_wave_cartesian_space_weight_increasing",
             "generic_trajectory",
+            "generic_visual_servoing_trajectory",
           ],
         ]
   mask:
@@ -47,7 +48,7 @@ trajectory_weights_params:
     max_weight:
       type: double
       default_value: 100.0
-      description: "Maximum weight send for visual servoing."
+      description: "Maximum weight."
     percent:
       type: double
       default_value: 0.9
@@ -69,3 +70,8 @@ trajectory_weights_params:
       type: double_array
       default_value: [0.2]
       description: "Amplitude of the sinusoid."
+  generic_trajectory_visual_servoing:
+    w_increasing_max_rotation:
+      type: double
+      default_value: 15.0
+      description: "Maximum weight for the the rotation part of the end-effector pose cost weights."

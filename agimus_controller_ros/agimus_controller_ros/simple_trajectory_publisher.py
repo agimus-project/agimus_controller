@@ -10,12 +10,8 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from linear_feedback_controller_msgs.msg import Sensor
 
-
-from agimus_controller.factory.robot_model import (
-    RobotModelParameters,
-    RobotModels,
-)
 from agimus_controller.trajectories.sine_wave_params import SinWaveParams
+from agimus_controller.factory.robot_model import RobotModelParameters, RobotModels
 from agimus_controller.trajectories.sine_wave_configuration_space import (
     SinusWaveConfigurationSpace,
 )
@@ -31,6 +27,9 @@ from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller_ros.ros_utils import (
     weighted_traj_point_to_mpc_msg,
     get_param_from_node,
+)
+from agimus_controller.trajectories.generic_visual_servoing_trajectory import (
+    GenericVisualServoingTrajectory,
 )
 from agimus_controller_ros.trajectory_weights_parameters import (
     trajectory_weights_params,
@@ -167,6 +166,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
         super().__init__("simple_trajectory_publisher")
 
         self.param_listener = trajectory_weights_params.ParamListener(self)
+
         self.params = self.param_listener.get_params()
         self.ee_frame_name = self.params.ee_frame_name
         self.sine_wave_params = SinWaveParams(
@@ -181,7 +181,9 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
         )
         self._id: int = 0
         self.t = 0.0
-        self.dt = 0.01
+        self.dt = get_param_from_node(
+            self, "agimus_controller_node", "ocp.dt"
+        ).double_value
         self.croco_nq = 7
         self.future_init_done = Future()
         self.future_trajectory_done = Future()
@@ -193,8 +195,28 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
         self.timer = self.create_timer(0.01, self.publish_mpc_input)
 
     def add_trajectory(self, trajectory):
+        """Add custom trajectory chunk to publish if trajectory is of type generic_trajectory."""
         if self.params.trajectory_name == "generic_trajectory":
             self.trajectory.add_trajectory(trajectory)
+            self.future_trajectory_done = Future()
+        else:
+            raise RuntimeError(
+                f"the function add_trajectory can't be used with trajectory type {self.params.trajectory_name}"
+            )
+
+    def add_visual_servoing_trajectory(
+        self, trajectory, visual_servoing_idx_range, init_object_pose
+    ):
+        """
+        Add custom trajectory chunk to publish if trajectory is of type
+        visual_servoing_generic_trajectory. Visual servoing can be enabled.
+        """
+        if self.params.trajectory_name == "generic_visual_servoing_trajectory":
+            self.trajectory.add_trajectory(
+                trajectory,
+                visual_servoing_idx_range,
+                init_in_world_M_object=init_object_pose,
+            )
             self.future_trajectory_done = Future()
         else:
             raise RuntimeError(
@@ -306,6 +328,20 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                     self.params.w_robot_effort, self.croco_nq
                 ),
                 w_pose=self.get_weights(self.params.w_pose, 6),
+            )
+        elif trajectory_name == "generic_visual_servoing_trajectory":
+            return GenericVisualServoingTrajectory(
+                ee_frame_name=self.ee_frame_name,
+                traj_params=self.params.generic_trajectory_visual_servoing,
+                dt=self.dt,
+                w_q=self.get_weights(self.params.w_q, self.croco_nq),
+                w_qdot=self.get_weights(self.params.w_qdot, self.croco_nq),
+                w_qddot=self.get_weights(self.params.w_qddot, self.croco_nq),
+                w_robot_effort=self.get_weights(
+                    self.params.w_robot_effort, self.croco_nq
+                ),
+                w_pose=self.get_weights(self.params.w_pose, 6),
+                w_increasing=self.w_increasing,
             )
         else:
             raise ValueError("Unknown Trajectory.")

@@ -535,7 +535,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
-        self.init_debug_data_references_and_residuals()
+        self.init_debug_data_attributes()
 
     @property
     def _build_data(self) -> BuildData:
@@ -569,8 +569,10 @@ class OCPCrocoGeneric(OCPBaseCroco):
         terminal_model.dt = 0.0
         return terminal_model
 
-    def init_debug_data_references_and_residuals(self) -> None:
-        """Initialize references and residuals of dataclass OCPDebugData."""
+    def init_debug_data_attributes(self) -> None:
+        """
+        Initialize references and residuals of dataclass OCPDebugData.
+        """
         for cost in self._data.running_model.differential.costs:
             if cost.update:
                 self._debug_data.references.append((cost.name, None))

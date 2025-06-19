@@ -269,9 +269,12 @@ class AgimusController(Node, RobotModelsMixin):
                 t = self.tf_buffer.lookup_transform(
                     parent_frame, child_frame, latest_time
                 )
+                t_stamp = rclpy.time.Time.from_msg(t.header.stamp)
+                # if timestamp is 0, we assume it's a static transform published once at the beginning
                 if (
-                    current_time - rclpy.time.Time.from_msg(t.header.stamp)
-                ).nanoseconds > 0.5e9:
+                    t_stamp.nanoseconds != 0
+                    and (current_time - t_stamp).nanoseconds > 0.5e9
+                ):
                     self.get_logger().info(
                         f"Transform {parent_frame} to {child_frame} is too old. Latest time is {t.header.stamp}",
                         throttle_duration_sec=1.0,
@@ -436,7 +439,7 @@ class AgimusController(Node, RobotModelsMixin):
                     f"MPC is running but the buffer does not have enough data. Current size {len(self.traj_buffer)}",
                     throttle_duration_sec=1.0,
                 )
-                return
+                self.traj_buffer.append(self.traj_buffer[-1])
         if self.params.publish_debug_data:
             # Do not use ROS time here because we want to measure the real computation time
             start_compute_time = time.perf_counter()
