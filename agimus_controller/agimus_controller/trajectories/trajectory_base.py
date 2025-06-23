@@ -43,7 +43,7 @@ class TrajectoryBase(ABC):
     def get_end_effector_pose_from_q(
         self, q: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
-        return self.get_end_effector_pose_from_q_as_se3(q)
+        return pin.SE3ToXYZQUAT(self.get_end_effector_pose_from_q_as_se3(q))
 
     @abstractmethod
     def get_traj_point_at_t(self, t: np.float64) -> WeightedTrajectoryPoint:

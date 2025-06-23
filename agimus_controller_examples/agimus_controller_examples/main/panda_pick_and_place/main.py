@@ -1,13 +1,13 @@
 import time
 import numpy as np
 from pathlib import Path
+import yaml
 
 from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 import agimus_controller_examples
 from agimus_controller_examples.utils.set_models_and_mpc import (
     get_panda_models,
     get_mpc,
-    get_traj_parameters,
 )
 from agimus_demo_05_pick_and_place.hpp_client import (
     HPPInterface,
@@ -29,6 +29,7 @@ def get_weights(weights, size):
 
 class APP(object):
     def __init__(self):
+        """Initialize mpc data dictionary."""
         self.mpc_data = {}
         self.mpc_data["states_predictions"] = []
         self.mpc_data["control_predictions"] = []
@@ -38,7 +39,8 @@ class APP(object):
         self.mpc_data["trajectory_point_id"] = []
         self.mpc_data["solve_time"] = []
 
-    def fill_mpc_data(self, solve_time):
+    def fill_mpc_data(self, solve_time: float) -> None:
+        """Fill mpc data dictionary."""
         self.mpc_data["solve_time"].append(solve_time)
         self.mpc_data["states_predictions"].append(
             np.array(self.mpc.mpc_debug_data.ocp.result.states)
@@ -62,15 +64,7 @@ class APP(object):
             self.mpc_data[name + "_references"].append(np.asarray(data.copy()))
 
     def main(self):
-        # get parameters
-        nq = 7
-        config_folder_path = (
-            Path(agimus_controller_examples.__path__[0]) / "main" / "panda" / "config"
-        )
-        robot_models = get_panda_models(config_folder_path)
-        self.mpc = get_mpc(config_folder_path)
-        traj_params = get_traj_parameters(config_folder_path)
-        params = self.mpc._ocp._ocp_params
+        # set start and goal poses for pick and place task
         start_obj_pose = (
             "panda/support_link",
             [0.1, -0.2, 1.0, 0.0, 0.0, 0.707, 0.707],
@@ -87,17 +81,26 @@ class APP(object):
             0.0,
             0.0,
         ]
-        q_above_source_bin = [
-            -0.37749851551808805,
-            -0.24527851252273686,
-            0.37860498360790074,
-            -2.390846227478563,
-            0.07986644285218328,
-            2.1525887422066345,
-            0.6495647583792291,
-            0.03897743672132492,
-            0.03897743672132492,
-        ]
+
+        # get mpc and trajectory params
+        config_folder_path = (
+            Path(agimus_controller_examples.__path__[0])
+            / "main"
+            / "panda_pick_and_place"
+            / "config"
+        )
+        robot_models = get_panda_models(config_folder_path)
+        self.mpc = get_mpc(config_folder_path)
+        with open(config_folder_path / "trajectory_weigths_params.yaml", "r") as file:
+            traj_params = yaml.safe_load(file)["simple_trajectory_publisher"][
+                "ros__parameters"
+            ]
+        with open(config_folder_path / "agimus_controller_params.yaml", "r") as file:
+            mpc_params = yaml.safe_load(file)["agimus_controller_node"][
+                "ros__parameters"
+            ]
+            dt = mpc_params["ocp"]["dt"]
+        nq = robot_models.robot_model.nq
         self.gen_traj = GenericTrajectory(
             traj_params["ee_frame_name"],
             get_weights(traj_params["w_q"], nq),
@@ -106,7 +109,7 @@ class APP(object):
             get_weights(traj_params["w_robot_effort"], nq),
             get_weights(traj_params["w_pose"], 6),
         )
-        self.gen_traj.initialize(robot_models._robot_model, q_init)
+        self.gen_traj.initialize(robot_models.robot_model, q_init)
 
         # make path planning
         self.hpp_interface = HPPInterface(
@@ -119,16 +122,13 @@ class APP(object):
         self.hpp_interface.set_goal_obj_pose(goal_obj_pose[0], goal_obj_pose[1][:3])
 
         grasp_path, placing_path, freefly_path = self.hpp_interface.plan_pick_and_place(
-            q_init=q_init,
-            q_above_source_bin=q_above_source_bin,
+            q_init=q_init
         )
 
         # add trajectory points in mpc buffer and make mpc iteration
         t = 0.0
         for path in [grasp_path, placing_path, freefly_path]:
-            q_array, dq_array, ddq_array = get_q_dq_ddq_arrays_from_path(
-                path, dt=params.dt
-            )
+            q_array, dq_array, ddq_array = get_q_dq_ddq_arrays_from_path(path, dt=dt)
             traj = self.gen_traj.build_trajectory_from_q_dq_ddq_arrays(
                 q_array, dq_array, ddq_array
             )
@@ -136,7 +136,7 @@ class APP(object):
 
             for _ in range(len(q_array)):
                 w_traj_point = self.gen_traj.get_traj_point_at_t(t)
-                t += traj_params["dt"]
+                t += dt
                 self.mpc._buffer.append(w_traj_point)
                 self.mpc_debug_data_list = []
 
@@ -157,10 +157,10 @@ class APP(object):
             "predictions",
         ]
         mpc_config = {
-            "dt_ocp": 0.01,
-            "mpc_freq": 100,
-            "nb_running_nodes": 60,
-            "endeff_name": "fer_hand_tcp",
+            "dt_ocp": dt,
+            "mpc_freq": mpc_params["rate"],
+            "nb_running_nodes": mpc_params["ocp"]["horizon_size"],
+            "endeff_name": traj_params["ee_frame_name"],
         }
         plot_mpc_data(self.mpc_data, mpc_config, robot_models._robot_model, which_plots)
         return True

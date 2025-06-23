@@ -22,13 +22,7 @@ def get_panda_models(config_folder_path: Path, env_xacro_path=None) -> RobotMode
     params_path = Path(config_folder_path) / "agimus_controller_params.yaml"
     robot_urdf = xacro.process_file(
         str(robot_xacro_path),
-        # mappings={
-        #    "with_sc": "true",
-        # },
     ).toxml()
-    # env_xacro_path = (
-    #    Path(get_package_share_directory(package_name)) / "urdf" / "obstacles.xacro"
-    # )
     if env_xacro_path is None:
         env_urdf = None
     else:
@@ -36,23 +30,13 @@ def get_panda_models(config_folder_path: Path, env_xacro_path=None) -> RobotMode
 
     with open(params_path, "r") as file:
         mpc_params = yaml.safe_load(file)["agimus_controller_node"]["ros__parameters"]
-    # collision_pairs = [
-    #    (
-    #        mpc_params[collision_pair_name]["first"],
-    #        mpc_params[collision_pair_name]["second"],
-    #    )
-    #    for collision_pair_name in mpc_params["collision_pairs_names"]
-    # ]
     params = RobotModelParameters(
         robot_urdf=robot_urdf,
         env_urdf=env_urdf,
         srdf=Path(robot_srdf_path),
         free_flyer=False,
-        # collision_as_capsule=True,
-        # self_collision=False,
         armature=np.array(mpc_params["ocp"]["armature"]),
         moving_joint_names=[f"fer_joint{i}" for i in range(1, 8)],
-        # collision_pairs=collision_pairs,
     )
     robot_models = RobotModels(params)
     return robot_models
@@ -87,13 +71,3 @@ def get_mpc(config_folder_path: Path) -> MPC:
     traj_buffer = TrajectoryBuffer(dt_factors_n_seq)
     mpc.setup(ocp=ocp, warm_start=ws, buffer=traj_buffer)
     return mpc
-
-
-def get_traj_parameters(config_folder_path: Path):
-    params_path = Path(config_folder_path) / "trajectory_weigths_params.yaml"
-
-    with open(params_path, "r") as file:
-        traj_params = yaml.safe_load(file)["simple_trajectory_publisher"][
-            "ros__parameters"
-        ]
-    return traj_params
