@@ -1,0 +1,17 @@
+---
+simple_trajectory_publisher:
+  ros__parameters:
+    w_q: [3.0]
+    w_qdot: [0.12]
+    w_qddot: [0.000001]
+    w_robot_effort: [0.0008]
+    w_pose: [0.0]
+    ee_frame_name: fer_hand_tcp
+    dt: 0.01
+    w_increasing:
+      max_weight: 2000.0
+      percent: 0.9
+      time_reach_percent: 4.0
+    trajectory_name: generic_visual_servoing_trajectory
+    generic_trajectory_visual_servoing:
+      start_visual_servoing_time_threshold: 4.0

@@ -50,7 +50,7 @@ class GenericTrajectory(TrajectoryBase):
                 dq_array[idx],
                 ddq_array[idx],
             ).copy()
-            ee_pose = self.get_end_effector_pose_from_q(q_array[idx])
+            ee_pose = self.get_end_effector_pose_from_q_as_se3(q_array[idx])
             trajectory.append(
                 TrajectoryPoint(
                     robot_configuration=q_array[idx],
