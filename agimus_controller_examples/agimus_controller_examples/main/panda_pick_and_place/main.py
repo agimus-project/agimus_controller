@@ -13,7 +13,7 @@ from agimus_demo_05_pick_and_place.hpp_client import (
     HPPInterface,
     get_q_dq_ddq_arrays_from_path,
 )
-from mpc_utils.plots_utils import plot_mpc_data
+from agimus_controller.plots.plots_utils import plot_mpc_data
 
 
 def get_weights(weights, size):
