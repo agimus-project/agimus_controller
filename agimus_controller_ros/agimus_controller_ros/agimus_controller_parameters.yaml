@@ -56,7 +56,7 @@ agimus_controller_params:
       description: "Path to a YAML file containing a description of the OCP."
   publish_buffer_size:
     type: bool
-    default_value: True
+    default_value: False
     description: "Wether we publish length of trajectory buffer or not"
   publish_debug_data:
     type: bool
