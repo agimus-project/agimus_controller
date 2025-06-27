@@ -163,6 +163,18 @@ class ResidualModelControl(ResidualModel):
 
 
 @dataclasses.dataclass
+class ResidualModelControlGrav(ResidualModel):
+    class_: T.ClassVar[str] = "ResidualModelControlGrav"
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        obj.reference = pt.point.robot_effort
+        return pt.weights.w_robot_effort
+
+    def build(self, data: BuildData):
+        return crocoddyl.ResidualModelControlGrav(data.state)
+
+
+@dataclasses.dataclass
 class ResidualModelFramePlacement(ResidualModel):
     class_: T.ClassVar[str] = "ResidualModelFramePlacement"
     id: T.Union[str, int]
