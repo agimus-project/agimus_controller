@@ -207,6 +207,109 @@ class ResidualModelFramePlacement(ResidualModel):
 
 
 @dataclasses.dataclass
+class ResidualModelFrameTranslation(ResidualModel):
+    class_: T.ClassVar[str] = "ResidualModelFrameTranslation"
+    id: T.Union[str, int]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_poses) == 1
+        ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
+        obj.id = self._get_id(data.state, ee_name)
+        obj.reference = ee_pose.translation
+        return pt.weights.w_end_effector_poses[ee_name][:3]
+
+    @staticmethod
+    def _get_id(state, id):
+        rmodel: pinocchio.Model = state.pinocchio
+        if isinstance(id, str):
+            assert rmodel.existFrame(id)
+            id = rmodel.getFrameId(id)
+        assert isinstance(id, int) and id < rmodel.nframes
+        return id
+
+    def build(self, data: BuildData):
+        id = self._get_id(data.state, self.id)
+        if self.pref is None:
+            pref = np.zeros(3)
+        else:
+            assert self.pref
+            pref = self.pref[:3]
+        return crocoddyl.ResidualModelFrameTranslation(data.state, id, pref)
+
+
+@dataclasses.dataclass
+class ResidualModelFrameRotation(ResidualModel):
+    class_: T.ClassVar[str] = "ResidualModelFrameRotation"
+    id: T.Union[str, int]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_poses) == 1
+        ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
+        obj.id = self._get_id(data.state, ee_name)
+        obj.reference = ee_pose.rotation
+        return pt.weights.w_end_effector_poses[ee_name][3:]
+
+    @staticmethod
+    def _get_id(state, id):
+        rmodel: pinocchio.Model = state.pinocchio
+        if isinstance(id, str):
+            assert rmodel.existFrame(id)
+            id = rmodel.getFrameId(id)
+        assert isinstance(id, int) and id < rmodel.nframes
+        return id
+
+    def build(self, data: BuildData):
+        id = self._get_id(data.state, self.id)
+        if self.pref is None:
+            pref = np.eye(3)
+        else:
+            assert self.pref
+            pref = pinocchio.Quaternion(self.pref[3:]).toRotationMatrix()
+        return crocoddyl.ResidualModelFrameRotation(data.state, id, pref)
+
+
+@dataclasses.dataclass
+class ResidualModelFrameVelocity(ResidualModel):
+    class_: T.ClassVar[str] = "ResidualModelFrameVelocity"
+    id: T.Union[str, int]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+    reference_frame: T.Optional[str] = "WORLD"
+
+    def __post_init__(self):
+        assert self.reference_frame in ["WORLD", "LOCAL", "LOCAL_WORLD_ALIGNED"], (
+            "ResidualModelFrameVelocity.reference_frame has to be one of: 'WORLD', 'LOCAL', 'LOCAL_WORLD_ALIGNED'."
+        )
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_velocities) == 1
+        ee_name, ee_vel = next(iter(pt.point.end_effector_velocities.items()))
+        obj.id = self._get_id(data.state, ee_name)
+        obj.reference = ee_vel
+        return pt.weights.w_end_effector_velocities[ee_name]
+
+    @staticmethod
+    def _get_id(state, id):
+        rmodel: pinocchio.Model = state.pinocchio
+        if isinstance(id, str):
+            assert rmodel.existFrame(id)
+            id = rmodel.getFrameId(id)
+        assert isinstance(id, int) and id < rmodel.nframes
+        return id
+
+    def build(self, data: BuildData):
+        id = self._get_id(data.state, self.id)
+        if self.pref is None:
+            pref = pinocchio.Motion(np.zeros(6))
+        else:
+            assert self.pref
+            pref = pinocchio.Motion(self.pref)
+        frame = getattr(pinocchio, self.reference_frame)
+        return crocoddyl.ResidualModelFrameVelocity(data.state, id, pref, frame)
+
+
+@dataclasses.dataclass
 class ResidualModelVisualServoing(ResidualModel):
     """Visual servoing calculated as:
     wMf_target = wMo_vision * oMf_target
