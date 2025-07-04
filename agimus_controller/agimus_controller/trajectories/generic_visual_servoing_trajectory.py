@@ -82,7 +82,7 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
         traj_point = self.trajectory[self.traj_idx]
         key = next(iter(traj_point.end_effector_poses))
         if self.init_in_world_M_object is not None:
-            in_world_M_ee = pin.XYZQUATToSE3(traj_point.end_effector_poses[key])
+            in_world_M_ee = traj_point.end_effector_poses[key]
             in_object_M_ee = self.init_in_world_M_object.inverse() * in_world_M_ee
             traj_point.end_effector_poses[key] = pin.SE3ToXYZQUAT(in_object_M_ee)
         if self.visual_servoing_state == VisualServoingState.USING_VISUAL_SERVOING:

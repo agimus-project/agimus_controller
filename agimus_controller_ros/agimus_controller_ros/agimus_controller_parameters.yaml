@@ -42,10 +42,14 @@ agimus_controller_params:
       description: "Number of threads use by the solver"
       validation:
         gt<>: 0 # Strictly greater than 0
-    use_constraints:
-      type: bool
-      default_value: True
-      description: "if True we have Collisions constraints and we use CSQP solver, if False we use FDDP solver"
+    max_solve_time:
+      type: double
+      default_value: 0.1
+      description: "Max solving time of the solver."
+    termination_tolerance:
+      type: double
+      default_value: 0.001
+      description: "Termination tolerance of the solver."
     activate_callback:
       type: bool
       default_value: False
@@ -66,6 +70,10 @@ agimus_controller_params:
     type: double
     default_value: 100.0
     description: "Rate of mpc node in hertz"
+  robot_attachment_frame:
+    type: string
+    default_value: "robot_attachment_link"
+    description: "frame of robot base link in environment model."
   free_flyer:
     type: bool
     default_value: False

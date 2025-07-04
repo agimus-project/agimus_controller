@@ -37,6 +37,7 @@ def get_panda_models(config_folder_path: Path, env_xacro_path=None) -> RobotMode
         free_flyer=False,
         armature=np.array(mpc_params["ocp"]["armature"]),
         moving_joint_names=[f"fer_joint{i}" for i in range(1, 8)],
+        robot_attachment_frame="robot_attachment_link",
     )
     robot_models = RobotModels(params)
     return robot_models
