@@ -267,8 +267,6 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
             Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )
     for name, data in mpc_debug_data.ocp.references:
-        if "avoid_collision" in name:
-            continue
         mpc_debug_msg.references.append(
             Residual(name=name, data=matrix_numpy_to_msg(np.asarray(data)))
         )

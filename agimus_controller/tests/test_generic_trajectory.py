@@ -135,6 +135,7 @@ class TestGenericTrajectory(unittest.TestCase):
             w_robot_effort=np.array([0.0003]),
             w_pose=np.array([0.1]),
             ee_frame_name="panda_hand_tcp",
+            w_collision_avoidance=0.0,
         )
         obj.initialize(self.robot_models.robot_model, self.params.q0[:7])
 

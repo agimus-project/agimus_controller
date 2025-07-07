@@ -200,12 +200,17 @@ class RobotModels:
             )
 
             # make robot models append environment models
+            robot_attachment_frame_id = (
+                env_model.getFrameId(self._params.robot_attachment_frame)
+                if self._params.robot_attachment_frame
+                else 0
+            )
             self._full_robot_model, self._collision_model = pin.appendModel(
                 env_model,
                 self._full_robot_model,
                 env_collision_model,
                 self._collision_model,
-                env_model.getFrameId(self._params.robot_attachment_frame),
+                robot_attachment_frame_id,
                 pin.SE3.Identity(),
             )
             _, self._visual_model = pin.appendModel(
