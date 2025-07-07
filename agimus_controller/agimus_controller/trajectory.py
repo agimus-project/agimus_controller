@@ -91,6 +91,7 @@ class TrajectoryPointWeights:
     w_forces: dict[npt.NDArray[np.float64]] | None = None
     w_end_effector_poses: dict[npt.NDArray[np.float64]] | None = None
     w_end_effector_velocities: dict[npt.NDArray[np.float64]] | None = None
+    w_collision_avoidance: np.float64 | None = None
 
     @property
     def w_robot_state(self) -> npt.NDArray[np.float64]:
@@ -148,6 +149,9 @@ class TrajectoryPointWeights:
             return False
 
         if self.w_end_effector_velocities != other.w_end_effector_velocities:
+            return False
+
+        if self.w_collision_avoidance != other.w_collision_avoidance:
             return False
 
         return True
