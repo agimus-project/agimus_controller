@@ -33,16 +33,29 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
         w_robot_effort,
         w_pose,
         w_increasing: WeightIncreasing,
+        w_collision_avoidance,
     ):
-        super().__init__(ee_frame_name, w_q, w_qdot, w_qddot, w_robot_effort, w_pose)
+        super().__init__(
+            ee_frame_name,
+            w_q,
+            w_qdot,
+            w_qddot,
+            w_robot_effort,
+            w_pose,
+            w_collision_avoidance,
+        )
         self.w_pose_constant = w_pose
         self.w_increasing = w_increasing
         self.w_increasing_max_rotation = traj_params.w_increasing_max_rotation
+        self.w_increasing_max_collision_avoidance = (
+            traj_params.w_increasing_max_collision_avoidance
+        )
         self.visual_servoing_state = VisualServoingState.IDLE
         self.dt = dt
         self.visual_servoing_time = 0.0
         self.init_in_world_M_object = None
         self.robot_frame = self.ee_frame_name + "_vs"
+        self.w_collision_avoidance = w_collision_avoidance
 
         # current trajectory indexes range that specifies when visual trajectory starts and ends
         self.visual_servoing_idx_range = (0, 0)
@@ -97,6 +110,11 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
                 self.visual_servoing_time + self.dt,
                 self.w_increasing.time_reach_percent,
             )
+            w_collision_avoidance = (
+                self.w_increasing_max_collision_avoidance
+                * self.w_increasing_max_rotation
+                / self.w_increasing.max_weight
+            )
         elif self.visual_servoing_state == VisualServoingState.COMING_BACK_TO_IDLE:
             w_increasing = self.w_increasing.get_weight_at_t(self.visual_servoing_time)
             w_rot_increasing = (
@@ -106,8 +124,14 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
             )
             self.w_pose = [w_increasing] * 3 + [w_rot_increasing] * 3
             self.visual_servoing_time -= self.dt
+            w_collision_avoidance = (
+                self.w_increasing_max_collision_avoidance
+                * self.w_increasing_max_rotation
+                / self.w_increasing.max_weight
+            )
         else:
             self.w_pose = np.zeros(6)
+            w_collision_avoidance = self.w_collision_avoidance
         self.trajectory_is_done = self.traj_idx == (len(self.trajectory) - 1)
         self.traj_idx = min(self.traj_idx + 1, len(self.trajectory) - 1)
         traj_weights = TrajectoryPointWeights(
@@ -116,5 +140,6 @@ class GenericVisualServoingTrajectory(GenericTrajectory):
             w_robot_acceleration=self.w_qddot,
             w_robot_effort=self.w_robot_effort,
             w_end_effector_poses={self.robot_frame: self.w_pose},
+            w_collision_avoidance=w_collision_avoidance,
         )
         return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)

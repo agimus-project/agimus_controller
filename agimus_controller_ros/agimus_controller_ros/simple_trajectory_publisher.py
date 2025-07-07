@@ -328,6 +328,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                     self.params.w_robot_effort, self.croco_nq
                 ),
                 w_pose=self.get_weights(self.params.w_pose, 6),
+                w_collision_avoidance=self.params.w_collision_avoidance,
             )
         elif trajectory_name == "generic_visual_servoing_trajectory":
             return GenericVisualServoingTrajectory(
@@ -342,6 +343,7 @@ class SimpleTrajectoryPublisher(TrajectoryPublisherBase):
                 ),
                 w_pose=self.get_weights(self.params.w_pose, 6),
                 w_increasing=self.w_increasing,
+                w_collision_avoidance=self.params.w_collision_avoidance,
             )
         else:
             raise ValueError("Unknown Trajectory.")
