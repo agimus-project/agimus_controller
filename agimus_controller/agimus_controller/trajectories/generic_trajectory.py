@@ -21,6 +21,7 @@ class GenericTrajectory(TrajectoryBase):
         w_qddot,
         w_robot_effort,
         w_pose,
+        w_collision_avoidance,
     ):
         super().__init__(ee_frame_name)
         self.trajectory = None
@@ -31,6 +32,7 @@ class GenericTrajectory(TrajectoryBase):
         self.w_robot_effort = w_robot_effort
         self.w_pose = w_pose
         self.robot_frame = self.ee_frame_name
+        self.w_collision_avoidance = w_collision_avoidance
 
     def build_trajectory_from_q_dq_ddq_arrays(
         self,
@@ -80,5 +82,6 @@ class GenericTrajectory(TrajectoryBase):
             w_robot_acceleration=self.w_qddot,
             w_robot_effort=self.w_robot_effort,
             w_end_effector_poses={self.robot_frame: self.w_pose},
+            w_collision_avoidance=self.w_collision_avoidance,
         )
         return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)

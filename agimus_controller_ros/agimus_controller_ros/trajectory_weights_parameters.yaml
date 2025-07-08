@@ -57,6 +57,10 @@ trajectory_weights_params:
       type: double
       default_value: 6.0
       description: "when visual servoing time is equal to time_reach_percent, the weight sent is the percent of the maximum weigth reached."
+  w_collision_avoidance:
+    type: double
+    default_value: 1.0
+    description: "Weight for collision avoidance costs."
   sine_wave:
     period:
       type: double_array
@@ -74,4 +78,8 @@ trajectory_weights_params:
     w_increasing_max_rotation:
       type: double
       default_value: 15.0
-      description: "Maximum weight for the the rotation part of the end-effector pose cost weights."
+      description: "Maximum weight for the the rotation part of the end-effector pose cost increasing weights when visual servoing is active."
+    w_increasing_max_collision_avoidance:
+      type: double
+      default_value: 5.0
+      description: "Maximum weight for the the collision avoidance costs increasing weight when visual servoing is active."

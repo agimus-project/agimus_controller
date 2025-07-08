@@ -176,6 +176,8 @@ class AgimusController(Node, RobotModelsMixin):
             qp_iters=self.params.ocp.max_qp_iter,
             use_debug_data=self.params.publish_debug_data,
             n_threads=self.params.ocp.n_threads,
+            max_solve_time=self.params.ocp.max_solve_time,
+            termination_tolerance=self.params.ocp.termination_tolerance,
         )
         self.last_point = None
         self.first_run_done = False
@@ -386,6 +388,7 @@ class AgimusController(Node, RobotModelsMixin):
                 self_collision=self.params.self_collision,
                 armature=self.params.ocp.armature,
                 collision_pairs=self.params.collision_pairs,
+                robot_attachment_frame=self.params.robot_attachment_frame,
             )
             self.setup_mpc()
             # It is necessary to return, even if the reference buffer has enough data.

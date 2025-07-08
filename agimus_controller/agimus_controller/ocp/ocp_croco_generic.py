@@ -492,7 +492,13 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         for cost in self.costs:
             if cost.update:
-                cost.cost.update(data, obj.costs.costs[cost.name].cost, pt)
+                # collision avoidance cost activation use no vectors of weights,
+                # so we directly modify the scalar weight
+                if isinstance(cost.cost.residual, ResidualDistanceCollisionBase):
+                    obj.costs.costs[cost.name].weight = pt.weights.w_collision_avoidance
+                else:
+                    cost.cost.update(data, obj.costs.costs[cost.name].cost, pt)
+
         # At the moment, we do not need to add support for
         # updating the constraints
 
@@ -586,7 +592,10 @@ class OCPCrocoGeneric(OCPBaseCroco):
         Initialize references and residuals of dataclass OCPDebugData.
         """
         for cost in self._data.running_model.differential.costs:
-            if cost.update:
+            # collision avoidance costs only has changes in weights, not references.
+            if cost.update and not isinstance(
+                cost.cost.residual, ResidualDistanceCollisionBase
+            ):
                 self._debug_data.references.append((cost.name, None))
             if cost.publish_residual:
                 self._debug_data.residuals.append((cost.name, None))
@@ -598,6 +607,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
         # shifting reference to next node, so we end up publishing all the references
         for reference_idx in range(len(self._debug_data.references)):
             name = self._debug_data.references[reference_idx][0]
+
             reference = model.differential.costs.costs[name].cost.residual.reference
             if isinstance(reference, pin.SE3):
                 reference = pin.SE3ToXYZQUAT(reference)

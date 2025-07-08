@@ -25,6 +25,7 @@ class RobotModelParameters:
     srdf: Union[None, Path, str] = (
         None  # Path to the SRDF file or string containing SRDF as an XML
     )
+    robot_attachment_frame: str = ""
     urdf_meshes_dir: Optional[Path] = (
         None  # Path to the directory containing the meshes and the URDF file.
     )
@@ -199,12 +200,17 @@ class RobotModels:
             )
 
             # make robot models append environment models
+            robot_attachment_frame_id = (
+                env_model.getFrameId(self._params.robot_attachment_frame)
+                if self._params.robot_attachment_frame
+                else 0
+            )
             self._full_robot_model, self._collision_model = pin.appendModel(
-                self._full_robot_model,
                 env_model,
-                self._collision_model,
+                self._full_robot_model,
                 env_collision_model,
-                0,
+                self._collision_model,
+                robot_attachment_frame_id,
                 pin.SE3.Identity(),
             )
             _, self._visual_model = pin.appendModel(
