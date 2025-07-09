@@ -19,6 +19,16 @@ from agimus_controller.trajectory import (
 )
 
 
+def add_modules(values: dict):
+    """Extends globals of this file with other custom globals. Enables importing of
+    OCP components within `create_croco_dataclasses` from outside of this file.
+
+    Args:
+        values (dict): Dictionary with new globals to add.
+    """
+    globals().update(values)
+
+
 def create_nested_dataclass(cls, values):
     kwargs = {k: create_croco_dataclasses(v) for k, v in values.items()}
     if hasattr(cls, "from_dict"):
