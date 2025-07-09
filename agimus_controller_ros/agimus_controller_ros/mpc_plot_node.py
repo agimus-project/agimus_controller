@@ -1,11 +1,12 @@
 from ament_index_python import get_package_share_directory
+import numpy as np
 from pathlib import Path
 import xacro
 
 from agimus_controller.plots.plots_utils import plot_mpc_data
 from agimus_controller.factory.robot_model import RobotModelParameters, RobotModels
 from agimus_controller_ros.read_from_bag_trajectory import (
-    load_mpc_ouputs_from_rosbag,
+    load_mpc_outputs_from_rosbag,
 )
 
 
@@ -28,9 +29,28 @@ def plot_mpc(args) -> None:
         "tiago_pro" in bag_file_path.stem.lower()
         or "tiago-pro" in bag_file_path.stem.lower()
     ):
+        import tempfile
+
         tiago_pro_pkg = Path(get_package_share_directory("tiago_pro_description"))
         tiago_pro_urdf_path = tiago_pro_pkg / "robots" / "tiago_pro.urdf.xacro"
         tiago_pro_urdf = xacro.process_file(tiago_pro_urdf_path).toxml()
+        tiago_pro_moveit_pkg = Path(
+            get_package_share_directory("tiago_pro_moveit_config")
+        )
+        tiago_pro_srdf_path = (
+            tiago_pro_moveit_pkg / "config" / "srdf" / "tiago_pro.srdf.xacro"
+        )
+        tiago_pro_srdf_xml = xacro.process_file(
+            tiago_pro_srdf_path,
+            mappings={
+                "end_effector_left": "pal-pro-gripper",
+                "end_effector_right": "pal-pro-gripper",
+            },
+        ).toxml()
+        # Write SRDF XML to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".srdf") as tmp_srdf:
+            tmp_srdf.write(tiago_pro_srdf_xml.encode("utf-8"))
+            tmp_srdf_path = Path(tmp_srdf.name)
         moving_joint_names = [
             "arm_right_1_joint",
             "arm_right_2_joint",
@@ -40,24 +60,36 @@ def plot_mpc(args) -> None:
             "arm_right_6_joint",
             "arm_right_7_joint",
         ]
-        robot_models = RobotModels(
-            RobotModelParameters.from_tiago_pro(tiago_pro_urdf, moving_joint_names)
+        params = RobotModelParameters(
+            robot_urdf=tiago_pro_urdf,
+            env_urdf=None,
+            srdf=tmp_srdf_path,
+            free_flyer=False,
+            armature=np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
+            moving_joint_names=moving_joint_names,
         )
+        robot_models = RobotModels(params)
     else:
         raise ValueError(
             "Unsupported robot type in bag file name. "
             "Please use a bag file with 'panda' or 'tiago_pro' in its name."
         )
-
-    mpc_data = load_mpc_ouputs_from_rosbag(args.bag_file_path)
+    mpc_data = load_mpc_outputs_from_rosbag(args.bag_file_path)
     which_plots = [
         "computation_time",
-        "collision_distance",
+        # "collision_distance",
         "iter",
         "visual_servoing",
         "predictions",
     ]
-    plot_mpc_data(mpc_data, robot_models.robot_model, which_plots)
+    mpc_config = {
+        "dt_ocp": 0.01,
+        "nb_running_nodes": mpc_data["control_predictions"][0].shape[0],
+        "endeff_name": "arm_right_7_joint",
+        "mpc_freq": 100,
+    }
+
+    plot_mpc_data(mpc_data, mpc_config, robot_models.robot_model, which_plots)
     return
 
 
