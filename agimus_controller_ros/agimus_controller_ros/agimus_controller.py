@@ -9,7 +9,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 import rclpy.time
-from std_msgs.msg import String
+from std_msgs.msg import Int32, String
 from agimus_msgs.msg import MpcInput, MpcDebug
 import builtin_interfaces
 
@@ -226,6 +226,16 @@ class AgimusController(Node, RobotModelsMixin):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
+        if self.params.publish_buffer_size:
+            self.ocp_buffer_size_pub = self.create_publisher(
+                Int32,
+                "mpc_buffer_size",
+                qos_profile=QoSProfile(
+                    depth=10,
+                    reliability=ReliabilityPolicy.BEST_EFFORT,
+                ),
+            )
+
         if self.params.publish_debug_data:
             self.ocp_solve_time_pub = self.create_publisher(
                 builtin_interfaces.msg.Duration,
@@ -395,6 +405,9 @@ class AgimusController(Node, RobotModelsMixin):
             # This gives some time to fill TF buffer.
             return
 
+        if self.params.publish_buffer_size:
+            self.ocp_buffer_size_pub.publish(Int32(data=len(self.traj_buffer)))
+
         # Wait for enough data in buffer
         if not self.buffer_has_enough_data(2):
             self.get_logger().warn(
@@ -469,6 +482,10 @@ class AgimusController(Node, RobotModelsMixin):
             # when using delay compensation.
             current_time_ns=x0_traj_point.time_ns,
         )
+
+        if self.params.publish_buffer_size:
+            self.ocp_buffer_size_pub.publish(Int32(data=len(self.traj_buffer)))
+
         if ocp_res is None:
             return
 
@@ -476,6 +493,7 @@ class AgimusController(Node, RobotModelsMixin):
             self._ocp_res = ocp_res
         else:
             self.send_control_msg(ocp_res)
+
         if self.params.publish_debug_data:
             compute_time = time.perf_counter() - start_compute_time
             self.ocp_solve_time_pub.publish(Duration(seconds=compute_time).to_msg())
