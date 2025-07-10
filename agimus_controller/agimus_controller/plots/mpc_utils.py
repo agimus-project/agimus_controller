@@ -1,4 +1,3 @@
-import os
 
 import matplotlib
 from matplotlib.collections import LineCollection
@@ -15,15 +14,10 @@ from agimus_controller.plots.pin_utils import (
 
 
 def get_nb_in_saturation_constraint(col_values, safety_margin, eps):
-    nb_iteration = col_values.shape[0]
-    nb_constraints = col_values.shape[1]
-    res = np.zeros((nb_iteration))
-    for idx in range(nb_iteration):
-        nb_cons_in_saturation = 0
-        for cons_idx in range(nb_constraints):
-            if col_values[idx, cons_idx] - safety_margin < eps:
-                nb_cons_in_saturation += 1
-        res[idx] = nb_cons_in_saturation
+    # Compute a boolean array where the condition is satisfied
+    saturation_mask = (col_values - safety_margin) < eps
+    # Count the number of True values (constraints in saturation) for each iteration
+    res = np.sum(saturation_mask, axis=1)
     return res
 
 

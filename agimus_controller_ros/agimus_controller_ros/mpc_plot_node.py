@@ -72,7 +72,7 @@ def plot_mpc(args) -> None:
     else:
         raise ValueError(
             "Unsupported robot type in bag file name. "
-            "Please use a bag file with 'panda' or 'tiago_pro' in its name."
+            "Please use a bag file with 'panda', 'tiago_pro', or 'tiago-pro' in its name."
         )
     mpc_data = load_mpc_outputs_from_rosbag(args.bag_file_path)
     which_plots = [
