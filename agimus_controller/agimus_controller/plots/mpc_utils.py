@@ -1,4 +1,3 @@
-
 import matplotlib
 from matplotlib.collections import LineCollection
 import matplotlib.pyplot as plt
