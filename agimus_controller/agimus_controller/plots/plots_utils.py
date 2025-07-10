@@ -124,14 +124,16 @@ def plot_mpc_data(
         print("solve time mean ", np.mean(solve_time))
 
     # Collisions pairs distance plots
-    if "collision_distance" in which_plots:
-        coll_avoidance_keys = [
-            val for val in list(mpc_data.keys()) if "avoid_collision" in val
-        ]
-        if coll_avoidance_keys == []:
-            raise RuntimeError(
-                f"no collision pairs distances in mpc_data dictionary, keys are {mpc_data.keys()}"
-            )
+    coll_avoidance_keys = [
+        val for val in list(mpc_data.keys()) if "avoid_collision" in val
+    ]
+    if "collision_distance" in which_plots and not coll_avoidance_keys:
+        print(
+            "No collision pairs distances in mpc_data dictionary, ",
+            "keys are ",
+            mpc_data.keys(),
+        )
+    if "collision_distance" in which_plots and coll_avoidance_keys:
         coll_distance_residuals = []
         for key in coll_avoidance_keys:
             coll_distance_residuals.append(np.array(mpc_data[key])[:, 0])

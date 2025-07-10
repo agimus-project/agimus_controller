@@ -77,16 +77,16 @@ def plot_mpc(args) -> None:
     mpc_data = load_mpc_outputs_from_rosbag(args.bag_file_path)
     which_plots = [
         "computation_time",
-        # "collision_distance",
+        "collision_distance",
         "iter",
         "visual_servoing",
         "predictions",
     ]
     mpc_config = {
-        "dt_ocp": 0.01,
+        "dt_ocp": args.dt_ocp,
         "nb_running_nodes": mpc_data["control_predictions"][0].shape[0],
-        "endeff_name": "arm_right_7_joint",
-        "mpc_freq": 100,
+        "endeff_name": args.endeff_name,
+        "mpc_freq": 1.0 / args.dt_ocp,
     }
 
     plot_mpc_data(mpc_data, mpc_config, robot_models.robot_model, which_plots)
@@ -103,6 +103,20 @@ def main():
         type=str,
         required=True,
         help="Path to the ROS bag file containing MPC data.",
+    )
+    parser.add_argument(
+        "--dt_ocp",
+        "-t",
+        type=float,
+        required=True,
+        help="Time step for the OCP (Optimal Control Problem) in seconds.",
+    )
+    parser.add_argument(
+        "--endeff_name",
+        "-e",
+        type=str,
+        required=True,
+        help="Name of the end effector in the robot model.",
     )
     args = parser.parse_args()
     plot_mpc(args)
