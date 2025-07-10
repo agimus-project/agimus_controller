@@ -1,0 +1,8 @@
+bag_directory: "/<path to the folder containing your rosbag>/"
+bag_name: "<name of the rosbag>"
+dt_ocp: 0.01
+mpc_freq: 100
+nb_running_nodes: 19
+endeff_name: "fer_hand_tcp"
+# optional parameter
+#T_sim: 20

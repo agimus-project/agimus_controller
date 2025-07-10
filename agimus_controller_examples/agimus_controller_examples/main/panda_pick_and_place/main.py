@@ -14,6 +14,8 @@ from agimus_demo_05_pick_and_place.hpp_client import (
     get_q_dq_ddq_arrays_from_path,
 )
 from agimus_controller.plots.plots_utils import plot_mpc_data
+from agimus_controller_examples.utils.wrapper_meshcat import MeshcatWrapper
+from ament_index_python.packages import get_package_share_directory
 
 
 def get_weights(weights, size):
@@ -63,6 +65,12 @@ class APP(object):
                 self.mpc_data[name + "_references"] = []
             self.mpc_data[name + "_references"].append(np.asarray(data.copy()))
 
+    def display_path_meshcat(self, xs):
+        """Display in Meshcat the trajectory found with crocoddyl."""
+        for x in xs:
+            self.vis[0].display(x[:7])
+            time.sleep(0.01)
+
     def main(self):
         # set start and goal poses for pick and place task
         start_obj_pose = (
@@ -89,7 +97,12 @@ class APP(object):
             / "panda_pick_and_place"
             / "config"
         )
-        robot_models = get_panda_models(config_folder_path)
+        env_xacro_path = (
+            Path(get_package_share_directory("agimus_demo_05_pick_and_place"))
+            / "urdf"
+            / "environment.urdf.xacro"
+        )
+        robot_models = get_panda_models(config_folder_path, env_xacro_path)
         self.mpc = get_mpc(config_folder_path)
         with open(config_folder_path / "trajectory_weigths_params.yaml", "r") as file:
             traj_params = yaml.safe_load(file)["simple_trajectory_publisher"][
@@ -108,6 +121,7 @@ class APP(object):
             get_weights(traj_params["w_qddot"], nq),
             get_weights(traj_params["w_robot_effort"], nq),
             get_weights(traj_params["w_pose"], 6),
+            traj_params["w_collision_avoidance"],
         )
         self.gen_traj.initialize(robot_models.robot_model, q_init)
 
@@ -149,6 +163,16 @@ class APP(object):
                     )
                     solve_time = time.time() - start_solve_time
                     self.fill_mpc_data(solve_time)
+        print("create meshcat objects")
+        self.MeshcatVis = MeshcatWrapper()
+        print("created wrapper")
+        self.vis = self.MeshcatVis.visualize(
+            robot_model=robot_models.robot_model,
+            robot_collision_model=robot_models.collision_model,
+            robot_visual_model=robot_models.visual_model,
+        )
+        print("finish creating meshcat objects")
+        self.xs = np.array(app.mpc_data["states_predictions"])[:, 0, :]
 
         # plots
         which_plots = [
@@ -163,6 +187,7 @@ class APP(object):
             "endeff_name": traj_params["ee_frame_name"],
         }
         plot_mpc_data(self.mpc_data, mpc_config, robot_models._robot_model, which_plots)
+
         return True
 
 

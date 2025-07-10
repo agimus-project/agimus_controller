@@ -105,16 +105,23 @@ def plot_mpc_data(
 
     # Collisions pairs distance plots
     if "collision_distance" in which_plots:
-        if "distance" not in mpc_data.keys():
+        coll_avoidance_keys = [
+            val for val in list(mpc_data.keys()) if "avoid_collision" in val
+        ]
+        if coll_avoidance_keys == []:
             raise RuntimeError(
                 f"no collision pairs distances in mpc_data dictionary, keys are {mpc_data.keys()}"
             )
-        coll_distance_residuals = np.array(mpc_data["distance"])
-        coll_distance_residuals = coll_distance_residuals[:, 0, np.newaxis]
+        coll_distance_residuals = []
+        for key in coll_avoidance_keys:
+            coll_distance_residuals.append(np.array(mpc_data[key])[:, 0])
+        nb_vals = len(mpc_data[coll_avoidance_keys[0]])
+        coll_distance_residuals = np.array(coll_distance_residuals)
+        coll_distance_residuals = coll_distance_residuals.transpose()
         time_col = np.linspace(
             0,
-            (coll_distance_residuals.shape[0] - 1) * 0.01,
-            coll_distance_residuals.shape[0],
+            (nb_vals - 1) * 0.01,
+            nb_vals,
         )
         coll_labels = [f"col_term_{i}" for i in range(coll_distance_residuals.shape[0])]
         plot_values(
