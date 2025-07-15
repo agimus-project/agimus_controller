@@ -13,17 +13,26 @@ from agimus_controller_ros.read_from_bag_trajectory import (
 def plot_mpc(args) -> None:
     bag_file_path = Path(args.bag_file_path)
     if "panda" in bag_file_path.stem:
-        config_folder_path = (
-            Path(get_package_share_directory("agimus_demo_03_mpc_dummy_traj"))
-            / "config"
-        )
-        env_xacro_path = (
-            Path(get_package_share_directory("agimus_demo_05_pick_and_place"))
-            / "urdf"
-            / "environment.urdf.xacro"
-        )
-        robot_models = RobotModels(
-            RobotModelParameters.from_panda(config_folder_path, env_xacro_path)
+        franka_pkg = Path(get_package_share_directory("franka_description"))
+        franka_urdf_path = franka_pkg / "robots" / "fer" / "fer.urdf.xacro"
+        franka_urdf = xacro.process_file(franka_urdf_path).toxml()
+        franka_srdf_path = franka_pkg / "robots" / "fer" / "fer.srdf"
+        moving_joint_names = [
+            "fer_joint1",
+            "fer_joint2",
+            "fer_joint3",
+            "fer_joint4",
+            "fer_joint5",
+            "fer_joint6",
+            "fer_joint7",
+        ]
+        params = RobotModelParameters(
+            robot_urdf=franka_urdf,
+            env_urdf=None,
+            srdf=franka_srdf_path,
+            free_flyer=False,
+            armature=np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
+            moving_joint_names=moving_joint_names,
         )
     elif (
         "tiago_pro" in bag_file_path.stem.lower()
@@ -68,12 +77,13 @@ def plot_mpc(args) -> None:
             armature=np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
             moving_joint_names=moving_joint_names,
         )
-        robot_models = RobotModels(params)
     else:
         raise ValueError(
             "Unsupported robot type in bag file name. "
             "Please use a bag file with 'panda', 'tiago_pro', or 'tiago-pro' in its name."
         )
+
+    robot_models = RobotModels(params)
     mpc_data = load_mpc_outputs_from_rosbag(args.bag_file_path)
     which_plots = [
         "computation_time",
