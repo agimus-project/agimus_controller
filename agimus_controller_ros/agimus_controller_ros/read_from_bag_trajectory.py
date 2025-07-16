@@ -103,7 +103,10 @@ def load_mpc_outputs_from_rosbag(bag_file_path):
             mpc_data["kkt_norms"].append(mpc_debug_msg.kkt_norm)
             mpc_data["nb_iters"].append(mpc_debug_msg.nb_iter)
             mpc_data["nb_qp_iters"].append(mpc_debug_msg.nb_qp_iter)
-            mpc_data["trajectory_point_id"].append(mpc_debug_msg.trajectory_point_id)
+            trajectory_point_id = 0
+            if hasattr(mpc_debug_msg, "trajectory_point_id"):
+                trajectory_point_id = mpc_debug_msg.trajectory_point_id
+            mpc_data["trajectory_point_id"].append(trajectory_point_id)
         elif topic == "/ocp_solve_time":
             solve_time_msg = convert_bytes_to_message(msg, Duration)
             mpc_data["solve_time"].append(
