@@ -202,12 +202,12 @@ class ResidualModelFramePlacement(ResidualModel):
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_poses) == 1
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
-        obj.id = self._get_id(data.state, ee_name)
+        obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose
         return pt.weights.w_end_effector_poses[ee_name]
 
     def build(self, data: BuildData):
-        id = self._get_id(data.state, self.id)
+        id = get_frame_id(data.state, self.id)
         if self.pref is None:
             pref = pinocchio.SE3.Identity()
         else:

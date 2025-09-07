@@ -216,7 +216,7 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
         msg = MpcEEInput(frame_id=frame_id)
 
         pose = w_traj_point.point.end_effector_poses
-        if frame_id in pose and pose[frame_id] is not None:
+        if pose is not None and frame_id in pose and pose[frame_id] is not None:
             wMee = pose[frame_id]
             if isinstance(wMee, pin.SE3):
                 # This is the type defined in the annotation of the class definition
@@ -227,35 +227,49 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
             msg.pose = array_to_ros_pose(wMee)
 
         twist = w_traj_point.point.end_effector_velocities
-        if frame_id in twist and twist[frame_id] is not None:
+        if twist is not None and frame_id in twist and twist[frame_id] is not None:
             msg.twist = motion_to_ros_twist(twist[frame_id])
 
         force = w_traj_point.point.forces
-        if frame_id in force and force[frame_id] is not None:
+        if force is not None and frame_id in force and force[frame_id] is not None:
             msg.force = force_to_ros_wrench(force[frame_id])
 
         w_pose = w_traj_point.weights.w_end_effector_poses
-        if frame_id in w_pose and w_pose[frame_id] is not None:
+        if w_pose is not None and frame_id in w_pose and w_pose[frame_id] is not None:
             msg.w_pose = w_pose[frame_id]
 
         w_twist = w_traj_point.weights.w_end_effector_velocities
-        if frame_id in w_twist and w_twist[frame_id] is not None:
+        if (
+            w_twist is not None
+            and frame_id in w_twist
+            and w_twist[frame_id] is not None
+        ):
             msg.w_twist = w_twist[frame_id]
 
         w_force = w_traj_point.weights.w_forces
-        if frame_id in w_force and w_force[frame_id] is not None:
+        if (
+            w_force is not None
+            and frame_id in w_force
+            and w_force[frame_id] is not None
+        ):
             msg.w_force = w_force[frame_id]
 
         return msg
 
     # Find all possible frame ids in all dictionaries
-    frame_ids = (
-        set(w_traj_point.point.end_effector_poses.keys())
-        | set(w_traj_point.point.end_effector_velocities.keys())
-        | set(w_traj_point.point.forces.keys())
-        | set(w_traj_point.weights.w_end_effector_poses.keys())
-        | set(w_traj_point.weights.w_end_effector_velocities.keys())
-        | set(w_traj_point.weights.w_forces.keys())
+    frame_ids = set().union(
+        *[
+            set(d.keys())
+            for d in (
+                w_traj_point.point.end_effector_poses,
+                w_traj_point.point.end_effector_velocities,
+                w_traj_point.point.forces,
+                w_traj_point.weights.w_end_effector_poses,
+                w_traj_point.weights.w_end_effector_velocities,
+                w_traj_point.weights.w_forces,
+            )
+            if d is not None
+        ]
     )
 
     w_col = w_traj_point.weights.w_collision_avoidance
