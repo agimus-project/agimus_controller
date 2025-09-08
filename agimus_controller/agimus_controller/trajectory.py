@@ -229,3 +229,51 @@ class TrajectoryBuffer(object):
 
     def __setitem__(self, index, value):
         self._buffer[index] = value
+
+
+def interpolate_weights(
+    p1: TrajectoryPointWeights, p2: TrajectoryPointWeights, alpha: float
+) -> TrajectoryPointWeights:
+    """Linearly interpolates weights between two trajectory points.
+
+    Args:
+        p1 (TrajectoryPointWeights): Starting weights for the interpolation.
+        p2 (TrajectoryPointWeights): End weights for the interpolation.
+        alpha (float): Interpolation coefficient [0.0, 1.0].
+
+    Returns:
+        TrajectoryPointWeights: Interpolated point.
+    """
+    alpha = np.clip(alpha, 0.0, 1.0)
+
+    def _w_interpolate(
+        w1: np.float64 | npt.ArrayLike, w2: np.float64 | npt.ArrayLike
+    ) -> np.float64 | npt.ArrayLike:
+        return (1.0 - alpha) * w1 + alpha * w2
+
+    def _interpolate_dict(ee_w_1: dict, ee_w_2: dict) -> npt.ArrayLike:
+        res = {}
+        for frame in set(ee_w_1.keys()) | set(ee_w_2.keys()):
+            if frame not in ee_w_1:
+                res[frame] = _w_interpolate(ee_w_1[frame], np.zeros_like(ee_w_1[frame]))
+            elif frame not in ee_w_2:
+                res[frame] = _w_interpolate(np.zeros_like(ee_w_2[frame]), ee_w_2[frame])
+            else:
+                res[frame] = _w_interpolate(ee_w_1[frame], ee_w_2[frame])
+        return res
+
+    def _interpolate_args(
+        w_1: np.float64 | npt.ArrayLike | dict,
+        w_2: np.float64 | npt.ArrayLike | dict,
+        arg,
+    ) -> npt.ArrayLike:
+        if isinstance(w_1, dict):
+            return _interpolate_dict(w_1, w_2)
+        return _w_interpolate(w_1, w_2)
+
+    return TrajectoryPointWeights(
+        **{
+            arg: _interpolate_args(getattr(p1, arg), getattr(p2, arg), arg)
+            for arg in TrajectoryPointWeights.__match_args__
+        }
+    )
