@@ -34,7 +34,7 @@ class OCPDebugData:
 @dataclass
 class MPCDebugData:
     ocp: OCPDebugData = field(default_factory=OCPDebugData)
-    reference_id: int | None = None
+    reference_id: int = -1
     # Timers
     duration_iteration_ns: int = 0
     duration_horizon_update_ns: int = 0

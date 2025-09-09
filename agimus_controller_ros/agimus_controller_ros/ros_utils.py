@@ -247,7 +247,8 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     if force and len(force):
         msg.force = force_to_ros_wrench(force[ee_frame_name])
 
-    msg.w_collision_avoidance = w_traj_point.weights.w_collision_avoidance
+    if w_traj_point.weights.w_collision_avoidance:
+        msg.w_collision_avoidance = w_traj_point.weights.w_collision_avoidance
 
     msg.ee_frame_name = ee_frame_name
     return msg
