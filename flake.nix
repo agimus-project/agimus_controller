@@ -2,8 +2,7 @@
   description = "Whole Body Model Predictive Control in the AGIMUS architecture";
 
   inputs = {
-    # TODO: drop `/module` after https://github.com/Gepetto/nix/pull/54
-    gepetto.url = "github:gepetto/nix/module";
+    gepetto.url = "github:gepetto/nix";
     flake-parts.follows = "gepetto/flake-parts";
     nixpkgs.follows = "gepetto/nixpkgs";
     nix-ros-overlay.follows = "gepetto/nix-ros-overlay";
