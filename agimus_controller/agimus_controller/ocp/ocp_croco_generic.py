@@ -66,6 +66,15 @@ def as_dict(obj):
         return obj
 
 
+def get_frame_id(state: crocoddyl.StateMultibody, id: T.Union[str, int]) -> int:
+    rmodel: pinocchio.Model = state.pinocchio
+    if isinstance(id, str):
+        assert rmodel.existFrame(id)
+        id = rmodel.getFrameId(id)
+    assert isinstance(id, int) and id < rmodel.nframes
+    return id
+
+
 @dataclasses.dataclass
 class BuildData:
     state: crocoddyl.StateMultibody
@@ -193,21 +202,38 @@ class ResidualModelFramePlacement(ResidualModel):
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_poses) == 1
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
-        obj.id = self._get_id(data.state, ee_name)
+        obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose
         return pt.weights.w_end_effector_poses[ee_name]
 
-    @staticmethod
-    def _get_id(state, id):
-        rmodel: pinocchio.Model = state.pinocchio
-        if isinstance(id, str):
-            assert rmodel.existFrame(id)
-            id = rmodel.getFrameId(id)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
+    def build(self, data: BuildData):
+        id = get_frame_id(data.state, self.id)
+        if self.pref is None:
+            pref = pinocchio.SE3.Identity()
+        else:
+            assert self.pref
+            pref = pinocchio.XYZQUATToSE3(self.pref)
+        return crocoddyl.ResidualModelFramePlacement(data.state, id, pref)
+
+
+@dataclasses.dataclass
+class ResidualModelFramePlacementStatic(ResidualModel):
+    """Variant of ResidualModelFramePlacement requiring statically
+    defined frame, for multi end effector support"""
+
+    class_: T.ClassVar[str] = "ResidualModelFramePlacement"
+    frame_id: T.Optional[str]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert self.frame_id in pt.point.end_effector_poses, (
+            f"end_effector_poses should contains key {self.frame_id}"
+        )
+        obj.reference = pt.point.end_effector_poses[self.frame_id]
+        return pt.weights.w_end_effector_poses[self.frame_id]
 
     def build(self, data: BuildData):
-        id = self._get_id(data.state, self.id)
+        id = get_frame_id(data.state, self.frame_id)
         if self.pref is None:
             pref = pinocchio.SE3.Identity()
         else:
@@ -225,21 +251,38 @@ class ResidualModelFrameTranslation(ResidualModel):
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_poses) == 1
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
-        obj.id = self._get_id(data.state, ee_name)
+        obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose.translation
         return pt.weights.w_end_effector_poses[ee_name][:3]
 
-    @staticmethod
-    def _get_id(state, id):
-        rmodel: pinocchio.Model = state.pinocchio
-        if isinstance(id, str):
-            assert rmodel.existFrame(id)
-            id = rmodel.getFrameId(id)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
+    def build(self, data: BuildData):
+        id = get_frame_id(data.state, self.id)
+        if self.pref is None:
+            pref = np.zeros(3)
+        else:
+            assert self.pref
+            pref = self.pref[:3]
+        return crocoddyl.ResidualModelFrameTranslation(data.state, id, pref)
+
+
+@dataclasses.dataclass
+class ResidualModelFrameTranslationStatic(ResidualModel):
+    """Variant of ResidualModelFrameTranslation requiring statically
+    defined frame, for multi end effector support"""
+
+    class_: T.ClassVar[str] = "ResidualModelFrameTranslation"
+    frame_id: T.Optional[str]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert self.frame_id in pt.point.end_effector_poses, (
+            f"end_effector_poses should contains key {self.frame_id}"
+        )
+        obj.reference = pt.point.end_effector_poses[self.frame_id].translation
+        return pt.weights.w_end_effector_poses[self.frame_id][:3]
 
     def build(self, data: BuildData):
-        id = self._get_id(data.state, self.id)
+        id = get_frame_id(data.state, self.frame_id)
         if self.pref is None:
             pref = np.zeros(3)
         else:
@@ -257,21 +300,38 @@ class ResidualModelFrameRotation(ResidualModel):
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_poses) == 1
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
-        obj.id = self._get_id(data.state, ee_name)
+        obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose.rotation
         return pt.weights.w_end_effector_poses[ee_name][3:]
 
-    @staticmethod
-    def _get_id(state, id):
-        rmodel: pinocchio.Model = state.pinocchio
-        if isinstance(id, str):
-            assert rmodel.existFrame(id)
-            id = rmodel.getFrameId(id)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
+    def build(self, data: BuildData):
+        id = get_frame_id(data.state, self.id)
+        if self.pref is None:
+            pref = np.eye(3)
+        else:
+            assert self.pref
+            pref = pinocchio.Quaternion(self.pref[3:]).toRotationMatrix()
+        return crocoddyl.ResidualModelFrameRotation(data.state, id, pref)
+
+
+@dataclasses.dataclass
+class ResidualModelFrameRotationStatic(ResidualModel):
+    """Variant of ResidualModelFrameRotation requiring statically
+    defined frame, for multi end effector support"""
+
+    class_: T.ClassVar[str] = "ResidualModelFrameRotation"
+    frame_id: T.Optional[str]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert self.frame_id in pt.point.end_effector_poses, (
+            f"end_effector_poses should contains key {self.frame_id}"
+        )
+        obj.reference = pt.point.end_effector_poses[self.frame_id].rotation
+        return pt.weights.w_end_effector_poses[self.frame_id][3:]
 
     def build(self, data: BuildData):
-        id = self._get_id(data.state, self.id)
+        id = get_frame_id(data.state, self.frame_id)
         if self.pref is None:
             pref = np.eye(3)
         else:
@@ -288,28 +348,60 @@ class ResidualModelFrameVelocity(ResidualModel):
     reference_frame: T.Optional[str] = "WORLD"
 
     def __post_init__(self):
-        assert self.reference_frame in ["WORLD", "LOCAL", "LOCAL_WORLD_ALIGNED"], (
+        assert self.reference_frame in [
+            "WORLD",
+            "LOCAL",
+            "LOCAL_WORLD_ALIGNED",
+        ], (
             "ResidualModelFrameVelocity.reference_frame has to be one of: 'WORLD', 'LOCAL', 'LOCAL_WORLD_ALIGNED'."
         )
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         assert len(pt.point.end_effector_velocities) == 1
         ee_name, ee_vel = next(iter(pt.point.end_effector_velocities.items()))
-        obj.id = self._get_id(data.state, ee_name)
+        obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_vel
         return pt.weights.w_end_effector_velocities[ee_name]
 
-    @staticmethod
-    def _get_id(state, id):
-        rmodel: pinocchio.Model = state.pinocchio
-        if isinstance(id, str):
-            assert rmodel.existFrame(id)
-            id = rmodel.getFrameId(id)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
+    def build(self, data: BuildData):
+        id = get_frame_id(data.state, self.id)
+        if self.pref is None:
+            pref = pinocchio.Motion(np.zeros(6))
+        else:
+            assert self.pref
+            pref = pinocchio.Motion(self.pref)
+        frame = getattr(pinocchio, self.reference_frame)
+        return crocoddyl.ResidualModelFrameVelocity(data.state, id, pref, frame)
+
+
+@dataclasses.dataclass
+class ResidualModelFrameVelocityStatic(ResidualModel):
+    """Variant of ResidualModelFrameVelocity requiring statically
+    defined frame, for multi end effector support"""
+
+    class_: T.ClassVar[str] = "ResidualModelFrameVelocity"
+    frame_id: T.Optional[str]
+    pref: T.Optional[npt.NDArray[np.float64]] = None
+    reference_frame: T.Optional[str] = "WORLD"
+
+    def __post_init__(self):
+        assert self.reference_frame in [
+            "WORLD",
+            "LOCAL",
+            "LOCAL_WORLD_ALIGNED",
+        ], (
+            "ResidualModelFrameVelocity.reference_frame has to be one of: 'WORLD', 'LOCAL', 'LOCAL_WORLD_ALIGNED'."
+        )
+
+    def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert self.frame_id in pt.point.end_effector_velocities, (
+            f"end_effector_velocities should contains key {self.frame_id}"
+        )
+        obj.reference = pt.point.end_effector_velocities[self.frame_id]
+        return pt.weights.w_end_effector_poses[self.frame_id]
 
     def build(self, data: BuildData):
-        id = self._get_id(data.state, self.id)
+        id = get_frame_id(data.state, self.frame_id)
         if self.pref is None:
             pref = pinocchio.Motion(np.zeros(6))
         else:
@@ -359,18 +451,8 @@ class ResidualModelVisualServoing(ResidualModel):
             obj.reference = wMo_vision * oMf_target
         return weights
 
-    @staticmethod
-    def _get_id(state: crocoddyl.StateMultibody, name: str):
-        rmodel: pinocchio.Model = state.pinocchio
-        assert rmodel.existFrame(name), (
-            f"{name} not found in model. Frames are {[f.name for f in rmodel.frames]}"
-        )
-        id = rmodel.getFrameId(name)
-        assert isinstance(id, int) and id < rmodel.nframes
-        return id
-
     def build(self, data: BuildData):
-        world_frame_id = self._get_id(data.state, self.world_frame)
+        world_frame_id = get_frame_id(data.state, self.world_frame)
         f = data.state.pinocchio.frames[world_frame_id]
         assert f.parentJoint == 0, (
             f"Parent joint of world frame ({self.world_frame}) should be 0"
@@ -384,7 +466,7 @@ class ResidualModelVisualServoing(ResidualModel):
 
         data.transforms.setdefault(self.transforms_key, None)
 
-        frame_id = self._get_id(data.state, self.robot_frame)
+        frame_id = get_frame_id(data.state, self.robot_frame)
         pref = pinocchio.SE3.Identity()
         return crocoddyl.ResidualModelFramePlacement(data.state, frame_id, pref)
 

@@ -6,7 +6,7 @@ from linear_feedback_controller_msgs_py.numpy_conversions import matrix_numpy_to
 
 import rclpy
 from geometry_msgs.msg import Pose, Transform, Twist, Wrench
-from agimus_msgs.msg import MpcInput, MpcDebug, Residual
+from agimus_msgs.msg import MpcEEInput, MpcInput, MpcDebug, Residual
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
 from rcl_interfaces.msg import ParameterValue
@@ -32,6 +32,11 @@ def ros_pose_to_array(pose: Pose) -> npt.NDArray[np.float64]:
             pose.orientation.w,
         ]
     )
+
+
+def ros_pose_to_se3(pose: Pose) -> pin.SE3:
+    """Convert geometry_msgs.msg.Pose to a Pinocchio SE3 object"""
+    return pin.XYZQUATToSE3(ros_pose_to_array(pose))
 
 
 def array_to_ros_pose(pose_array: npt.NDArray[np.float64]) -> Pose:
@@ -169,9 +174,6 @@ def mpc_msg_to_weighted_traj_point(
     msg: MpcInput, time_ns: int
 ) -> WeightedTrajectoryPoint:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
-    xyz_quat_pose = ros_pose_to_array(msg.pose)
-    twist = ros_twist_to_motion(msg.twist)
-    force = ros_wrench_to_force(msg.force)
     traj_point = TrajectoryPoint(
         id=msg.id,
         time_ns=time_ns,
@@ -179,9 +181,15 @@ def mpc_msg_to_weighted_traj_point(
         robot_velocity=np.array(msg.qdot, dtype=np.float64),
         robot_acceleration=np.array(msg.qddot, dtype=np.float64),
         robot_effort=np.array(msg.robot_effort, dtype=np.float64),
-        end_effector_poses={msg.ee_frame_name: pin.XYZQUATToSE3(xyz_quat_pose)},
-        end_effector_velocities={msg.ee_frame_name: twist},
-        forces={msg.ee_frame_name: force},
+        end_effector_poses={
+            data.frame_id: ros_pose_to_se3(data.pose) for data in msg.ee_inputs
+        },
+        end_effector_velocities={
+            data.frame_id: ros_twist_to_motion(data.twist) for data in msg.ee_inputs
+        },
+        forces={
+            data.frame_id: ros_wrench_to_force(data.force) for data in msg.ee_inputs
+        },
     )
 
     traj_weights = TrajectoryPointWeights(
@@ -189,10 +197,12 @@ def mpc_msg_to_weighted_traj_point(
         w_robot_velocity=np.array(msg.w_qdot, dtype=np.float64),
         w_robot_acceleration=np.array(msg.w_qddot, dtype=np.float64),
         w_robot_effort=np.array(msg.w_robot_effort, dtype=np.float64),
-        w_end_effector_poses={msg.ee_frame_name: np.array(msg.w_pose)},
-        w_end_effector_velocities={msg.ee_frame_name: np.array(msg.w_twist)},
-        w_forces={msg.ee_frame_name: np.array(msg.w_force)},
         w_collision_avoidance=msg.w_collision_avoidance,
+        w_end_effector_poses={data.frame_id: data.w_pose for data in msg.ee_inputs},
+        w_end_effector_velocities={
+            data.frame_id: data.w_twist for data in msg.ee_inputs
+        },
+        w_forces={data.frame_id: data.w_force for data in msg.ee_inputs},
     )
 
     return WeightedTrajectoryPoint(point=traj_point, weights=traj_weights)
@@ -202,56 +212,84 @@ def weighted_traj_point_to_mpc_msg(w_traj_point: WeightedTrajectoryPoint) -> Mpc
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
     # get the first key of the dictionary
 
-    ee_frame_name = next(iter(w_traj_point.point.end_effector_poses.keys()))
+    def _generate_mpc_ee_input(frame_id: str) -> MpcEEInput:
+        msg = MpcEEInput(frame_id=frame_id)
 
-    msg = MpcInput()
-    msg.id = w_traj_point.point.id
-    msg.w_q = list(w_traj_point.weights.w_robot_configuration)
-    msg.w_qdot = list(w_traj_point.weights.w_robot_velocity)
-    msg.w_qddot = list(w_traj_point.weights.w_robot_acceleration)
-    msg.w_robot_effort = list(w_traj_point.weights.w_robot_effort)
+        pose = w_traj_point.point.end_effector_poses
+        if pose is not None and frame_id in pose and pose[frame_id] is not None:
+            wMee = pose[frame_id]
+            if isinstance(wMee, pin.SE3):
+                # This is the type defined in the annotation of the class definition
+                # However, this is not enforced, hence the else.
+                wMee = pin.SE3ToXYZQUAT(wMee)
+            else:
+                pass
+            msg.pose = array_to_ros_pose(wMee)
 
-    w_poses = w_traj_point.weights.w_end_effector_poses
-    if w_poses and len(w_poses) > 0:
-        msg.w_pose = w_poses[ee_frame_name]
+        twist = w_traj_point.point.end_effector_velocities
+        if twist is not None and frame_id in twist and twist[frame_id] is not None:
+            msg.twist = motion_to_ros_twist(twist[frame_id])
 
-    w_vel = w_traj_point.weights.w_end_effector_velocities
-    if w_vel and len(w_vel) > 0:
-        msg.w_twist = w_vel[ee_frame_name]
+        force = w_traj_point.point.forces
+        if force is not None and frame_id in force and force[frame_id] is not None:
+            msg.force = force_to_ros_wrench(force[frame_id])
 
-    w_force = w_traj_point.weights.w_forces
-    if w_force and len(w_force) > 0:
-        msg.w_force = w_force[ee_frame_name]
+        w_pose = w_traj_point.weights.w_end_effector_poses
+        if w_pose is not None and frame_id in w_pose and w_pose[frame_id] is not None:
+            msg.w_pose = w_pose[frame_id]
 
-    msg.q = list(w_traj_point.point.robot_configuration)
-    msg.qdot = list(w_traj_point.point.robot_velocity)
-    msg.qddot = list(w_traj_point.point.robot_acceleration)
-    msg.robot_effort = list(w_traj_point.point.robot_effort)
+        w_twist = w_traj_point.weights.w_end_effector_velocities
+        if (
+            w_twist is not None
+            and frame_id in w_twist
+            and w_twist[frame_id] is not None
+        ):
+            msg.w_twist = w_twist[frame_id]
 
-    pose = w_traj_point.point.end_effector_poses
-    if pose and len(pose) > 0:
-        wMee = pose[ee_frame_name]
-        if isinstance(wMee, pin.SE3):
-            # This is the type defined in the annotation of the class definition
-            # However, this is not enforced, hence the else.
-            wMee = pin.SE3ToXYZQUAT(wMee)
-        else:
-            pass
-        msg.pose = array_to_ros_pose(wMee)
+        w_force = w_traj_point.weights.w_forces
+        if (
+            w_force is not None
+            and frame_id in w_force
+            and w_force[frame_id] is not None
+        ):
+            msg.w_force = w_force[frame_id]
 
-    vel = w_traj_point.point.end_effector_velocities
-    if vel and len(vel) > 0:
-        msg.twist = motion_to_ros_twist(vel[ee_frame_name])
+        return msg
 
-    force = w_traj_point.point.forces
-    if force and len(force):
-        msg.force = force_to_ros_wrench(force[ee_frame_name])
+    # Find all possible frame ids in all dictionaries
+    frame_ids = set().union(
+        *[
+            set(d.keys())
+            for d in (
+                w_traj_point.point.end_effector_poses,
+                w_traj_point.point.end_effector_velocities,
+                w_traj_point.point.forces,
+                w_traj_point.weights.w_end_effector_poses,
+                w_traj_point.weights.w_end_effector_velocities,
+                w_traj_point.weights.w_forces,
+            )
+            if d is not None
+        ]
+    )
 
-    if w_traj_point.weights.w_collision_avoidance:
-        msg.w_collision_avoidance = w_traj_point.weights.w_collision_avoidance
+    w_col = w_traj_point.weights.w_collision_avoidance
 
-    msg.ee_frame_name = ee_frame_name
-    return msg
+    return MpcInput(
+        id=w_traj_point.point.id,
+        # Targets
+        q=list(w_traj_point.point.robot_configuration),
+        qdot=list(w_traj_point.point.robot_velocity),
+        qddot=list(w_traj_point.point.robot_acceleration),
+        robot_effort=list(w_traj_point.point.robot_effort),
+        # Weights
+        w_q=list(w_traj_point.weights.w_robot_configuration),
+        w_qdot=list(w_traj_point.weights.w_robot_velocity),
+        w_qddot=list(w_traj_point.weights.w_robot_acceleration),
+        w_robot_effort=list(w_traj_point.weights.w_robot_effort),
+        w_collision_avoidance=w_col if w_col is not None else 0.0,
+        # End Effectors
+        ee_inputs=[_generate_mpc_ee_input(frame_id) for frame_id in frame_ids],
+    )
 
 
 def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:

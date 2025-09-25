@@ -353,8 +353,8 @@ class AgimusController(Node, RobotModelsMixin):
             msg, self.get_clock().now().nanoseconds
         )
         self.traj_buffer.append(w_traj_point)
-        self.params.ocp.effector_frame_name = msg.ee_frame_name
-        self.effector_frame_name = msg.ee_frame_name
+        self.params.ocp.effector_frame_name = msg.ee_inputs[0].frame_id
+        self.effector_frame_name = msg.ee_inputs[0].frame_id
 
     def buffer_has_enough_data(self, ratio: float) -> bool:
         """
