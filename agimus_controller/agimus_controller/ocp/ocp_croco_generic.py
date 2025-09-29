@@ -8,6 +8,7 @@ import dataclasses
 import yaml
 import pinocchio as pin
 import typing as T
+import resource_retriever as r
 
 from agimus_controller.ocp_base_croco import (
     OCPBaseCroco,
@@ -742,12 +743,12 @@ class OCPCrocoGeneric(OCPBaseCroco):
         params: OCPParamsBaseCroco,
         yaml_file: T.Union[str, T.IO],
     ) -> None:
-        with open(yaml_file, "r") as f:
-            data = yaml.safe_load(f)
+        data = yaml.safe_load(r.get(yaml_file))
         self._data = ShootingProblem(**data)
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
+        self._expect_variable_dt = len(self._ocp_params.dt_factor_n_seq) == 1
         self.init_debug_data_attributes()
 
     @property
@@ -833,11 +834,29 @@ class OCPCrocoGeneric(OCPBaseCroco):
         problem = self._solver.problem
 
         # Modify running costs reference and weights
-        for running_model, ref_weighted_pt in zip(
-            problem.runningModels, reference_weighted_trajectory[:-1]
-        ):
+        if self._expect_variable_dt:
+            for running_model, ref_weighted_pt in zip(
+                problem.runningModels, reference_weighted_trajectory[:-1]
+            ):
+                self._data.running_model.update(
+                    self._build_data, running_model, ref_weighted_pt
+                )
+        else:
+            if self._first_call:
+                for running_model, ref_weighted_pt in zip(
+                    problem.runningModels, reference_weighted_trajectory[:-1]
+                ):
+                    self._data.running_model.update(
+                        self._build_data, running_model, ref_weighted_pt
+                    )
+                self._first_call = False
+            else:
+                problem.circularAppend(problem.runningModels[0])
+
             self._data.running_model.update(
-                self._build_data, running_model, ref_weighted_pt
+                self._build_data,
+                problem.runningModels[-1],
+                reference_weighted_trajectory[-2],
             )
 
         self._data.terminal_model.update(
