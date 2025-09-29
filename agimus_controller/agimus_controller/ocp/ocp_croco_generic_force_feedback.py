@@ -193,12 +193,14 @@ class OCPCrocoForceFeedbackGeneric(OCPCrocoGeneric):
         robot_models: RobotModels,
         ocp_params: OCPParamsBaseCroco,
         yaml_file: T.Union[str, T.IO],
+        expect_rolling_buffer: bool = False,
     ) -> None:
         data = yaml.safe_load(r.get(yaml_file))
         self._data = ShootingProblem(**data)
         self._enabled_directions = (
             self._data.running_model.differential.enabled_directions
         )
+        self._expect_rolling_buffer = expect_rolling_buffer
 
         # Setting the robot model
         self._robot_models = robot_models

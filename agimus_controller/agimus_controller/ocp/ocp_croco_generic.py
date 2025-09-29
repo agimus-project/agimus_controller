@@ -742,13 +742,14 @@ class OCPCrocoGeneric(OCPBaseCroco):
         robot_models: RobotModels,
         params: OCPParamsBaseCroco,
         yaml_file: T.Union[str, T.IO],
+        expect_rolling_buffer: bool = False,
     ) -> None:
         data = yaml.safe_load(r.get(yaml_file))
         self._data = ShootingProblem(**data)
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
-        self._expect_variable_dt = len(self._ocp_params.dt_factor_n_seq) == 1
+        self._expect_rolling_buffer = expect_rolling_buffer
         self.init_debug_data_attributes()
 
     @property
@@ -834,14 +835,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
         problem = self._solver.problem
 
         # Modify running costs reference and weights
-        if self._expect_variable_dt:
-            for running_model, ref_weighted_pt in zip(
-                problem.runningModels, reference_weighted_trajectory[:-1]
-            ):
-                self._data.running_model.update(
-                    self._build_data, running_model, ref_weighted_pt
-                )
-        else:
+        if self._expect_rolling_buffer:
             if self._first_call:
                 for running_model, ref_weighted_pt in zip(
                     problem.runningModels, reference_weighted_trajectory[:-1]
@@ -858,6 +852,13 @@ class OCPCrocoGeneric(OCPBaseCroco):
                 problem.runningModels[-1],
                 reference_weighted_trajectory[-2],
             )
+        else:
+            for running_model, ref_weighted_pt in zip(
+                problem.runningModels, reference_weighted_trajectory[:-1]
+            ):
+                self._data.running_model.update(
+                    self._build_data, running_model, ref_weighted_pt
+                )
 
         self._data.terminal_model.update(
             self._build_data, problem.terminalModel, reference_weighted_trajectory[-1]
