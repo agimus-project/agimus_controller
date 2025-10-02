@@ -17,6 +17,7 @@ from agimus_controller.ocp.ocp_croco_generic import (
     ConstraintListItem,
     DifferentialActionModel,
     IntegratedActionModelAbstract,
+    ResidualDistanceCollisionBase,
     OCPCrocoGeneric,
     ShootingProblem,
     create_nested_dataclass,
@@ -131,7 +132,12 @@ class DAMSoftContactAugmentedFwdDynamics(DifferentialActionModel):
     def update(self, data, dam, pt: WeightedTrajectoryPoint):
         for cost in self.costs:
             if cost.update:
-                cost.cost.update(data, dam.costs.costs[cost.name].cost, pt)
+                # collision avoidance cost activation use no vectors of weights,
+                # so we directly modify the scalar weight
+                if isinstance(cost.cost.residual, ResidualDistanceCollisionBase):
+                    dam.costs.costs[cost.name].weight = pt.weights.w_collision_avoidance
+                else:
+                    cost.cost.update(data, dam.costs.costs[cost.name].cost, pt)
 
         # Update the desired force.
         assert self.frame_id in pt.point.forces, (
