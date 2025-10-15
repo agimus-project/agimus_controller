@@ -168,6 +168,18 @@ class IAMSoftContactAugmented(IntegratedActionModelAbstract):
     def __post_init__(self):
         assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
 
+        if self.force_ub is not None:
+            fub_len = len(self.force_ub)
+            assert fub_len == 3 or fub_len == 1, (
+                f"Incorrect size of force upper bound! Is {fub_len}, should be 1 or 3!"
+            )
+
+        if self.force_lb is not None:
+            flb_len = len(self.force_lb)
+            assert flb_len == 3 or flb_len == 1, (
+                f"Incorrect size of force lower bound!, Is {flb_len}, should be 1 or 3!"
+            )
+
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
         self.differential.update(data, obj.differential, pt)
 
@@ -180,15 +192,26 @@ class IAMSoftContactAugmented(IntegratedActionModelAbstract):
         iam = force_feedback_mpc.IAMSoftContactAugmented(
             differential, self.step_time, self.with_cost_residual
         )
-        # If None use default
+        # If no bounds are set, use the default ones
+        force_dimension = sum(self.differential.enabled_directions)
         if self.force_ub is None:
-            self.force_ub = iam.g_ub[-3:]
+            self.force_ub = iam.g_ub[-force_dimension:]
         else:
+            assert len(self.force_ub) == force_dimension, (
+                "Upper bound for forces does not match number "
+                "of enabled force directions in Differential Action Model! "
+                f"Value has {len(self.force_ub)} elements, while should have {force_dimension}"
+            )
             self.force_ub = np.array(self.force_ub)
 
         if self.force_lb is None:
-            self.force_lb = iam.g_lb[-3:]
+            self.force_lb = iam.g_lb[-force_dimension:]
         else:
+            assert len(self.force_lb) == force_dimension, (
+                "Lower bound for forces does not match number "
+                "of enabled force directions in Differential Action Model!"
+                f"Value has {len(self.force_lb)} elements, while should have {force_dimension}"
+            )
             self.force_lb = np.array(self.force_lb)
         return iam
 
