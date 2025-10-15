@@ -70,7 +70,7 @@ def as_dict(obj):
 def get_frame_id(state: crocoddyl.StateMultibody, id: T.Union[str, int]) -> int:
     rmodel: pinocchio.Model = state.pinocchio
     if isinstance(id, str):
-        assert rmodel.existFrame(id)
+        assert rmodel.existFrame(id), f"Frame '{id}' does not exist!"
         id = rmodel.getFrameId(id)
     assert isinstance(id, int) and id < rmodel.nframes
     return id
@@ -750,6 +750,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
         self._expect_rolling_buffer = expect_rolling_buffer
+        self._first_call = True
         self.init_debug_data_attributes()
 
     @property
