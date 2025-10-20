@@ -13,14 +13,13 @@ setup(
     install_requires=[
         "crocoddyl",
         "mim_solvers",
-        "numpy==1.21.5",
-        "pinocchio",
-        "setuptools",
+        "numpy",
+        "pin",
     ],
     zip_safe=True,
     maintainer="Guilhem Saurel",
     maintainer_email="guilhem.saurel@laas.fr",
     description="Implements whole body MPC in python using the Croccodyl framework.",
-    license="BSD-2",
+    license="BSD-2-Clause",
     tests_require=["pytest"],
 )
