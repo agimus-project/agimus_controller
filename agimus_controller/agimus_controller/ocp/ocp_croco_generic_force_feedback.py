@@ -8,7 +8,6 @@ import mim_solvers
 import numpy as np
 import numpy.typing as npt
 import pinocchio
-import resource_retriever as r
 from agimus_controller.factory.robot_model import RobotModels
 from agimus_controller.mpc_data import OCPDebugData, OCPResults
 from agimus_controller.ocp.ocp_croco_generic import (
@@ -224,7 +223,8 @@ class OCPCrocoForceFeedbackGeneric(OCPCrocoGeneric):
         yaml_file: T.Union[str, T.IO],
         expect_rolling_buffer: bool = False,
     ) -> None:
-        data = yaml.safe_load(r.get(yaml_file))
+        with open(yaml_file, "r") as f:
+            data = yaml.safe_load(f)
         self._data = ShootingProblem(**data)
         self._enabled_directions = (
             self._data.running_model.differential.enabled_directions

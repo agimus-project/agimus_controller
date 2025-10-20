@@ -8,7 +8,7 @@ import dataclasses
 import yaml
 import pinocchio as pin
 import typing as T
-import resource_retriever as r
+
 
 from agimus_controller.ocp_base_croco import (
     OCPBaseCroco,
@@ -744,7 +744,8 @@ class OCPCrocoGeneric(OCPBaseCroco):
         yaml_file: T.Union[str, T.IO],
         expect_rolling_buffer: bool = False,
     ) -> None:
-        data = yaml.safe_load(r.get(yaml_file))
+        with open(yaml_file, "r") as f:
+            data = yaml.safe_load(f)
         self._data = ShootingProblem(**data)
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()

@@ -16,7 +16,6 @@ import typing as T
 import crocoddyl
 import numpy as np
 import numpy.typing as npt
-import resource_retriever as r
 import yaml
 from agimus_controller.factory.robot_model import RobotModels
 from agimus_controller.ocp.ocp_croco_generic import BuildData, ShootingProblem
@@ -51,7 +50,8 @@ class WarmStartShiftPreviousSolutionForceFeedback(WarmStartShiftPreviousSolution
         assert ocp_params.dt == self._timesteps[0]
         assert all(dt >= self._dt for dt in self._timesteps)
 
-        data = yaml.safe_load(r.get(yaml_file))
+        with open(yaml_file, "r") as f:
+            data = yaml.safe_load(f)
         data["running_model"]["differential"]["costs"] = []
 
         self._state = crocoddyl.StateMultibody(robot_models.robot_model)
