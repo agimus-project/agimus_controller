@@ -9,6 +9,7 @@ import yaml
 import pinocchio as pin
 import typing as T
 
+
 from agimus_controller.ocp_base_croco import (
     OCPBaseCroco,
     RobotModels,
@@ -69,7 +70,7 @@ def as_dict(obj):
 def get_frame_id(state: crocoddyl.StateMultibody, id: T.Union[str, int]) -> int:
     rmodel: pinocchio.Model = state.pinocchio
     if isinstance(id, str):
-        assert rmodel.existFrame(id)
+        assert rmodel.existFrame(id), f"Frame '{id}' does not exist!"
         id = rmodel.getFrameId(id)
     assert isinstance(id, int) and id < rmodel.nframes
     return id
@@ -741,6 +742,7 @@ class OCPCrocoGeneric(OCPBaseCroco):
         robot_models: RobotModels,
         params: OCPParamsBaseCroco,
         yaml_file: T.Union[str, T.IO],
+        expect_rolling_buffer: bool = False,
     ) -> None:
         with open(yaml_file, "r") as f:
             data = yaml.safe_load(f)
@@ -748,6 +750,8 @@ class OCPCrocoGeneric(OCPBaseCroco):
         super().__init__(
             robot_models, params, use_colmpc_state=self._data.needs_colmpc_state()
         )
+        self._expect_rolling_buffer = expect_rolling_buffer
+        self._first_call = True
         self.init_debug_data_attributes()
 
     @property
@@ -833,12 +837,30 @@ class OCPCrocoGeneric(OCPBaseCroco):
         problem = self._solver.problem
 
         # Modify running costs reference and weights
-        for running_model, ref_weighted_pt in zip(
-            problem.runningModels, reference_weighted_trajectory[:-1]
-        ):
+        if self._expect_rolling_buffer:
+            if self._first_call:
+                for running_model, ref_weighted_pt in zip(
+                    problem.runningModels, reference_weighted_trajectory[:-1]
+                ):
+                    self._data.running_model.update(
+                        self._build_data, running_model, ref_weighted_pt
+                    )
+                self._first_call = False
+            else:
+                problem.circularAppend(problem.runningModels[0])
+
             self._data.running_model.update(
-                self._build_data, running_model, ref_weighted_pt
+                self._build_data,
+                problem.runningModels[-1],
+                reference_weighted_trajectory[-2],
             )
+        else:
+            for running_model, ref_weighted_pt in zip(
+                problem.runningModels, reference_weighted_trajectory[:-1]
+            ):
+                self._data.running_model.update(
+                    self._build_data, running_model, ref_weighted_pt
+                )
 
         self._data.terminal_model.update(
             self._build_data, problem.terminalModel, reference_weighted_trajectory[-1]

@@ -18,6 +18,8 @@
   <exec_depend>crocoddyl</exec_depend>
   <exec_depend>coal</exec_depend>
   <exec_depend>example-robot-data</exec_depend>
+  <!-- TODO fix installing of this dependency -->
+  <!-- <exec_depend>force_feedback_mpc</exec_depend> -->
   <exec_depend>mim_solvers</exec_depend>
   <exec_depend>pinocchio</exec_depend>
 

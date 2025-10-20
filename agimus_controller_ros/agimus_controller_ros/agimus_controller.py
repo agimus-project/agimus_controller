@@ -2,6 +2,7 @@
 import numpy as np
 import time
 import os
+import resource_retriever as r
 
 import rclpy
 from rclpy.duration import Duration
@@ -307,6 +308,8 @@ class AgimusController(Node, RobotModelsMixin):
         yaml_file = self.params.ocp.definition_yaml_file
         if yaml_file == "":
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
+        else:
+            yaml_file = r.get_filename(yaml_file, use_protocol=False)
         self.get_logger().info(f"Loading OCP definition file {yaml_file}")
         self.ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
 
