@@ -569,13 +569,17 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
             assert len(self._horizon_indices) == len(self._ref_marker_array.markers), (
                 f"{len(self._horizon_indices)} != {len(self._ref_marker_array.markers)}"
             )
-            assert len(self._horizon_indices) == len(self._ref_marker_array_pose.markers), (
+            assert len(self._horizon_indices) == len(
+                self._ref_marker_array_pose.markers
+            ), (
                 f"{len(self._horizon_indices)} != {len(self._ref_marker_array_pose.markers)}"
             )
 
-            for i, marker, marker_pose in zip(self._horizon_indices,
-                                              self._ref_marker_array.markers,
-                                              self._ref_marker_array_pose.markers):
+            for i, marker, marker_pose in zip(
+                self._horizon_indices,
+                self._ref_marker_array.markers,
+                self._ref_marker_array_pose.markers,
+            ):
                 if i >= len(self._references):
                     self.get_logger().warn(
                         f"Not enough references. Nb ref is {len(self._references)}. Need {self._horizon_indices[-1] + 1}",
