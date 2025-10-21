@@ -464,6 +464,14 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 rgba1=[0.0, 1.0, 0.5, 0.2],
             )
         )
+        self._ref_marker_array_pose = MarkerArray(
+            markers=self._create_marker_array(
+                namespace="states_references_pose",
+                size=len(self._horizon_indices),
+                rgba0=[0.0, 1.0, 0.0, 1.0],
+                rgba1=[0.0, 0.5, 1.0, 0.2],
+            )
+        )
         self._mpc_debug_sub = self.create_subscription(
             MpcDebug,
             "mpc_debug",
@@ -476,6 +484,14 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self._mpc_ref_markers_pub = self.create_publisher(
             MarkerArray,
             "mpc_states_reference_markers",
+            qos_profile=QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
+        )
+        self._mpc_ref_markers_pose_pub = self.create_publisher(
+            MarkerArray,
+            "mpc_states_reference_markers_pose",
             qos_profile=QoSProfile(
                 depth=10,
                 reliability=ReliabilityPolicy.RELIABLE,
@@ -553,7 +569,13 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
             assert len(self._horizon_indices) == len(self._ref_marker_array.markers), (
                 f"{len(self._horizon_indices)} != {len(self._ref_marker_array.markers)}"
             )
-            for i, marker in zip(self._horizon_indices, self._ref_marker_array.markers):
+            assert len(self._horizon_indices) == len(self._ref_marker_array_pose.markers), (
+                f"{len(self._horizon_indices)} != {len(self._ref_marker_array_pose.markers)}"
+            )
+
+            for i, marker, marker_pose in zip(self._horizon_indices,
+                                              self._ref_marker_array.markers,
+                                              self._ref_marker_array_pose.markers):
                 if i >= len(self._references):
                     self.get_logger().warn(
                         f"Not enough references. Nb ref is {len(self._references)}. Need {self._horizon_indices[-1] + 1}",
@@ -566,10 +588,15 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
                 M = pinocchio.updateFramePlacement(self.rmodel, self.rdata, self._fid)
                 marker.pose = se3_to_pose_msg(M)
 
+                pose = list(self._references[i].point.end_effector_poses.values())[0]
+                # TODO how to use the correct ee frame from dict?
+                marker_pose.pose = se3_to_pose_msg(pose)
+
             if len(self._references) > self._horizon_indices[-1]:
                 controls = matrix_msg_to_numpy(msg.control_predictions)
                 self._evaluate_ocp(states, controls)
             self._mpc_ref_markers_pub.publish(self._ref_marker_array)
+            self._mpc_ref_markers_pose_pub.publish(self._ref_marker_array_pose)
         else:
             self.get_logger().warn(
                 f"First ref id: {self._references[0].point.id}. Msg id: {msg.trajectory_reference_id}",
