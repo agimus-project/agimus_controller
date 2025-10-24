@@ -226,6 +226,9 @@ class AgimusController(Node, RobotModelsMixin):
         # Create topic subscribers for MPC geometries
         self.geom_subscribers = []
         for geom_name in self.params.moving_geometries_names:
+            # Skip invalid topic name
+            if geom_name == "":
+                continue
             self.geom_subscribers.append(
                 self.create_subscription(
                     Pose,
