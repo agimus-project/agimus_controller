@@ -206,18 +206,18 @@ class RobotModels:
                 else 0
             )
             self._full_robot_model, self._collision_model = pin.appendModel(
-                env_model,
                 self._full_robot_model,
-                env_collision_model,
+                env_model,
                 self._collision_model,
+                env_collision_model,
                 robot_attachment_frame_id,
                 pin.SE3.Identity(),
             )
             _, self._visual_model = pin.appendModel(
-                self._full_robot_model,
                 pin.Model(),
-                self.visual_model,
+                self._full_robot_model,
                 env_visual_model,
+                self.visual_model,
                 0,
                 pin.SE3.Identity(),
             )
@@ -312,18 +312,17 @@ class RobotModels:
     def _add_collision_pairs(self) -> None:
         """Add collision pairs to the collision model."""
         for geom1_name, geom2_name in self._params.collision_pairs:
-            try:
-                geom1_id = self.collision_model.getGeometryId(geom1_name)
-                geom2_id = self.collision_model.getGeometryId(geom2_name)
-                self.collision_model.addCollisionPair(
-                    pin.CollisionPair(geom1_id, geom2_id)
-                )
-            except Exception as e:
-                raise ValueError(
-                    f"Invalid collision pair with names {geom1_name} {geom2_name} "
-                    f"and ids {geom1_id} {geom2_id} in collision_model:\n"
-                    f"{self.collision_model}\ngot error : {e}"
-                )
+            for geom in (geom1_name, geom2_name):
+                if not self.collision_model.existGeometryName(geom):
+                    raise ValueError(
+                        f"Invalid collision pair with name {geom}{self.collision_model}"
+                    )
+            geom1_id = self.collision_model.getGeometryId(geom1_name)
+            geom2_id = self.collision_model.getGeometryId(geom2_name)
+            self.collision_model.addCollisionPair(pin.CollisionPair(geom1_id, geom2_id))
+
+            for i in self.collision_model.geometryObjects:
+                print(f"\n\n\n\n{geom1_id}, {geom2_id}\n\n\n\n")
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
         """Generates a unique capsule name for a geometry object.

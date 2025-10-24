@@ -384,8 +384,9 @@ class AgimusController(Node, RobotModelsMixin):
             self.get_logger().warn(
                 f"Trying to update geom '{geom_name}', "
                 "but the MPC was not initialized yet...",
-                throttle=5.0,
+                throttle_duration_sec=5.0,
             )
+            return
 
         self.ocp.update_obstacle_placement(geom_name, ros_pose_to_se3(pose))
 
