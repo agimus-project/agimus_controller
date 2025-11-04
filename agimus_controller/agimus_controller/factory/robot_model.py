@@ -321,9 +321,6 @@ class RobotModels:
             geom2_id = self.collision_model.getGeometryId(geom2_name)
             self.collision_model.addCollisionPair(pin.CollisionPair(geom1_id, geom2_id))
 
-            for i in self.collision_model.geometryObjects:
-                print(f"\n\n\n\n{geom1_id}, {geom2_id}\n\n\n\n")
-
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
         """Generates a unique capsule name for a geometry object.
         Args:
