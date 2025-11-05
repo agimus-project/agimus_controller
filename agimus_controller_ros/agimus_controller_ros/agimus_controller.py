@@ -3,6 +3,7 @@ import numpy as np
 import time
 import os
 import resource_retriever as r
+from functools import partial
 
 import rclpy
 from rclpy.duration import Duration
@@ -11,6 +12,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 import rclpy.time
 from std_msgs.msg import Int32, String
+from geometry_msgs.msg import Pose
 from agimus_msgs.msg import MpcInput, MpcDebug
 import builtin_interfaces
 
@@ -42,6 +44,7 @@ from agimus_controller_ros.ros_utils import (
     mpc_debug_data_to_msg,
     transform_msg_to_se3,
     get_param_from_node,
+    ros_pose_to_se3,
 )
 
 
@@ -219,6 +222,22 @@ class AgimusController(Node, RobotModelsMixin):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
+
+        # Create topic subscribers for MPC geometries
+        self.geom_subscribers = []
+        for geom_name in self.params.moving_geometries_names:
+            # Skip invalid topic name
+            if geom_name == "":
+                continue
+            self.geom_subscribers.append(
+                self.create_subscription(
+                    Pose,
+                    geom_name,
+                    partial(self.update_geom_pose_callback, geom_name=geom_name),
+                    10,
+                )
+            )
+
         self.control_publisher = self.create_publisher(
             Control,
             "control",
@@ -358,6 +377,18 @@ class AgimusController(Node, RobotModelsMixin):
         self.traj_buffer.append(w_traj_point)
         self.params.ocp.effector_frame_name = msg.ee_inputs[0].frame_id
         self.effector_frame_name = msg.ee_inputs[0].frame_id
+
+    def update_geom_pose_callback(self, pose: Pose, geom_name: str):
+        """Updates pose of a geometry with a given name."""
+        if self.mpc is None:
+            self.get_logger().warn(
+                f"Trying to update geom '{geom_name}', "
+                "but the MPC was not initialized yet...",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        self.ocp.update_obstacle_placement(geom_name, ros_pose_to_se3(pose))
 
     def buffer_has_enough_data(self, ratio: float) -> bool:
         """

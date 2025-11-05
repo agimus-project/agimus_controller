@@ -5,6 +5,7 @@ import mim_solvers
 import colmpc
 import numpy as np
 import numpy.typing as npt
+import pinocchio as pin
 
 from agimus_controller.factory.robot_model import RobotModels
 from agimus_controller.mpc_data import OCPResults, OCPDebugData
@@ -30,8 +31,9 @@ class OCPBaseCroco(OCPBase):
         self._collision_model = self._robot_models.collision_model
         self._armature = self._robot_models.armature
 
-        # Stat and actuation model
-        if use_colmpc_state:
+        self._use_colmpc_state = use_colmpc_state
+        # State and actuation model
+        if self._use_colmpc_state:
             self._state = colmpc.StateMultibody(
                 self._robot_models.robot_model, self._robot_models.collision_model
             )
@@ -104,6 +106,19 @@ class OCPBaseCroco(OCPBase):
     def set_reference_weighted_trajectory(self):
         """Set the reference trajectory for the OCP."""
         pass
+
+    def update_obstacle_placement(self, geometry_name: str, placement: pin.SE3):
+        """Updates placement of the obstacles"""
+        if self._use_colmpc_state:
+            if not self._state.geometry.existGeometryName(geometry_name):
+                raise RuntimeError(f"Unknown geometry name '{geometry_name}'!")
+            geom_id = self._state.geometry.getGeometryId(geometry_name)
+            self._state.geometry.geometryObjects[geom_id].placement = placement
+        else:
+            raise NotImplementedError(
+                "Function 'update_obstacle_placement' does not support update "
+                "of obstacle placement without use of ColMPC StateMultibody"
+            )
 
     def fill_debug_data(self, res: bool, ocp_results: OCPResults) -> None:
         """Fill attributes of dataclass OCPDebugData."""

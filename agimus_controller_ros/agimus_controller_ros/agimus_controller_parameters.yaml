@@ -106,3 +106,8 @@ agimus_controller_params:
       description: Name of the second collision geometry of the collision pair.
       validation:
         not_empty<>: []
+  moving_geometries_names:
+    type: string_array
+    default_value: [""]
+    description: List of names of collision geometries which can dynamically change position. Each topic gets it's own topic subscriber.
+    read_only: true
