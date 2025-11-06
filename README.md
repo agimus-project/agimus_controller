@@ -71,6 +71,24 @@ the agimus_controller_node is the MPC node, it is set by two YAML files :
 This trajectory publisher node is set by one YAML file:
 - Sets parameters for the trajectory and it's weights to send, details about these parameters can be found [here](https://github.com/agimus-project/agimus_controller/blob/humble-devel/agimus_controller_ros/agimus_controller_ros/trajectory_weights_parameters.yaml). An example can be found here [trajectory_weigths_params.yaml](https://github.com/agimus-project/agimus-demos/blob/humble-devel/agimus_demo_03_mpc_dummy_traj/config/trajectory_weigths_params.yaml).
 
+##### mpc_plot_node
+
+#### mpc_plot_node
+
+The `mpc_plot_node` is a ROS2 node for visualizing the results of the Model Predictive Control (MPC) algorithm. It loads MPC output data from a ROS bag file and generates plots for analysis and debugging. These plots can include predicted trajectories, control inputs, computation time, collision distances, solver iterations, and visual servoing performance.
+
+To use the node, run:
+
+```bash
+ros2 run agimus_controller_ros mpc_plot_node --bag-file-path <path_to_rosbag> --dt_ocp <time_step> --endeff_name <end_effector_name>
+```
+
+**Arguments:**
+- `--bag-file-path` (`-p`): Path to the ROS bag file containing MPC data.
+- `--dt_ocp` (`-t`): Time step for the optimal control problem (OCP) in seconds.
+- `--endeff_name` (`-e`): Name of the end effector in the robot model.
+
+This node is intended for simulation or development environments to help tune and validate MPC performance.
 
 ### ROS API
 

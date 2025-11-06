@@ -174,13 +174,6 @@ def mpc_msg_to_weighted_traj_point(
     msg: MpcInput, time_ns: int
 ) -> WeightedTrajectoryPoint:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
-    xyz_quat_pose = ros_pose_to_array(msg.pose)
-    twist = pin.Motion.Zero()
-    if hasattr(msg, "twist"):
-        twist = ros_twist_to_motion(msg.twist)
-    force = pin.Force.Zero()
-    if hasattr(msg, "force"):
-        force = ros_wrench_to_force(msg.force)
     id = msg.id if hasattr(msg, "id") else 0
     traj_point = TrajectoryPoint(
         id=id,
@@ -199,16 +192,6 @@ def mpc_msg_to_weighted_traj_point(
             data.frame_id: ros_wrench_to_force(data.force) for data in msg.ee_inputs
         },
     )
-
-    w_twist = np.zeros(6, dtype=np.float64)
-    if hasattr(msg, "w_twist"):
-        w_twist = np.array(msg.w_twist, dtype=np.float64)
-    w_force = np.zeros(6, dtype=np.float64)
-    if hasattr(msg, "w_force"):
-        w_force = np.array(msg.w_force, dtype=np.float64)
-    w_collision_avoidance = 0.0
-    if hasattr(msg, "w_collision_avoidance"):
-        w_collision_avoidance = msg.w_collision_avoidance
     traj_weights = TrajectoryPointWeights(
         w_robot_configuration=np.array(msg.w_q, dtype=np.float64),
         w_robot_velocity=np.array(msg.w_qdot, dtype=np.float64),
