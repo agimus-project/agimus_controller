@@ -12,6 +12,7 @@ from agimus_controller_ros.read_from_bag_trajectory import (
 
 def plot_mpc(args) -> None:
     bag_file_path = Path(args.bag_file_path)
+    delete_tmp_srdf = False
     if "panda" in bag_file_path.stem:
         franka_pkg = Path(get_package_share_directory("franka_description"))
         franka_urdf_path = franka_pkg / "robots" / "fer" / "fer.urdf.xacro"
@@ -57,9 +58,11 @@ def plot_mpc(args) -> None:
             },
         ).toxml()
         # Write SRDF XML to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".srdf") as tmp_srdf:
-            tmp_srdf.write(tiago_pro_srdf_xml.encode("utf-8"))
-            tmp_srdf_path = Path(tmp_srdf.name)
+        tmp_srdf = tempfile.NamedTemporaryFile(delete=False, suffix=".srdf")
+        tmp_srdf.write(tiago_pro_srdf_xml.encode("utf-8"))
+        tmp_srdf.close()
+        tmp_srdf_path = Path(tmp_srdf.name)
+        delete_tmp_srdf = True
         moving_joint_names = [
             "arm_right_1_joint",
             "arm_right_2_joint",
@@ -100,6 +103,9 @@ def plot_mpc(args) -> None:
     }
 
     plot_mpc_data(mpc_data, mpc_config, robot_models.robot_model, which_plots)
+
+    if delete_tmp_srdf:
+        tmp_srdf_path.unlink()
     return
 
 
