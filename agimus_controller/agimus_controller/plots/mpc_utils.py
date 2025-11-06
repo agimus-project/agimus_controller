@@ -1,7 +1,10 @@
-import numpy as np
+import os
+
+import matplotlib
 from matplotlib.collections import LineCollection
 import matplotlib.pyplot as plt
-import matplotlib
+import numpy as np
+
 from agimus_controller.plots.pin_utils import (
     get_p_,
     get_v_,
@@ -10,7 +13,13 @@ from agimus_controller.plots.pin_utils import (
     get_w_,
 )
 
-import os
+
+def get_nb_in_saturation_constraint(col_values, safety_margin, eps):
+    # Compute a boolean array where the condition is satisfied
+    saturation_mask = (col_values - safety_margin) < eps
+    # Count the number of True values (constraints in saturation) for each iteration
+    res = np.sum(saturation_mask, axis=1)
+    return res
 
 
 # Initialize simulation data for MPC simulation

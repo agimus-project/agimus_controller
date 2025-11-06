@@ -174,8 +174,9 @@ def mpc_msg_to_weighted_traj_point(
     msg: MpcInput, time_ns: int
 ) -> WeightedTrajectoryPoint:
     """Build WeightedTrajectoryPoint object from MPCInput msg."""
+    id = msg.id if hasattr(msg, "id") else 0
     traj_point = TrajectoryPoint(
-        id=msg.id,
+        id=id,
         time_ns=time_ns,
         robot_configuration=np.array(msg.q, dtype=np.float64),
         robot_velocity=np.array(msg.qdot, dtype=np.float64),
@@ -191,7 +192,6 @@ def mpc_msg_to_weighted_traj_point(
             data.frame_id: ros_wrench_to_force(data.force) for data in msg.ee_inputs
         },
     )
-
     traj_weights = TrajectoryPointWeights(
         w_robot_configuration=np.array(msg.w_q, dtype=np.float64),
         w_robot_velocity=np.array(msg.w_qdot, dtype=np.float64),

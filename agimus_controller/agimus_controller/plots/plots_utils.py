@@ -94,7 +94,27 @@ def plot_mpc_data(
     rmodel: pin.Model,
     which_plots: list[str],
 ) -> None:
-    """Plots MPC data specified in which_plots list."""
+    """Plots MPC data specified in which_plots list.
+
+    Arguments:
+        mpc_data: dictionary containing MPC data, keys are:
+            - "solve_time": array of computation times for each MPC iteration
+            - "distance": array of collision pairs distances
+            - "kkt_norms": array of KKT norms for each MPC iteration
+            - "nb_iters": array of number of iterations for each MPC iteration
+            - "nb_qp_iters": array of number of QP iterations for each MPC iteration
+            - "mpc_inputs": list of MPC input messages, each containing weights and references
+            - "states_predictions": array of state predictions for each MPC iteration
+            - "control_predictions": array of control predictions for each MPC iteration
+            - "goal_tracking_references": array of goal tracking references for each MPC iteration
+        rmodel: pinocchio model of the robot
+        which_plots: list of strings specifying which plots to generate, options are:
+            - "computation_time": plot computation times for each MPC iteration
+            - "collision_distance": plot distances between collision pairs
+            - "iter": plot KKT norms and number of iterations for each MPC iteration
+            - "visual_servoing": plot visual servoing states
+            - "predictions": plot predictions of states and controls for each MPC iteration
+    """
     # Computation time plots
     if "computation_time" in which_plots:
         solve_time = np.array(mpc_data["solve_time"])
@@ -104,14 +124,16 @@ def plot_mpc_data(
         print("solve time mean ", np.mean(solve_time))
 
     # Collisions pairs distance plots
-    if "collision_distance" in which_plots:
-        coll_avoidance_keys = [
-            val for val in list(mpc_data.keys()) if "avoid_collision" in val
-        ]
-        if coll_avoidance_keys == []:
-            raise RuntimeError(
-                f"no collision pairs distances in mpc_data dictionary, keys are {mpc_data.keys()}"
-            )
+    coll_avoidance_keys = [
+        val for val in list(mpc_data.keys()) if "avoid_collision" in val
+    ]
+    if "collision_distance" in which_plots and not coll_avoidance_keys:
+        print(
+            "No collision pairs distances in mpc_data dictionary, ",
+            "keys are ",
+            mpc_data.keys(),
+        )
+    if "collision_distance" in which_plots and coll_avoidance_keys:
         coll_distance_residuals = []
         for key in coll_avoidance_keys:
             coll_distance_residuals.append(np.array(mpc_data[key])[:, 0])
@@ -199,7 +221,7 @@ def plot_mpc_data(
             mpc_xs,
             mpc_us,
             rmodel,
-            mpc_config,
+            mpc_config=mpc_config,
             ctrl_refs=ctrl_refs,
             state_refs=state_refs,
             translation_refs=translation_refs,
