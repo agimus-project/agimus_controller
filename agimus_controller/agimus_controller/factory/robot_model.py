@@ -50,13 +50,11 @@ class RobotModelParameters:
         if self.armature.size == 0:
             # Use a default armature filled with 0s,
             # based on the size of moving_joint_names
-            self.armature = np.zeros(
-                len(self.moving_joint_names), dtype=np.float64)
+            self.armature = np.zeros(len(self.moving_joint_names), dtype=np.float64)
 
         # Ensure armature has the same shape as moving_joint_names
         if (
-            len(self.armature) != len(
-                self.moving_joint_names) and not self.free_flyer
+            len(self.armature) != len(self.moving_joint_names) and not self.free_flyer
         ):  # ! TODO: Do the same for free flyer
             raise ValueError(
                 f"Armature must have the same shape as moving_joint_names. "
@@ -111,8 +109,7 @@ class RobotModels:
     def full_robot_model(self) -> pin.Model:
         """Full robot model."""
         if self._full_robot_model is None:
-            raise AttributeError(
-                "Full robot model has not been initialized yet.")
+            raise AttributeError("Full robot model has not been initialized yet.")
         return self._full_robot_model
 
     @property
@@ -164,8 +161,7 @@ class RobotModels:
                 urdf = urdf
                 print("Loaded URDF from XML.")
             if use_free_flyer:
-                robot_model = pin.buildModelFromXML(
-                    urdf, pin.JointModelFreeFlyer())
+                robot_model = pin.buildModelFromXML(urdf, pin.JointModelFreeFlyer())
             else:
                 robot_model = pin.buildModelFromXML(urdf)
             package_dirs = (
@@ -209,8 +205,8 @@ class RobotModels:
             # make robot models append environment models
             robot_attachment_frame_id = 0
             if self._params.robot_attachment_frame:
-                robot_attachment_frame_id = (
-                    env_model.getFrameId(self._params.robot_attachment_frame)
+                robot_attachment_frame_id = env_model.getFrameId(
+                    self._params.robot_attachment_frame
                 )
             _, self._visual_model = pin.appendModel(
                 env_model,
@@ -234,8 +230,9 @@ class RobotModels:
         # Sanity check.
         for jn in self._params.moving_joint_names:
             if jn not in self._full_robot_model.names:
-                raise ValueError(jn + " not in the model. Model is:" +
-                                 str(self._full_robot_model))
+                raise ValueError(
+                    jn + " not in the model. Model is:" + str(self._full_robot_model)
+                )
         # Find the joints to lock.
         joints_to_lock = []
         for jn in self._full_robot_model.names:
@@ -273,8 +270,7 @@ class RobotModels:
                 if sum(1 for obj in geom_objects if base_name in obj.name) < 3:
                     continue
                 id = int(split_name[-1])
-                name = self._generate_capsule_name(
-                    base_name, list_names_capsules)
+                name = self._generate_capsule_name(base_name, list_names_capsules)
                 list_names_capsules.append(name)
                 capsule = pin.GeometryObject(
                     name=name,
@@ -328,8 +324,7 @@ class RobotModels:
                     )
             geom1_id = self.collision_model.getGeometryId(geom1_name)
             geom2_id = self.collision_model.getGeometryId(geom2_name)
-            self.collision_model.addCollisionPair(
-                pin.CollisionPair(geom1_id, geom2_id))
+            self.collision_model.addCollisionPair(pin.CollisionPair(geom1_id, geom2_id))
 
     def _generate_capsule_name(self, base_name: str, existing_names: list[str]) -> str:
         """Generates a unique capsule name for a geometry object.
