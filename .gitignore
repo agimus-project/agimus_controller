@@ -3,3 +3,4 @@
 deprecated
 agimus_controller_ros/agimus_controller_ros/agimus_controller_parameters.py
 agimus_controller_ros/agimus_controller_ros/trajectory_weights_parameters.py
+.direnv
