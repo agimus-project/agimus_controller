@@ -90,16 +90,15 @@
           ...
         }:
         {
-          packages =
-            {
-              default = self'.packages.agimus-controller;
-              agimus-controller = pkgs.python3Packages.agimus-controller;
-              agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples;
-            }
-            // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-              ros-humble-agimus-controller-examples = pkgs.rosPackages.humble.agimus-controller-ros;
-              ros-jazzy-agimus-controller-examples = pkgs.rosPackages.jazzy.agimus-controller-ros;
-            };
+          packages = {
+            default = self'.packages.agimus-controller;
+            agimus-controller = pkgs.python3Packages.agimus-controller;
+            agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples;
+          }
+          // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+            ros-humble-agimus-controller-examples = pkgs.rosPackages.humble.agimus-controller-ros;
+            ros-jazzy-agimus-controller-examples = pkgs.rosPackages.jazzy.agimus-controller-ros;
+          };
         };
     };
 }
