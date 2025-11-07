@@ -35,7 +35,7 @@
                     prev.python3Packages.pytest
                     prev.python3Packages.pytestCheckHook
                   ];
-                  doCheck = false;
+                  doCheck = true;
                 };
                 agimus-controller-examples = python-prev.agimus-controller-examples.overrideAttrs {
                   src = lib.fileset.toSource {
@@ -108,6 +108,10 @@
                 ]))
               ];
             };
+          }
+          # 2025/11/07 Remove this env from MacOs as franka_description is
+          # written as broken
+          // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             ros-env = pkgs.mkShell {
               name = "ros-env";
               packages = [
