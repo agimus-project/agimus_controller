@@ -128,7 +128,7 @@
             ros-humble-agimus-controller-ros = pkgs.rosPackages.humble.agimus-controller-ros;
             ros-jazzy-agimus-controller-ros = pkgs.rosPackages.jazzy.agimus-controller-ros;
           }
-          // {
+          // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             ros-env =
               with pkgs.rosPackages.jazzy;
               buildEnv {
