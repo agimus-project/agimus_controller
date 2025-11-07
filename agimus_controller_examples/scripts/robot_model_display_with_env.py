@@ -1,17 +1,16 @@
-from os import environ, pathsep
+from os import environ
 from pathlib import Path
 import sys
 
 import numpy as np
 import yaml
-import pinocchio as pin
 from pinocchio.visualize import MeshcatVisualizer
 from agimus_controller.factory.robot_model import RobotModelParameters, RobotModels
 
 import xacro
 from ament_index_python.packages import get_package_share_directory
-FRANKA_DESCRIPTION_PATH = Path(get_package_share_directory(
-    "franka_description"))
+
+FRANKA_DESCRIPTION_PATH = Path(get_package_share_directory("franka_description"))
 print(environ["AMENT_PREFIX_PATH"])
 print(FRANKA_DESCRIPTION_PATH)
 environ["AMENT_PREFIX_PATH"] += ":" + str(FRANKA_DESCRIPTION_PATH)
@@ -21,17 +20,11 @@ print(environ["AMENT_PREFIX_PATH"])
 srdf_path = FRANKA_DESCRIPTION_PATH / "robots" / "fer" / "fer.srdf"
 with open(srdf_path, "r") as srdf_file:
     srdf_xml = srdf_file.read()
-robot_xacro_path = str(
-    FRANKA_DESCRIPTION_PATH / "robots" / "fer" / "fer.urdf.xacro"
-)
+robot_xacro_path = str(FRANKA_DESCRIPTION_PATH / "robots" / "fer" / "fer.urdf.xacro")
 env_xacro_path = Path(__file__).parent / "resources" / "environment.xacro"
-params_path = str(
-    Path(__file__).parent / "resources" / "agimus_controller_params.yaml"
-)
+params_path = str(Path(__file__).parent / "resources" / "agimus_controller_params.yaml")
 with open(params_path, "r") as file:
-    mpc_params = yaml.safe_load(file)["agimus_controller_node"][
-        "ros__parameters"
-    ]
+    mpc_params = yaml.safe_load(file)["agimus_controller_node"]["ros__parameters"]
 robot_urdf_xml = xacro.process_file(
     robot_xacro_path,
     mappings={"with_sc": "true"},
@@ -79,8 +72,11 @@ robot_models = RobotModels(params)
 # Option open=True pens the visualizer.
 # Note: the visualizer can also be opened seperately by visiting the provided URL.
 try:
-    viz = MeshcatVisualizer(robot_models.robot_model,
-                            robot_models.collision_model, robot_models.visual_model)
+    viz = MeshcatVisualizer(
+        robot_models.robot_model,
+        robot_models.collision_model,
+        robot_models.visual_model,
+    )
     viz.initViewer(open=True)
 except ImportError as err:
     print(
