@@ -1,0 +1,32 @@
+agimus_controller_node:
+  ros__parameters:
+    ocp:
+      dt: 0.01
+      horizon_size: 20
+      armature: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+      gripper_weight: 500.0
+      state_weight: 5.0
+      control_weight: 0.001
+      max_qp_iter: 100
+      max_iter: 10
+      use_constraints: True
+      activate_callback: False
+      increasing_weights:
+        max: 100.0
+        percent: 0.9
+        time_reach_percent: 6
+      effector_frame_name: "fer_link8"
+    moving_joint_names:
+      [
+        "fer_joint1",
+        "fer_joint2",
+        "fer_joint3",
+        "fer_joint4",
+        "fer_joint5",
+        "fer_joint6",
+        "fer_joint7",
+      ]
+    save_predictions_and_refs: True
+    rate: 100.0
+    package_name: "agimus_demo_03_mpc_dummy_traj"
+    path_to_yaml: "config/mpc_params.yaml"

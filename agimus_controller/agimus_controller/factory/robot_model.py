@@ -36,7 +36,8 @@ class RobotModelParameters:
         default_factory=list
     )  # list of collision pairs
     # By default, the collision model when convexified is a sum of spheres and cylinders, often representing capsules. Here, all the couples sphere cylinder sphere are replaced by coal capsules.
-    self_collision: bool = False  # If True, the collision model takes into account collisions pairs written in the srdf file.
+    # If True, the collision model takes into account collisions pairs written in the srdf file.
+    self_collision: bool = False
     armature: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )  # Default empty NumPy array
@@ -54,7 +55,7 @@ class RobotModelParameters:
         # Ensure armature has the same shape as moving_joint_names
         if (
             len(self.armature) != len(self.moving_joint_names) and not self.free_flyer
-        ):  #! TODO: Do the same for free flyer
+        ):  # ! TODO: Do the same for free flyer
             raise ValueError(
                 f"Armature must have the same shape as moving_joint_names. "
                 f"Got {self.armature.shape} and {len(self.moving_joint_names)}."
@@ -153,10 +154,12 @@ class RobotModels:
         try:
             # load robot models
             if isinstance(urdf, Path):
+                print(f"Loaded URDF from file: {str(urdf)}")
                 with open(urdf, "r") as file:
                     urdf = file.read().replace("\n", "")
             else:
                 urdf = urdf
+                print("Loaded URDF from XML.")
             if use_free_flyer:
                 robot_model = pin.buildModelFromXML(urdf, pin.JointModelFreeFlyer())
             else:
@@ -200,25 +203,25 @@ class RobotModels:
             )
 
             # make robot models append environment models
-            robot_attachment_frame_id = (
-                env_model.getFrameId(self._params.robot_attachment_frame)
-                if self._params.robot_attachment_frame
-                else 0
-            )
-            self._full_robot_model, self._collision_model = pin.appendModel(
-                self._full_robot_model,
+            robot_attachment_frame_id = 0
+            if self._params.robot_attachment_frame:
+                robot_attachment_frame_id = env_model.getFrameId(
+                    self._params.robot_attachment_frame
+                )
+            _, self._visual_model = pin.appendModel(
                 env_model,
-                self._collision_model,
-                env_collision_model,
+                self._full_robot_model,
+                env_visual_model,
+                self._visual_model,
                 robot_attachment_frame_id,
                 pin.SE3.Identity(),
             )
-            _, self._visual_model = pin.appendModel(
-                pin.Model(),
+            self._full_robot_model, self._collision_model = pin.appendModel(
+                env_model,
                 self._full_robot_model,
-                env_visual_model,
-                self.visual_model,
-                0,
+                env_collision_model,
+                self._collision_model,
+                robot_attachment_frame_id,
                 pin.SE3.Identity(),
             )
 
@@ -227,7 +230,9 @@ class RobotModels:
         # Sanity check.
         for jn in self._params.moving_joint_names:
             if jn not in self._full_robot_model.names:
-                raise ValueError(jn + " not in the model.")
+                raise ValueError(
+                    jn + " not in the model. Model is:" + str(self._full_robot_model)
+                )
         # Find the joints to lock.
         joints_to_lock = []
         for jn in self._full_robot_model.names:
