@@ -141,7 +141,7 @@ class ActivationModelQuadExp(ActivationModelExp):
 
     def __post_init__(self):
         assert self.exponent == 2, (
-            "ActivationModelQuadExp is provided for backward compatibility. exponent should not be 2 (the default)."
+            "ActivationModelQuadExp is provided for backward compatibility. exponent should be 2 (the default)."
         )
 
 
