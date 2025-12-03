@@ -69,7 +69,7 @@ robot_models = RobotModels(params)
 # a terminal:
 # this enables the server to remain active after the current script ends.
 #
-# Option open=True pens the visualizer.
+# Option open=True opens the visualizer.
 # Note: the visualizer can also be opened seperately by visiting the provided URL.
 try:
     viz = MeshcatVisualizer(
