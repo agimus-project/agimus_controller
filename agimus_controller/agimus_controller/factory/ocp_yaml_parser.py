@@ -1,4 +1,5 @@
 import crocoddyl
+import force_feedback_mpc
 import numpy as np
 import numpy.typing as npt
 import pathlib
@@ -10,6 +11,15 @@ import typing as T
 from agimus_controller.trajectory import (
     WeightedTrajectoryPoint,
 )
+
+# Always point this file. Not the file that calls get_default_yaml_file.
+CURRENT_DIR = pathlib.Path(__file__).resolve().parent.parent
+
+
+def get_default_yaml_file(basename: str) -> pathlib.Path:
+    file = CURRENT_DIR / "ocp" / basename
+    assert file.exists(), f"Default OCP YAML file '{file}' does not exist!"
+    return file
 
 
 def add_modules(values: dict):
@@ -35,7 +45,7 @@ def create_croco_dataclasses(values):
         cls = globals()[values["class"]]
         v = values.copy()
         v.pop("class")
-        assert dataclasses.is_dataclass(cls)
+        assert dataclasses.is_dataclass(cls), f"Class '{cls}' is not a dataclass!"
         return create_nested_dataclass(cls, v)
     elif isinstance(values, (list, tuple)):
         return type(values)(create_croco_dataclasses(v) for v in values)
@@ -729,9 +739,6 @@ class DAMSoftContactAugmentedFwdDynamics(DifferentialActionModel):
     cost_ref: str = "LOCAL"
 
     def __post_init__(self):
-        force_feedback_mpc = globals().get("force_feedback_mpc", None)
-        assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
-
         self._dimension = sum(self.enabled_directions)
         assert self._dimension in [1, 3], "Soft contact is either 1D or 3D."
 
@@ -759,8 +766,6 @@ class DAMSoftContactAugmentedFwdDynamics(DifferentialActionModel):
     def _dam_cls_and_kwargs(self) -> tuple[type, dict]:
         if self._dimension == 1:
             axis = "xyz"[self.enabled_directions.index(1)]
-            force_feedback_mpc = globals().get("force_feedback_mpc", None)
-            assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
             return force_feedback_mpc.DAMSoftContact1DAugmentedFwdDynamics, {
                 "type": getattr(force_feedback_mpc.Vector3MaskType, axis)
             }
@@ -855,9 +860,6 @@ class IAMSoftContactAugmented(IntegratedActionModelAbstract):
     force_lb: T.Optional[npt.NDArray[np.float64]] = None
 
     def __post_init__(self):
-        force_feedback_mpc = globals().get("force_feedback_mpc", None)
-        assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
-
         if self.force_ub is not None:
             fub_len = len(self.force_ub)
             assert fub_len == 3 or fub_len == 1, (
@@ -879,8 +881,6 @@ class IAMSoftContactAugmented(IntegratedActionModelAbstract):
 
     def build(self, data: BuildData):
         differential = self.differential.build(data)
-        force_feedback_mpc = globals().get("force_feedback_mpc", None)
-        assert force_feedback_mpc is not None, "Module force_feedback_mpc not found"
         iam = force_feedback_mpc.IAMSoftContactAugmented(
             differential, self.step_time, self.with_cost_residual
         )
@@ -922,8 +922,3 @@ class ShootingProblem:
     def __post_init__(self):
         self.running_model = create_croco_dataclasses(self.running_model)
         self.terminal_model = create_croco_dataclasses(self.terminal_model)
-
-
-def get_default_yaml_file(basename: str) -> pathlib.Path:
-    file = pathlib.Path(__file__).parent.parent / "ocp" / basename
-    return file
