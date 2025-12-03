@@ -28,12 +28,13 @@
                   version = "unstable-2025-12-03";
 
                   pyproject = false;
-
+                  # None compiling version with newer version of crocoddyl.
+                  # TODO package upstream to github:gepetto/nix and fix code.
                   src = final.fetchFromGitHub {
                     owner = "machines-in-motion";
                     repo = "force_feedback_mpc";
-                    rev = "e9ee404f0932e6c278f5718b50615b0ddc1f8beb";
-                    hash = "sha256-BPfZa7xtAyqM9iO4b+zl0ADebK/rXHzKLGfmcEJgffA=";
+                    rev = "04bd43213bc47facd0b752f987fbbdfd3aa5a165";
+                    hash = "sha256-mmTtS3a8CqQg17XjZjWd4gaBVuvyt4NSHa7S9VvZKdc=";
                   };
 
                   nativeBuildInputs = [
