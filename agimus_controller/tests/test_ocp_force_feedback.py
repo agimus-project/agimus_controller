@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import example_robot_data
 import unittest
-import crocoddyl
+import force_feedback_mpc  # noqa: F401
 import pinocchio
 
 from agimus_controller.trajectory import (
@@ -11,112 +11,21 @@ from agimus_controller.trajectory import (
     WeightedTrajectoryPoint,
 )
 
-from agimus_controller.ocp.ocp_croco_generic import OCPCrocoGeneric
+from agimus_controller.ocp.ocp_croco_generic_force_feedback import (
+    OCPCrocoForceFeedbackGeneric,
+    get_globals,
+)
 from agimus_controller.factory import ocp_yaml_parser
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 from agimus_controller.ocp_param_base import DTFactorsNSeq
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
 
 
-class OCPCrocoGenericBuilderTest(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self._rmodel = pinocchio.buildSampleModelManipulator()
-        self._rgmodel = pinocchio.buildSampleGeometryModelManipulator(self._rmodel)
-        self._state = crocoddyl.StateMultibody(self._rmodel)
-        self._actuation = crocoddyl.ActuationModelFull(self._state)
-        self._build_data = ocp_yaml_parser.BuildData(
-            self._state, self._actuation, self._rgmodel
-        )
-
-    def test_residual_model_state(self):
-        xref = np.zeros(self._state.nx)
-        differential = ocp_yaml_parser.DifferentialActionModelFreeFwdDynamics(
-            costs=[
-                ocp_yaml_parser.CostModelSumItem(
-                    "state",
-                    ocp_yaml_parser.CostModelResidual(
-                        residual=ocp_yaml_parser.ResidualModelState(xref),
-                        activation=ocp_yaml_parser.ActivationModelWeightedQuad(1.0),
-                    ),
-                    update=True,
-                )
-            ]
-        )
-        cmodel = differential.build(self._build_data)
-        cdata = cmodel.createData()
-        x = np.random.random(self._state.nx)
-
-        cmodel.calc(cdata, x)
-        np.testing.assert_array_equal(cdata.costs.costs["state"].residual.r, x - xref)
-        self.assertAlmostEqual(
-            cdata.costs.costs["state"].cost, np.sum(0.5 * (x - xref) ** 2)
-        )
-
-        xref = np.random.random(self._state.nx)
-        pt = WeightedTrajectoryPoint(
-            point=TrajectoryPoint(
-                robot_configuration=xref[: self._rmodel.nq],
-                robot_velocity=xref[self._rmodel.nq :],
-            ),
-            weights=TrajectoryPointWeights(
-                w_robot_configuration=0.5 * np.ones(self._rmodel.nv),
-                w_robot_velocity=10 * np.ones(self._rmodel.nv),
-            ),
-        )
-        w = pt.weights.w_robot_state
-
-        differential.update(self._build_data, cmodel, pt)
-        cmodel.calc(cdata, x)
-        np.testing.assert_array_equal(cdata.costs.costs["state"].residual.r, x - xref)
-        self.assertAlmostEqual(
-            cdata.costs.costs["state"].cost, np.sum(0.5 * w * (x - xref) ** 2)
-        )
-
-    def test_residual_model_control(self):
-        uref = np.zeros(self._actuation.nu)
-        differential = ocp_yaml_parser.DifferentialActionModelFreeFwdDynamics(
-            costs=[
-                ocp_yaml_parser.CostModelSumItem(
-                    "control",
-                    ocp_yaml_parser.CostModelResidual(
-                        residual=ocp_yaml_parser.ResidualModelControl(uref),
-                        activation=ocp_yaml_parser.ActivationModelWeightedQuad(1.0),
-                    ),
-                    update=True,
-                )
-            ]
-        )
-        cmodel = differential.build(self._build_data)
-        cdata = cmodel.createData()
-        x = np.random.random(self._state.nx)
-        u = np.random.random(self._actuation.nu)
-
-        cmodel.calc(cdata, x, u)
-        np.testing.assert_array_equal(cdata.costs.costs["control"].residual.r, u - uref)
-        self.assertAlmostEqual(
-            cdata.costs.costs["control"].cost, np.sum(0.5 * (u - uref) ** 2)
-        )
-
-        uref = np.random.random(self._actuation.nu)
-        pt = WeightedTrajectoryPoint(
-            point=TrajectoryPoint(robot_effort=uref),
-            weights=TrajectoryPointWeights(
-                w_robot_effort=0.5 * np.ones(self._rmodel.nv)
-            ),
-        )
-        w = pt.weights.w_robot_effort
-
-        differential.update(self._build_data, cmodel, pt)
-        cmodel.calc(cdata, x, u)
-        np.testing.assert_array_equal(cdata.costs.costs["control"].residual.r, u - uref)
-        self.assertAlmostEqual(
-            cdata.costs.costs["control"].cost, np.sum(0.5 * w * (u - uref) ** 2)
-        )
-
-
 class OCPCrocoGenericTest(unittest.TestCase):
     def setUp(self):
+        ### Set force_feedback_mpc to globals
+        ocp_yaml_parser.add_modules(get_globals())
+
         ### LOAD ROBOT
         robot = example_robot_data.load("panda")
         urdf_path = Path(robot.urdf)
@@ -168,7 +77,9 @@ class OCPCrocoGenericTest(unittest.TestCase):
         n_states = self._ocp_params.n_controls + 1
 
         state_warmstart = [
-            np.concatenate((q0, np.zeros(self.robot_models.robot_model.nv)))
+            np.concatenate(
+                (q0, np.zeros(self.robot_models.robot_model.nv), np.zeros(3))
+            )
         ] * n_states
         control_warmstart = [
             np.zeros(self.robot_models.robot_model.nv)
@@ -179,6 +90,7 @@ class OCPCrocoGenericTest(unittest.TestCase):
                     robot_configuration=q0,
                     robot_velocity=np.zeros(self.robot_models.robot_model.nv),
                     robot_effort=np.zeros(self.robot_models.robot_model.nv),
+                    forces={"panda_hand_tcp": pinocchio.Force.Zero()},
                     end_effector_poses={"panda_hand_tcp": ee_pose},
                 ),
                 TrajectoryPointWeights(
@@ -186,6 +98,7 @@ class OCPCrocoGenericTest(unittest.TestCase):
                     * np.ones(self.robot_models.robot_model.nq),
                     w_robot_velocity=0.01 * np.ones(self.robot_models.robot_model.nv),
                     w_robot_effort=0.0001 * np.ones(self.robot_models.robot_model.nv),
+                    w_forces={"panda_hand_tcp": np.zeros(6)},
                     w_end_effector_poses={"panda_hand_tcp": (1e3 * np.ones(6))},
                 ),
             )
@@ -193,12 +106,12 @@ class OCPCrocoGenericTest(unittest.TestCase):
 
         # Solve OCP
         self._state_reg = np.concatenate(
-            (q0, np.zeros(self.robot_models.robot_model.nv))
+            (q0, np.zeros(self.robot_models.robot_model.nv), np.zeros(3))
         )
         ocp_definition_file = ocp_yaml_parser.get_default_yaml_file(
-            "ocp_goal_reaching.yaml"
+            "ocp_force_feedback.yaml"
         )
-        self._ocp = OCPCrocoGeneric(
+        self._ocp = OCPCrocoForceFeedbackGeneric(
             self.robot_models, self._ocp_params, yaml_file=ocp_definition_file
         )
         self._ocp.set_reference_weighted_trajectory(trajectory_points)
