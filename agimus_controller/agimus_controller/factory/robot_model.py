@@ -26,6 +26,9 @@ class RobotModelParameters:
         None  # Path to the SRDF file or string containing SRDF as an XML
     )
     robot_attachment_frame: str = ""
+    robot_attachment_transform: Union[None, pin.SE3] = (
+        None  # Transformation between robot and environment
+    )
     urdf_meshes_dir: Optional[Path] = (
         None  # Path to the directory containing the meshes and the URDF file.
     )
@@ -204,25 +207,31 @@ class RobotModels:
 
             # make robot models append environment models
             robot_attachment_frame_id = 0
+            robot_attachment_transform = (
+                pin.SE3.Identity()
+                if self._params.robot_attachment_transform is None
+                else self._params.robot_attachment_transform
+            )
+
             if self._params.robot_attachment_frame:
                 robot_attachment_frame_id = env_model.getFrameId(
                     self._params.robot_attachment_frame
                 )
             _, self._visual_model = pin.appendModel(
-                env_model,
                 self._full_robot_model,
-                env_visual_model,
+                env_model,
                 self._visual_model,
+                env_visual_model,
                 robot_attachment_frame_id,
-                pin.SE3.Identity(),
+                robot_attachment_transform,
             )
             self._full_robot_model, self._collision_model = pin.appendModel(
-                env_model,
                 self._full_robot_model,
-                env_collision_model,
+                env_model,
                 self._collision_model,
+                env_collision_model,
                 robot_attachment_frame_id,
-                pin.SE3.Identity(),
+                robot_attachment_transform,
             )
 
     def _lock_joints(self) -> None:
@@ -346,3 +355,6 @@ class RobotModels:
             npt.NDArray[np.float64]: Armature of the robot.
         """
         return self._params.armature
+
+    def update_transform(self, child_frame_name: str, placement: pin.SE3) -> None:
+        pass
