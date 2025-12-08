@@ -20,75 +20,9 @@
           inherit (inputs.nixpkgs) lib;
         in
         [
-          (final: prev: {
+          (_final: prev: {
             pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
-              (python-final: python-prev: {
-                py-force-feedback-mpc = final.python3Packages.buildPythonPackage({
-                  pname = "force-feedback-mpc";
-                  version = "unstable-2025-12-03";
-
-                  pyproject = false;
-                  # None compiling version with newer version of crocoddyl.
-                  # TODO package upstream to github:gepetto/nix and fix code.
-                  src = final.fetchFromGitHub {
-                    owner = "machines-in-motion";
-                    repo = "force_feedback_mpc";
-                    rev = "04bd43213bc47facd0b752f987fbbdfd3aa5a165";
-                    hash = "sha256-mmTtS3a8CqQg17XjZjWd4gaBVuvyt4NSHa7S9VvZKdc=";
-                  };
-
-                  nativeBuildInputs = [
-                    final.cmake
-                    final.pkg-config
-                  ];
-
-                  propagatedBuildInputs = [
-                    final.eigen
-                    final.jrl-cmakemodules
-                    final.llvmPackages.openmp
-                    python-final.boost
-                    python-final.eigenpy
-                    python-final.example-robot-data
-                    python-final.pinocchio
-                    python-final.crocoddyl
-                    python-final.pythonImportsCheckHook
-                  ];
-
-                  cmakeFlags = [
-                    (lib.cmakeBool "BUILD_PYTHON_INTERFACE" true)
-                  ];
-
-                  doCheck = true;
-                  pythonImportsCheck = [ "force_feedback_mpc" ];
-
-                  meta = {
-                    description = "Optimal control tools to achieve force feedback control in MPC ";
-                    homepage = "https://github.com/machines-in-motion/force_feedback_mpc";
-                    license = lib.licenses.bsd2;
-                    maintainers = with lib.maintainers; [ nim65s ];
-                    platforms = lib.platforms.unix;
-                  };
-                  patchPhase = ''
-                    # Update cmake_minimum_required version
-                    sed -i 's/cmake_minimum_required(VERSION 3\.10)/cmake_minimum_required(VERSION 3.22)/' CMakeLists.txt
-
-                    # Replace the submodule block
-                    sed -i '/# Check if the submodule cmake have been initialized/{
-                      N;N;N;N;N;N;N;N;N;N;N;N
-                      c\
-                  find_package(jrl-cmakemodules REQUIRED CONFIG)\
-                  get_property(\
-                        JRL_CMAKE_MODULES\
-                        TARGET jrl-cmakemodules::jrl-cmakemodules\
-                        PROPERTY INTERFACE_INCLUDE_DIRECTORIES\
-                      )\
-                  message(STATUS "JRL cmakemodules found on system at \$\{JRL_CMAKE_MODULES\}")
-                    }' CMakeLists.txt
-
-                    echo "==== CMakeLists.txt after patch ===="
-                    cat CMakeLists.txt
-                  '';
-                });
+              (_python-final: python-prev: {
                 agimus-controller = python-prev.agimus-controller.overrideAttrs {
                   src = lib.fileset.toSource {
                     root = ./.;
@@ -100,9 +34,6 @@
                   nativeCheckInputs = [
                     prev.python3Packages.pytest
                     prev.python3Packages.pytestCheckHook
-                  ];
-                  propagatedBuildInputs = python-prev.agimus-controller.propagatedBuildInputs ++ [
-                    python-final.py-force-feedback-mpc
                   ];
                   doCheck = true;
                 };
@@ -192,7 +123,6 @@
             default = self'.packages.agimus-controller;
             agimus-controller = pkgs.python3Packages.agimus-controller;
             agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples;
-            py-force-feedback-mpc = pkgs.python3Packages.py-force-feedback-mpc;
           }
           // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             ros-humble-agimus-controller-ros = pkgs.rosPackages.humble.agimus-controller-ros;
