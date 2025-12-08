@@ -11,8 +11,8 @@ from agimus_controller.trajectory import (
     WeightedTrajectoryPoint,
 )
 
-from agimus_controller.ocp.ocp_croco_generic import OCPCrocoGeneric
-from agimus_controller.factory import ocp_yaml_parser
+from agimus_controller.ocp.ocp_croco_generic import BuildData
+from agimus_controller.ocp import ocp_croco_generic
 from agimus_controller.factory.robot_model import RobotModels, RobotModelParameters
 from agimus_controller.ocp_param_base import DTFactorsNSeq
 from agimus_controller.ocp_param_base import OCPParamsBaseCroco
@@ -25,19 +25,17 @@ class OCPCrocoGenericBuilderTest(unittest.TestCase):
         self._rgmodel = pinocchio.buildSampleGeometryModelManipulator(self._rmodel)
         self._state = crocoddyl.StateMultibody(self._rmodel)
         self._actuation = crocoddyl.ActuationModelFull(self._state)
-        self._build_data = ocp_yaml_parser.BuildData(
-            self._state, self._actuation, self._rgmodel
-        )
+        self._build_data = BuildData(self._state, self._actuation, self._rgmodel)
 
     def test_residual_model_state(self):
         xref = np.zeros(self._state.nx)
-        differential = ocp_yaml_parser.DifferentialActionModelFreeFwdDynamics(
+        differential = ocp_croco_generic.DifferentialActionModelFreeFwdDynamics(
             costs=[
-                ocp_yaml_parser.CostModelSumItem(
+                ocp_croco_generic.CostModelSumItem(
                     "state",
-                    ocp_yaml_parser.CostModelResidual(
-                        residual=ocp_yaml_parser.ResidualModelState(xref),
-                        activation=ocp_yaml_parser.ActivationModelWeightedQuad(1.0),
+                    ocp_croco_generic.CostModelResidual(
+                        residual=ocp_croco_generic.ResidualModelState(xref),
+                        activation=ocp_croco_generic.ActivationModelWeightedQuad(1.0),
                     ),
                     update=True,
                 )
@@ -75,13 +73,13 @@ class OCPCrocoGenericBuilderTest(unittest.TestCase):
 
     def test_residual_model_control(self):
         uref = np.zeros(self._actuation.nu)
-        differential = ocp_yaml_parser.DifferentialActionModelFreeFwdDynamics(
+        differential = ocp_croco_generic.DifferentialActionModelFreeFwdDynamics(
             costs=[
-                ocp_yaml_parser.CostModelSumItem(
+                ocp_croco_generic.CostModelSumItem(
                     "control",
-                    ocp_yaml_parser.CostModelResidual(
-                        residual=ocp_yaml_parser.ResidualModelControl(uref),
-                        activation=ocp_yaml_parser.ActivationModelWeightedQuad(1.0),
+                    ocp_croco_generic.CostModelResidual(
+                        residual=ocp_croco_generic.ResidualModelControl(uref),
+                        activation=ocp_croco_generic.ActivationModelWeightedQuad(1.0),
                     ),
                     update=True,
                 )
@@ -195,10 +193,10 @@ class OCPCrocoGenericTest(unittest.TestCase):
         self._state_reg = np.concatenate(
             (q0, np.zeros(self.robot_models.robot_model.nv))
         )
-        ocp_definition_file = ocp_yaml_parser.get_default_yaml_file(
+        ocp_definition_file = ocp_croco_generic.OCPCrocoGeneric.get_default_yaml_file(
             "ocp_goal_reaching.yaml"
         )
-        self._ocp = OCPCrocoGeneric(
+        self._ocp = ocp_croco_generic.OCPCrocoGeneric(
             self.robot_models, self._ocp_params, yaml_file=ocp_definition_file
         )
         self._ocp.set_reference_weighted_trajectory(trajectory_points)

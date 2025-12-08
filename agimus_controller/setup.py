@@ -21,5 +21,5 @@ setup(
     maintainer_email="guilhem.saurel@laas.fr",
     description="Implements whole body MPC in python using the Croccodyl framework.",
     license="BSD-2-Clause",
-    tests_require=["pytest", "force_feedback_mpc"],
+    tests_require=["pytest"],
 )
