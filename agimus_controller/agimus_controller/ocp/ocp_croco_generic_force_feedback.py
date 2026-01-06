@@ -235,6 +235,7 @@ class OCPCrocoForceFeedbackGeneric(OCPCrocoGeneric):
         self._robot_models = robot_models
         self._collision_model = self._robot_models.collision_model
         self._armature = self._robot_models.armature
+        self._use_colmpc_state = False
 
         # Stat and actuation model
         self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)

@@ -107,18 +107,29 @@ class OCPBaseCroco(OCPBase):
         """Set the reference trajectory for the OCP."""
         pass
 
-    def update_obstacle_placement(self, geometry_name: str, placement: pin.SE3):
+    def update_geometry_placement(
+        self,
+        geometry_name: str,
+        placement: pin.SE3,
+        geometry_type: pin.GeometryType = pin.GeometryType.COLLISION,
+    ):
         """Updates placement of the obstacles"""
-        if self._use_colmpc_state:
-            if not self._state.geometry.existGeometryName(geometry_name):
-                raise RuntimeError(f"Unknown geometry name '{geometry_name}'!")
-            geom_id = self._state.geometry.getGeometryId(geometry_name)
-            self._state.geometry.geometryObjects[geom_id].placement = placement
-        else:
-            raise NotImplementedError(
-                "Function 'update_obstacle_placement' does not support update "
-                "of obstacle placement without use of ColMPC StateMultibody"
+        if geometry_type == pin.GeometryType.COLLISION:
+            geom = (
+                self._state.geometry
+                if self._use_colmpc_state
+                else self._robot_models.collision_model
             )
+            name = "collision"
+        else:
+            geom = self._robot_models.visual_model
+            name = "visual"
+        if not geom.existGeometryName(geometry_name):
+            raise RuntimeError(
+                f"Unknown geometry name '{geometry_name}' in {name} model!"
+            )
+        geom_id = geom.getGeometryId(geometry_name)
+        geom.geometryObjects[geom_id].placement = placement
 
     def fill_debug_data(self, res: bool, ocp_results: OCPResults) -> None:
         """Fill attributes of dataclass OCPDebugData."""
