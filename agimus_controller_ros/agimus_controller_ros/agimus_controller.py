@@ -2,7 +2,7 @@
 import numpy as np
 import time
 import os
-import resource_retriever as r
+import resource_retriever
 from functools import partial
 
 import rclpy
@@ -132,6 +132,21 @@ class RobotModelsMixin:
             self.destroy_subscription(self.subscriber_environment_description)
 
     def ros_robot_ready(self) -> bool:
+        if self.robot_description_msg is None:
+            self.get_logger().warn(
+                "Waiting for robot descriptions...",
+                throttle_duration_sec=5.0,
+            )
+        if self.environment_msg is None:
+            self.get_logger().warn(
+                "Waiting for environment description...",
+                throttle_duration_sec=5.0,
+            )
+        if self.robot_srdf_description_msg is None:
+            self.get_logger().warn(
+                "Waiting for robot SRDF description...",
+                throttle_duration_sec=5.0,
+            )
         return self.q0 is not None
 
     def create_robot_models(self, **robot_model_parameters_kwargs) -> None:
@@ -328,7 +343,7 @@ class AgimusController(Node, RobotModelsMixin):
         if yaml_file == "":
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
         else:
-            yaml_file = r.get_filename(yaml_file, use_protocol=False)
+            yaml_file = resource_retriever.get_filename(yaml_file, use_protocol=False)
         self.get_logger().info(f"Loading OCP definition file {yaml_file}")
         self.ocp = OCPCrocoGeneric(self.robot_models, self.ocp_params, yaml_file)
 
@@ -419,10 +434,6 @@ class AgimusController(Node, RobotModelsMixin):
             return
 
         if not self.ros_robot_ready():
-            self.get_logger().warn(
-                "Waiting for robot descriptions...",
-                throttle_duration_sec=5.0,
-            )
             return
 
         if self.mpc is None:

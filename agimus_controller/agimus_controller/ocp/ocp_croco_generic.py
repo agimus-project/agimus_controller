@@ -201,7 +201,9 @@ class ResidualModelFramePlacement(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
-        assert len(pt.point.end_effector_poses) == 1
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFramePlacement requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
         obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose

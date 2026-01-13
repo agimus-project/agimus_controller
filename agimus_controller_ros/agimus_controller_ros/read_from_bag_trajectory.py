@@ -1,13 +1,23 @@
-from rclpy.serialization import deserialize_message
-import rosbag2_py
+# Standard library imports
 import pickle
+from pathlib import Path
+
+# Third-party imports
+import rosbag2_py
+from rclpy.serialization import deserialize_message
+
+# ROS message imports
+from agimus_msgs.msg import MpcDebug, MpcInput
 from builtin_interfaces.msg import Duration
-from linear_feedback_controller_msgs_py.numpy_conversions import matrix_msg_to_numpy
-from agimus_controller_ros.ros_utils import mpc_msg_to_weighted_traj_point
-from agimus_msgs.msg import MpcInput, MpcDebug
 from geometry_msgs.msg import PoseStamped
 from linear_feedback_controller_msgs.msg import Sensor
-from linear_feedback_controller_msgs_py.numpy_conversions import sensor_msg_to_numpy
+from linear_feedback_controller_msgs_py.numpy_conversions import (
+    matrix_msg_to_numpy,
+    sensor_msg_to_numpy,
+)
+
+# Local package imports
+from agimus_controller_ros.ros_utils import mpc_msg_to_weighted_traj_point
 
 
 def convert_bytes_to_message(serialized_bytes, msg_type):
@@ -16,9 +26,32 @@ def convert_bytes_to_message(serialized_bytes, msg_type):
     return message
 
 
+def get_bag_storage_id(bag_folder_path):
+    """Detect the storage format of a ROS 2 bag folder."""
+    bag_path = Path(bag_folder_path)
+
+    # Check if it's a directory
+    if bag_path.is_dir():
+        # Look for .mcap files in the directory
+        mcap_files = list(bag_path.glob("*.mcap"))
+        if mcap_files:
+            return "mcap"
+
+        # Look for .db3 files in the directory
+        db3_files = list(bag_path.glob("*.db3"))
+        if db3_files:
+            return "sqlite3"
+
+    # Default to sqlite3 for backward compatibility
+    return "sqlite3"
+
+
 def load_mpc_inputs_from_rosbag(bag_file_path):
     """Load MPC inputs from a ROS 2 bag file."""
-    storage_options = rosbag2_py.StorageOptions(uri=bag_file_path, storage_id="sqlite3")
+    storage_id = get_bag_storage_id(bag_file_path)
+    storage_options = rosbag2_py.StorageOptions(
+        uri=bag_file_path, storage_id=storage_id
+    )
     converter_options = rosbag2_py.ConverterOptions("", "")
     reader = rosbag2_py.SequentialReader()
     reader.open(storage_options, converter_options)
@@ -61,7 +94,10 @@ def save_rosbag_inputs_to_pickle(bag_file_path, pickle_file_path):
 def load_mpc_outputs_from_rosbag(bag_file_path):
     """Load MPC outputs from a ROS 2 bag file."""
     # Open the rosbag
-    storage_options = rosbag2_py.StorageOptions(uri=bag_file_path, storage_id="sqlite3")
+    storage_id = get_bag_storage_id(bag_file_path)
+    storage_options = rosbag2_py.StorageOptions(
+        uri=bag_file_path, storage_id=storage_id
+    )
     converter_options = rosbag2_py.ConverterOptions("", "")
     reader = rosbag2_py.SequentialReader()
     reader.open(storage_options, converter_options)

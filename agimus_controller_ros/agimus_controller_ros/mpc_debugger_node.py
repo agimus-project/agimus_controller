@@ -4,6 +4,7 @@ import numpy.typing as npt
 import coal
 import rclpy
 import rclpy.duration
+import resource_retriever
 import sys
 import argparse
 
@@ -228,6 +229,8 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         yaml_file = params["ocp.definition_yaml_file"].string_value
         if yaml_file == "":
             yaml_file = OCPCrocoGeneric.get_default_yaml_file("ocp_goal_reaching.yaml")
+        else:
+            yaml_file = resource_retriever.get_filename(yaml_file, use_protocol=False)
         self.get_logger().info(f"Loading OCP definition file {yaml_file}")
         self._ocp = OCPCrocoGeneric(self.robot_models, ocp_params, yaml_file)
 
@@ -425,10 +428,6 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
 
     def initialization_callback(self):
         if not self.ros_robot_ready():
-            self.get_logger().warn(
-                "Waiting for robot descriptions...",
-                throttle_duration_sec=5.0,
-            )
             return
 
         self.destroy_timer(self._init_timer)
