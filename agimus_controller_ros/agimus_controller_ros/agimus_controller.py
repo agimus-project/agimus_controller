@@ -388,7 +388,7 @@ class AgimusController(Node, RobotModelsMixin):
             )
             return
 
-        self.ocp.update_obstacle_placement(geom_name, ros_pose_to_se3(pose))
+        self.ocp.update_geometry_placement(geom_name, ros_pose_to_se3(pose))
 
     def buffer_has_enough_data(self, ratio: float) -> bool:
         """
