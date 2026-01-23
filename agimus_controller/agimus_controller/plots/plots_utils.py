@@ -3,8 +3,11 @@ import numpy as np
 import numpy.typing as npt
 from typing import Union
 import pinocchio as pin
+import json
+
 
 from agimus_controller.plots.plot_tails import plot_tails
+from agimus_controller.plots.dump_utils import dump_plot_data
 
 
 def plot_values(
@@ -15,19 +18,26 @@ def plot_values(
     ylabels: Union[None, list[str]] = None,
     semilogs: Union[None, list[bool]] = None,
     ylimits: Union[None, list[list[float]]] = None,
+    dump_path: Union[None, str] = None,
 ) -> None:
     """Subplots from concatenated array of values."""
+
     values_array = np.array(values_array)
     if len(values_array.shape) == 1:
         values_array = values_array[:, np.newaxis]
     nb_plots = values_array.shape[1]
     fig, ax = plt.subplots(nb_plots, 1)
     fig.canvas.manager.set_window_title(title)
+
+    # Collect colors for each series if available
+    colors = []
     if nb_plots == 1:
         if labels is not None:
-            ax.plot(time, values_array, label=labels[0])
+            (line,) = ax.plot(time, values_array, label=labels[0])
+            colors.append(line.get_color())
         else:
-            ax.plot(time, values_array)
+            (line,) = ax.plot(time, values_array)
+            colors.append(line.get_color())
         ax.legend()
         ax.set_xlabel("t (s)")
         if ylabels is not None:
@@ -36,11 +46,12 @@ def plot_values(
         for i in range(values_array.shape[1]):
             if labels is not None:
                 if semilogs is not None and semilogs[i] is True:
-                    ax[i].semilogy(time, values_array[:, i], label=labels[i])
+                    (line,) = ax[i].semilogy(time, values_array[:, i], label=labels[i])
                 else:
-                    ax[i].plot(time, values_array[:, i], label=labels[i])
+                    (line,) = ax[i].plot(time, values_array[:, i], label=labels[i])
             else:
-                ax[i].plot(time, values_array[:, i])
+                (line,) = ax[i].plot(time, values_array[:, i])
+            colors.append(line.get_color())
             ax[i].legend()
             ax[i].set_xlabel("t (s)")
             if ylimits is not None:
@@ -48,24 +59,70 @@ def plot_values(
             if ylabels is not None:
                 ax[i].set_ylabel(ylabels)
 
+    # Dump plot data and metadata to file (JSON)
+    if dump_path is not None:
+        import os
+
+        file_path = os.path.join(
+            dump_path, f"{title.lower().replace(' ', '_')}_plotdata.json"
+        )
+    else:
+        file_path = f"{title.lower().replace(' ', '_')}_plotdata.json"
+    dump_plot_data(
+        file_path,
+        title,
+        time,
+        values_array,
+        labels,
+        ylabels,
+        semilogs,
+        ylimits,
+        colors,
+    )
+
 
 def plot_values_on_same_fig(
     title: str,
     values_array: npt.NDArray[np.float64],
     time: npt.NDArray[np.float64],
     labels: Union[None, list[str]] = None,
+    dump_path: Union[None, str] = None,
 ) -> None:
     """Plot concatenated array of values on the same figure."""
+
     values_array = np.array(values_array)
     fig, ax = plt.subplots(1, 1)
     fig.canvas.manager.set_window_title(title)
+    colors = []
     for i in range(values_array.shape[1]):
         if labels is not None:
-            ax.plot(time, values_array[:, i], label=labels[i])
+            (line,) = ax.plot(time, values_array[:, i], label=labels[i])
         else:
-            ax.plot(time, values_array[:, i])
+            (line,) = ax.plot(time, values_array[:, i])
+        colors.append(line.get_color())
         ax.legend()
         ax.set_xlabel("t (s)")
+
+    # Dump plot data and metadata to file (JSON)
+    if dump_path is not None:
+        import os
+
+        file_path = os.path.join(
+            dump_path, f"{title.lower().replace(' ', '_')}_plotdata.json"
+        )
+    else:
+        file_path = f"{title.lower().replace(' ', '_')}_plotdata.json"
+    dump_plot_data(
+        file_path,
+        title,
+        time,
+        values_array,
+        labels,
+        None,
+        None,
+        None,
+        colors,
+    )
 
 
 def concatenate_arrays_columns(
@@ -93,6 +150,7 @@ def plot_mpc_data(
     mpc_config: dict[str, Union[int, float, str]],
     rmodel: pin.Model,
     which_plots: list[str],
+    dump_path: Union[None, str] = None,
 ) -> None:
     """Plots MPC data specified in which_plots list.
 
@@ -120,7 +178,7 @@ def plot_mpc_data(
         solve_time = np.array(mpc_data["solve_time"])
         time = np.linspace(0, (solve_time.shape[0] - 1) * 0.01, solve_time.shape[0])
         # plot_mpc_iter_durations("MPC iterations duration", solve_time, time)
-        plot_values("MPC iterations duration", solve_time, time)
+        plot_values("MPC iterations duration", solve_time, time, dump_path=dump_path)
         print("solve time mean ", np.mean(solve_time))
 
     # Collisions pairs distance plots
@@ -147,7 +205,11 @@ def plot_mpc_data(
         )
         coll_labels = [f"col_term_{i}" for i in range(coll_distance_residuals.shape[0])]
         plot_values(
-            "collision pairs distances", coll_distance_residuals, time_col, coll_labels
+            "collision pairs distances",
+            coll_distance_residuals,
+            time_col,
+            coll_labels,
+            dump_path=dump_path,
         )
 
     # Number of iterations and kkt norms
@@ -166,6 +228,7 @@ def plot_mpc_data(
             time,
             ["kkt norms ", "nb iterations", "nb qp iters"],
             semilogs=[True, False, False],
+            dump_path=dump_path,
         )
 
     # Visual servoing
@@ -195,6 +258,7 @@ def plot_mpc_data(
             [
                 "0 : IDLE, 1: VISUAL_SERVOING_ACTIVE, 2: COMING_BACK_TO_IDLE",
             ],
+            dump_path=dump_path,
         )
 
     # Plot predictions
@@ -217,7 +281,7 @@ def plot_mpc_data(
             if "goal_tracking_references" in mpc_data.keys()
             else None
         )
-        plot_tails(
+        dump_dict = plot_tails(
             mpc_xs,
             mpc_us,
             rmodel,
@@ -226,3 +290,4 @@ def plot_mpc_data(
             state_refs=state_refs,
             translation_refs=translation_refs,
         )
+        json.dump(dump_dict, open(f"{dump_path}/mpc_plot_data.json", "w"))
