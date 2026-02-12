@@ -8,7 +8,7 @@
   <maintainer email="guilhem.saurel@laas.fr">Guilhem Saurel</maintainer>
   <author email="tmartinezf@laas.fr">Théo Martinez</author>
 
-  <license>BSD-3-clause</license>
+  <license>BSD-3-Clause</license>
   <url type="website">https://github.com/agimus-project/agimus_controller</url>
 
   <!-- ROS dependencies. -->
