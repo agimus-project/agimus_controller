@@ -208,6 +208,9 @@ class RobotModels:
                 robot_attachment_frame_id = env_model.getFrameId(
                     self._params.robot_attachment_frame
                 )
+            print(
+                f"Attaching robot model to environment frame '{self._params.robot_attachment_frame}' (id={robot_attachment_frame_id})"
+            )
             _, self._visual_model = pin.appendModel(
                 env_model,
                 self._full_robot_model,

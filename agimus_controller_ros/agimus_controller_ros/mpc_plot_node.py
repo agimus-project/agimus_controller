@@ -13,7 +13,25 @@ from agimus_controller_ros.read_from_bag_trajectory import (
 def plot_mpc(args) -> None:
     bag_file_path = Path(args.bag_file_path)
     delete_tmp_srdf = False
-    if "panda" in bag_file_path.stem:
+    print(f"Loading data for bag file: {bag_file_path}")
+    print("Determining robot type...")
+    if args.robot:
+        robot = args.robot
+    else:
+        if "panda" in bag_file_path.stem:
+            robot = "panda"
+        elif (
+            "tiago_pro" in bag_file_path.stem.lower()
+            or "tiago-pro" in bag_file_path.stem.lower()
+        ):
+            robot = "tiago-pro"
+        else:
+            raise ValueError(
+                f"Unsupported robot type in argument {args.robot}. "
+                "Please use a bag file with 'panda', 'tiago_pro', or 'tiago-pro' in its name."
+            )
+    print(f"Robot type determined: {robot}")
+    if robot == "panda":
         franka_pkg = Path(get_package_share_directory("franka_description"))
         franka_urdf_path = franka_pkg / "robots" / "fer" / "fer.urdf.xacro"
         franka_urdf = xacro.process_file(franka_urdf_path).toxml()
@@ -35,10 +53,7 @@ def plot_mpc(args) -> None:
             armature=np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
             moving_joint_names=moving_joint_names,
         )
-    elif (
-        "tiago_pro" in bag_file_path.stem.lower()
-        or "tiago-pro" in bag_file_path.stem.lower()
-    ):
+    elif robot == "tiago-pro":
         import tempfile
 
         tiago_pro_pkg = Path(get_package_share_directory("tiago_pro_description"))
@@ -88,6 +103,7 @@ def plot_mpc(args) -> None:
 
     robot_models = RobotModels(params)
     mpc_data = load_mpc_outputs_from_rosbag(args.bag_file_path)
+
     which_plots = [
         "computation_time",
         "collision_distance",
@@ -102,7 +118,13 @@ def plot_mpc(args) -> None:
         "mpc_freq": 1.0 / args.dt_ocp,
     }
 
-    plot_mpc_data(mpc_data, mpc_config, robot_models.robot_model, which_plots)
+    plot_mpc_data(
+        mpc_data,
+        mpc_config,
+        robot_models.robot_model,
+        which_plots,
+        dump_path=str(bag_file_path),
+    )
 
     if delete_tmp_srdf:
         tmp_srdf_path.unlink()
@@ -113,6 +135,15 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Plot MPC data from a ROS bag file.")
+    parser.add_argument(
+        "--robot",
+        "-r",
+        type=str,
+        required=False,
+        default=None,
+        choices=["panda", "tiago_pro", "tiago-pro"],
+        help="Name of the robot.",
+    )
     parser.add_argument(
         "--bag-file-path",
         "-p",
@@ -133,6 +164,13 @@ def main():
         type=str,
         required=True,
         help="Name of the end effector in the robot model.",
+    )
+    parser.add_argument(
+        "--save-figures",
+        "-s",
+        action="store_true",
+        default=False,
+        help="If set, save the generated figures instead of displaying them.",
     )
     args = parser.parse_args()
     plot_mpc(args)

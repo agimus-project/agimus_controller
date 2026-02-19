@@ -201,7 +201,9 @@ class ResidualModelFramePlacement(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
-        assert len(pt.point.end_effector_poses) == 1
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFramePlacement requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
         obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose
@@ -227,8 +229,11 @@ class ResidualModelFramePlacementStatic(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFramePlacementStatic requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         assert self.frame_id in pt.point.end_effector_poses, (
-            f"end_effector_poses should contains key {self.frame_id}"
+            f"ResidualModelFramePlacementStatic: end_effector_poses should contain the key {self.frame_id}"
         )
         obj.reference = pt.point.end_effector_poses[self.frame_id]
         return pt.weights.w_end_effector_poses[self.frame_id]
@@ -250,7 +255,9 @@ class ResidualModelFrameTranslation(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
-        assert len(pt.point.end_effector_poses) == 1
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFrameTranslation requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
         obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose.translation
@@ -276,6 +283,9 @@ class ResidualModelFrameTranslationStatic(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFrameTranslation requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         assert self.frame_id in pt.point.end_effector_poses, (
             f"end_effector_poses should contains key {self.frame_id}"
         )
@@ -299,7 +309,9 @@ class ResidualModelFrameRotation(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
-        assert len(pt.point.end_effector_poses) == 1
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFrameRotation requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         ee_name, ee_pose = next(iter(pt.point.end_effector_poses.items()))
         obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_pose.rotation
@@ -325,8 +337,11 @@ class ResidualModelFrameRotationStatic(ResidualModel):
     pref: T.Optional[npt.NDArray[np.float64]] = None
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelFrameRotationStatic requires exactly one end-effector pose, current is {pt.point.end_effector_poses}."
+        )
         assert self.frame_id in pt.point.end_effector_poses, (
-            f"end_effector_poses should contains key {self.frame_id}"
+            f"ResidualModelFrameRotationStatic: end_effector_poses should contain the key {self.frame_id}"
         )
         obj.reference = pt.point.end_effector_poses[self.frame_id].rotation
         return pt.weights.w_end_effector_poses[self.frame_id][3:]
@@ -358,7 +373,9 @@ class ResidualModelFrameVelocity(ResidualModel):
         )
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
-        assert len(pt.point.end_effector_velocities) == 1
+        assert len(pt.point.end_effector_velocities) == 1, (
+            f"ResidualModelFrameVelocity requires exactly one end-effector velocity, current is {pt.point.end_effector_velocities}."
+        )
         ee_name, ee_vel = next(iter(pt.point.end_effector_velocities.items()))
         obj.id = get_frame_id(data.state, ee_name)
         obj.reference = ee_vel
@@ -395,11 +412,14 @@ class ResidualModelFrameVelocityStatic(ResidualModel):
         )
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_velocities) == 1, (
+            f"ResidualModelFrameVelocityStatic requires exactly one end-effector velocity, current is {pt.point.end_effector_velocities}."
+        )
         assert self.frame_id in pt.point.end_effector_velocities, (
-            f"end_effector_velocities should contains key {self.frame_id}"
+            f"ResidualModelFrameVelocityStatic: end_effector_velocities should contain the key {self.frame_id}"
         )
         obj.reference = pt.point.end_effector_velocities[self.frame_id]
-        return pt.weights.w_end_effector_poses[self.frame_id]
+        return pt.weights.w_end_effector_velocities[self.frame_id]
 
     def build(self, data: BuildData):
         id = get_frame_id(data.state, self.frame_id)
@@ -432,6 +452,9 @@ class ResidualModelVisualServoing(ResidualModel):
     robot_frame: str
 
     def update(self, data: BuildData, obj, pt: WeightedTrajectoryPoint):
+        assert len(pt.point.end_effector_poses) == 1, (
+            f"ResidualModelVisualServoing requires exactly one end-effector, current is {pt.point.end_effector_poses}."
+        )
         assert self.input_key in pt.point.end_effector_poses, (
             f"end_effector_poses should contains key {self.input_key}"
         )

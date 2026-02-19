@@ -268,7 +268,7 @@ def plot_mpc_results(
     SAVE=False,
     SAVE_DIR=None,
     SAVE_NAME=None,
-    SHOW=True,
+    SHOW=False,
     AUTOSCALE=False,
 ):
     """
@@ -286,6 +286,19 @@ def plot_mpc_results(
     """
 
     plots = {}
+    dump_dict = {}
+    # Set global font for readability
+    plt.rcParams.update(
+        {
+            "font.size": 18,
+            "font.family": "sans-serif",
+            "axes.titlesize": 20,
+            "axes.labelsize": 18,
+            "legend.fontsize": 16,
+            "xtick.labelsize": 16,
+            "ytick.labelsize": 16,
+        }
+    )
 
     if (
         "x" in which_plots
@@ -327,6 +340,7 @@ def plot_mpc_results(
     ):
         plots["ee_lin"] = plot_mpc_endeff_linear(
             plot_data,
+            dump_dict,
             PLOT_PREDICTIONS=PLOT_PREDICTIONS,
             pred_plot_sampling=pred_plot_sampling,
             SAVE=SAVE,
@@ -337,6 +351,7 @@ def plot_mpc_results(
         )
         plots["ee_ang"] = plot_mpc_endeff_angular(
             plot_data,
+            dump_dict,
             PLOT_PREDICTIONS=PLOT_PREDICTIONS,
             pred_plot_sampling=pred_plot_sampling,
             SAVE=SAVE,
@@ -365,6 +380,7 @@ def plot_mpc_results(
     if SHOW:
         plt.show()
     plt.close("all")
+    return dump_dict
 
 
 # Plot state data
@@ -399,6 +415,7 @@ def plot_mpc_state(
     t_span_simu = np.linspace(0, T_sim, N_sim + 1)
     t_span_plan = np.linspace(0, T_sim, N_mpc + 1)
     fig_x, ax_x = plt.subplots(nq, 2, figsize=(19.2, 10.8), sharex="col")
+    color_map = plt.get_cmap("tab10")
     # For each joint
     for i in range(nq):
         if PLOT_PREDICTIONS:
@@ -448,6 +465,7 @@ def plot_mpc_state(
                     zorder=1,
                     c=my_colors,
                     cmap=matplotlib.cm.Greys,
+                    label="MPC prediction" if i == 0 and j == 0 else None,
                 )  # c='black',
                 ax_x[i, 1].scatter(
                     tspan_x_pred,
@@ -462,31 +480,31 @@ def plot_mpc_state(
         ax_x[i, 0].plot(
             t_span_plan,
             plot_data["q_des_MPC_RATE"][:, i],
-            color="b",
+            color=color_map(0),
             linestyle="-",
             marker=".",
-            label="Predicted",
+            label="MPC ",
             alpha=0.1,
         )
         # ax_x[i,0].plot(t_span_simu, plot_data['q_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
         ax_x[i, 0].plot(
             t_span_simu,
             plot_data["q_mea"][:, i],
-            "r-",
+            color=color_map(1),
             label="Measured",
             linewidth=1,
-            alpha=0.3,
+            alpha=0.9,
         )
         # Plot joint position regularization reference
         if "stateReg" in plot_data["active_costs"]:
             ax_x[i, 0].plot(
                 t_span_plan[:-1],
                 plot_data["state_ref"][:, i],
+                color=color_map(2),
+                linewidth=2.0,
                 linestyle="-.",
-                color="k",
-                marker=None,
-                label="xReg_ref",
-                alpha=0.5,
+                label="reference",
+                alpha=0.9,
             )
         ax_x[i, 0].set_ylabel("$q_{}$".format(i), fontsize=12)
         ax_x[i, 0].yaxis.set_major_locator(plt.MaxNLocator(2))
@@ -497,30 +515,30 @@ def plot_mpc_state(
         ax_x[i, 1].plot(
             t_span_plan,
             plot_data["v_des_MPC_RATE"][:, i],
-            color="b",
+            color=color_map(0),
             linestyle="-",
             marker=".",
-            label="Predicted",
-            alpha=0.5,
+            label="MPC ",
+            alpha=0.1,
         )
         # ax_x[i,1].plot(t_span_simu, plot_data['v_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU)', alpha=0.5)
         ax_x[i, 1].plot(
             t_span_simu,
             plot_data["v_mea"][:, i],
-            "r-",
+            color=color_map(1),
             label="Measured",
             linewidth=1,
-            alpha=0.3,
+            alpha=0.9,
         )
         if "stateReg" in plot_data["active_costs"]:
             ax_x[i, 1].plot(
                 t_span_plan[:-1],
                 plot_data["state_ref"][:, i + nq],
+                color=color_map(2),
+                linewidth=2.0,
                 linestyle="-.",
-                color="k",
-                marker=None,
                 label="xReg_ref",
-                alpha=0.5,
+                alpha=0.9,
             )
         ax_x[i, 1].set_ylabel("$v_{}$".format(i), fontsize=12)
         ax_x[i, 1].yaxis.set_major_locator(plt.MaxNLocator(2))
@@ -531,24 +549,35 @@ def plot_mpc_state(
         if i == nq - 1:
             ax_x[i, 0].set_xlabel("t(s)", fontsize=16)
             ax_x[i, 1].set_xlabel("t(s)", fontsize=16)
-        # Legend
-        handles_x, labels_x = ax_x[i, 0].get_legend_handles_labels()
-        fig_x.legend(handles_x, labels_x, loc="upper right", prop={"size": 16})
+    # Set xlim to 10 seconds
+    for i in range(nq):
+        ax_x[i, 0].set_xlim(0, 10)
+        ax_x[i, 1].set_xlim(0, 10)
     # y axis labels
     fig_x.text(
-        0.05, 0.5, "Joint position (rad)", va="center", rotation="vertical", fontsize=16
-    )
-    fig_x.text(
-        0.49,
-        0.5,
-        "Joint velocity (rad/s)",
+        0.25,
+        0.90,
+        "Joint position (rad)",
+        ha="center",
         va="center",
-        rotation="vertical",
+        rotation="horizontal",
         fontsize=16,
     )
-    fig_x.subplots_adjust(wspace=0.27)
+    fig_x.text(
+        0.75,
+        0.90,
+        "Joint velocity (rad/s)",
+        ha="center",
+        va="center",
+        rotation="horizontal",
+        fontsize=16,
+    )
+    fig_x.subplots_adjust(wspace=0.4)
     # Titles
     fig_x.suptitle("State = joint positions, velocities", size=18)
+    # Legend
+    handles_x, labels_x = ax_x[0, 0].get_legend_handles_labels()
+    fig_x.legend(handles_x, labels_x, loc="upper right", prop={"size": 16})
     # Save fig
     if SAVE:
         figs = {"x": fig_x}
@@ -556,14 +585,15 @@ def plot_mpc_state(
             print("SAVE FIGURES IN HOME")
             SAVE_DIR = os.environ["HOME"]
         if SAVE_NAME is None:
-            SAVE_NAME = "testfig"
+            SAVE_NAME = "plot"
         for name, fig in figs.items():
+            fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".svg")
             fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".png")
 
     if SHOW:
         plt.show()
 
-    return fig_x
+    return fig_x, ax_x
 
 
 # Plot control data
@@ -597,6 +627,7 @@ def plot_mpc_control(
     # Create time spans for X and U + Create figs and subplots
     t_span_plan = np.linspace(0, T_sim - dt_mpc, N_mpc)
     fig_u, ax_u = plt.subplots(nq, 1, figsize=(19.2, 10.8), sharex="col")
+    color_map = plt.get_cmap("tab10")
     # For each joint
     for i in range(nq):
         if PLOT_PREDICTIONS:
@@ -633,26 +664,26 @@ def plot_mpc_control(
                     zorder=1,
                     c=cm(np.r_[np.linspace(0.1, 1, N_h - 1), 1]),
                     cmap=matplotlib.cm.Greys,
+                    label="MPC prediction" if i == 0 and j == 0 else None,
                 )  # c='black'
 
         # Joint torques
         ax_u[i].plot(
             t_span_plan,
             plot_data["u_pred"][:, 0, i],
-            color="r",
-            marker=None,
+            color=color_map(0),
             linestyle="-",
+            marker=".",
             label="Optimal control u0*",
-            alpha=0.6,
+            alpha=0.1,
         )
         ax_u[i].plot(
             t_span_plan,
             plot_data["u_des_MPC_RATE"][:, i],
-            color="b",
-            linestyle="-",
-            marker=".",
-            label="Predicted",
-            alpha=0.1,
+            color=color_map(1),
+            label="MPC ",
+            linewidth=1,
+            alpha=0.9,
         )
         # ax_u[i].plot(t_span_simu, plot_data['u_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Prediction (SIMU)', alpha=0.6)
         # ax_u[i].plot(t_span_simu, plot_data['grav'][:-1,i], color=[0.,1.,0.,0.], marker=None, linestyle='-.', label='Gravity torque', alpha=0.9)
@@ -666,25 +697,33 @@ def plot_mpc_control(
                 t_span_plan,
                 plot_data["ctrl_ref"][:, i],
                 linestyle="-.",
-                color="k",
-                marker=None,
+                color=color_map(2),
+                linewidth=2.0,
                 label="uReg_ref",
-                alpha=0.5,
+                alpha=0.9,
             )
         ax_u[i].set_ylabel("$u_{}$".format(i), fontsize=12)
         ax_u[i].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax_u[i].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax_u[i].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax_u[i].grid(True)
         # Last x axis label
         if i == nq - 1:
             ax_u[i].set_xlabel("t (s)", fontsize=16)
-        # LEgend
-        handles_u, labels_u = ax_u[i].get_legend_handles_labels()
-        fig_u.legend(handles_u, labels_u, loc="upper right", prop={"size": 16})
+    # Set xlim to 10 seconds
+    for i in range(nq):
+        ax_u[i].set_xlim(0, 10)
     # Sup-y label
     fig_u.text(
-        0.04, 0.5, "Joint torque (Nm)", va="center", rotation="vertical", fontsize=16
+        0.04,
+        1.02,
+        "Joint torque (Nm)",
+        ha="center",
+        va="bottom",
+        rotation="vertical",
+        fontsize=16,
     )
+    handles_p, labels_p = ax_u[0].get_legend_handles_labels()
+    fig_u.legend(handles_p, labels_p, loc="upper right", prop={"size": 16})
     # Titles
     fig_u.suptitle("Control = joint torques", size=18)
     # Save figs
@@ -694,19 +733,21 @@ def plot_mpc_control(
             print("SAVE FIGURES IN HOME")
             SAVE_DIR = os.environ["HOME"]
         if SAVE_NAME is None:
-            SAVE_NAME = "testfig"
+            SAVE_NAME = "plot"
         for name, fig in figs.items():
+            fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".svg")
             fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".png")
 
     if SHOW:
         plt.show()
 
-    return fig_u
+    return fig_u, ax_u
 
 
 # Plot end-eff data
 def plot_mpc_endeff_linear(
     plot_data,
+    dump_dict,
     PLOT_PREDICTIONS=False,
     pred_plot_sampling=100,
     SAVE=False,
@@ -738,6 +779,21 @@ def plot_mpc_endeff_linear(
     t_span_simu = np.linspace(0, T_sim, N_sim + 1)
     t_span_plan = np.linspace(0, T_sim, N_mpc + 1)
     fig, ax = plt.subplots(3, 2, figsize=(19.2, 10.8), sharex="col")
+    # Use colorblind-friendly colormap for all lines
+    color_map = plt.get_cmap("tab10")
+    line_colors = []
+    # Save the figure data in a dict if required
+    dump_dict["mpc_endeff_linear"] = dict()
+    dump_dict["mpc_endeff_linear"]["type"] = "mpc_endeff_linear"
+    dump_dict["mpc_endeff_linear"]["layout"] = {
+        "figsize": (19.2, 10.8),
+        "subplots": (3, 2),
+        "sharex": "col",
+        "xyz_labels": ["x", "y", "z"],
+    }
+    dump_dict["mpc_endeff_linear"]["t_span_simu"] = t_span_simu.tolist()
+    dump_dict["mpc_endeff_linear"]["t_span_plan"] = t_span_plan.tolist()
+
     # Plot endeff
     xyz = ["x", "y", "z"]
     for i in range(3):
@@ -786,6 +842,7 @@ def plot_mpc_endeff_linear(
                     s=10,
                     zorder=1,
                     c=my_colors,
+                    label="MPC predicted" if i == 0 and j == 0 else None,
                     cmap=matplotlib.cm.Greys,
                 )
                 ax[i, 1].scatter(
@@ -796,32 +853,86 @@ def plot_mpc_endeff_linear(
                     c=my_colors,
                     cmap=matplotlib.cm.Greys,
                 )
+                if dump_dict is not None:
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"] = dict()
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"][
+                        "tspan_x_pred_{}".format(j)
+                    ] = tspan_x_pred.tolist()
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"][
+                        "lin_pos_ee_pred_{}".format(j)
+                    ] = lin_pos_ee_pred_i[j, :].tolist()
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"][
+                        "lin_vel_ee_pred_{}".format(j)
+                    ] = lin_vel_ee_pred_i[j, :].tolist()
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["s"] = 10
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["zorder"] = 1
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["cmap"] = "Greys"
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["c"] = (
+                        my_colors.tolist()
+                    )
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["type"] = (
+                        "scatter"
+                    )
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["linestyle"] = "-"
+                    dump_dict["mpc_endeff_linear"][f"prediction_{i}"]["linewidth"] = 1
 
         # EE position
         ax[i, 0].plot(
             t_span_plan,
             plot_data["lin_pos_ee_des_MPC_RATE"][:, i],
-            color="b",
+            color=color_map(0),
             linestyle="-",
             marker=".",
-            label="Predicted ",
+            label="MPC ",
             alpha=0.1,
         )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"] = dict()
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["t"] = (
+            t_span_plan.tolist()
+        )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["data"] = (
+            plot_data["lin_pos_ee_des_MPC_RATE"][:, i].tolist()
+        )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["color"] = "b"
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["linestyle"] = (
+            "-"
+        )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["marker"] = "."
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["label"] = (
+            "Predicted"
+        )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["alpha"] = 0.1
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_des_MPC_RATE_{i}"]["type"] = "line"
         # ax[i,0].plot(t_span_simu, plot_data['lin_pos_ee_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
         ax[i, 0].plot(
             t_span_simu,
             plot_data["lin_pos_ee_mea"][:, i],
-            "r-",
+            color=color_map(1),
             label="Measured (WITH noise)",
             linewidth=1,
-            alpha=0.3,
+            alpha=0.9,
         )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"] = dict()
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["t"] = (
+            t_span_simu.tolist()
+        )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["data"] = plot_data[
+            "lin_pos_ee_mea"
+        ][:, i].tolist()
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["color"] = "r"
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["linestyle"] = "-"
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["label"] = (
+            "Measured (WITH noise)"
+        )
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["linewidth"] = 1
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["alpha"] = 0.3
+        dump_dict["mpc_endeff_linear"][f"lin_pos_ee_mea_{i}"]["type"] = "line"
         # Plot reference
         if "translation" in plot_data["active_costs"]:
             ax[i, 0].plot(
                 t_span_plan[:-1],
                 plot_data["lin_pos_ee_ref"][:, i],
-                color="k",
+                color=color_map(2),
                 linestyle="-.",
                 linewidth=2.0,
                 label="Reference",
@@ -829,44 +940,109 @@ def plot_mpc_endeff_linear(
             )
         ax[i, 0].set_ylabel("$P^{EE}_%s$  (m)" % xyz[i], fontsize=16)
         ax[i, 0].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax[i, 0].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax[i, 0].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax[i, 0].grid(True)
 
         # EE velocity
         ax[i, 1].plot(
             t_span_plan,
             plot_data["lin_vel_ee_des_MPC_RATE"][:, i],
-            color="b",
+            color=color_map(0),
             linestyle="-",
             marker=".",
-            label="Predicted ",
+            label="MPC ",
             alpha=0.1,
         )
+        if dump_dict is not None:
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"] = dict()
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["t"] = (
+                t_span_plan.tolist()
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["data"] = (
+                plot_data["lin_vel_ee_des_MPC_RATE"][:, i].tolist()
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["color"] = (
+                "b"
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"][
+                "linestyle"
+            ] = "-"
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["marker"] = (
+                "."
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["label"] = (
+                "Predicted"
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["alpha"] = (
+                0.1
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_des_MPC_RATE_{i}"]["type"] = (
+                "line"
+            )
         # ax[i,1].plot(t_span_simu, plot_data['lin_vel_ee_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
         ax[i, 1].plot(
             t_span_simu,
             plot_data["lin_vel_ee_mea"][:, i],
-            "r-",
+            # "r-",
+            color=color_map(1),
             label="Measured (WITH noise)",
             linewidth=1,
-            alpha=0.3,
+            alpha=0.9,
         )
+        if dump_dict is not None:
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"] = dict()
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["t"] = (
+                t_span_simu.tolist()
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["data"] = plot_data[
+                "lin_vel_ee_mea"
+            ][:, i].tolist()
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["color"] = "r"
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["linestyle"] = "-"
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["label"] = (
+                "Measured (WITH noise)"
+            )
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["linewidth"] = 1
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["alpha"] = 0.3
+            dump_dict["mpc_endeff_linear"][f"lin_vel_ee_mea_{i}"]["type"] = "line"
         # Plot reference
         if "velocity" in plot_data["active_costs"]:
             ax[i, 1].plot(
                 t_span_plan,
                 [0.0] * (N_mpc + 1),
-                color="k",
+                color=color_map(2),
                 linestyle="-.",
                 linewidth=2.0,
                 label="Reference",
                 alpha=0.9,
             )
+            if dump_dict is not None:
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"] = dict()
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["t"] = (
+                    t_span_plan.tolist()
+                )
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["data"] = [
+                    0.0
+                ] * (N_mpc + 1)
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["color"] = "k"
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["linestyle"] = (
+                    "-."
+                )
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["linewidth"] = 2.0
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["label"] = (
+                    "Reference"
+                )
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["alpha"] = 0.9
+                dump_dict["mpc_endeff_linear"][f"lin_vel_ee_ref_{i}"]["type"] = "line"
         ax[i, 1].set_ylabel("$V^{EE}_%s$  (m)" % xyz[i], fontsize=16)
         ax[i, 1].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax[i, 1].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax[i, 1].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax[i, 1].grid(True)
 
+    # Set xlim to 10 seconds
+    for k in range(3):
+        ax[k, 0].set_xlim(0, 10)
+        ax[k, 1].set_xlim(0, 10)
     # Align
     fig.align_ylabels(ax[:, 0])
     fig.align_ylabels(ax[:, 1])
@@ -877,14 +1053,45 @@ def plot_mpc_endeff_linear(
     if AUTOSCALE:
         ax_p_ylim = 1.1 * max(np.max(np.abs(plot_data["lin_pos_ee_mea"])), TOL)
         ax_v_ylim = 1.1 * max(np.max(np.abs(plot_data["lin_vel_ee_mea"])), TOL)
-        for i in range(3):
-            ax[i, 0].set_ylim(-ax_p_ylim, ax_p_ylim)
-            ax[i, 1].set_ylim(-ax_v_ylim, ax_v_ylim)
+        for k in range(3):
+            ax[k, 0].set_ylim(-ax_p_ylim, ax_p_ylim)
+            ax[k, 1].set_ylim(-ax_v_ylim, ax_v_ylim)
 
+    # --- Collect axes and figure metadata for reproducibility ---
+    if dump_dict is not None:
+        dump_dict["mpc_endeff_linear"]["axes"] = {}
+        for k in range(3):
+            for h in range(2):
+                ax_key = f"ax_{k}_{h}"
+                dump_dict["mpc_endeff_linear"]["axes"][ax_key] = {
+                    "xlabel": ax[k, h].get_xlabel(),
+                    "ylabel": ax[k, h].get_ylabel(),
+                    "fontsize_xlabel": 16,
+                    "fontsize_ylabel": 16,
+                    "grid": True,
+                    "yaxis_major_locator": 2,
+                    "yaxis_major_formatter": "%.3e",
+                }
+                if AUTOSCALE:
+                    dump_dict["mpc_endeff_linear"]["axes"][ax_key]["ylim"] = ax[
+                        k, h
+                    ].get_ylim()
+        dump_dict["mpc_endeff_linear"]["figure"] = {
+            "align_ylabels": True,
+            "legend": {
+                "handles_labels": ax[0, 0].get_legend_handles_labels()[1],
+                "loc": "upper right",
+                "prop": {"size": 16},
+            },
+            "suptitle": "End-effector trajectories",
+            "suptitle_size": 18,
+        }
     handles_p, labels_p = ax[0, 0].get_legend_handles_labels()
     fig.legend(handles_p, labels_p, loc="upper right", prop={"size": 16})
+    dump_dict["mpc_endeff_linear"]["colors"] = line_colors
     # Titles
     fig.suptitle("End-effector trajectories", size=18)
+    fig.subplots_adjust(wspace=0.4)
     # Save figs
     if SAVE:
         figs = {"ee_lin": fig}
@@ -892,8 +1099,11 @@ def plot_mpc_endeff_linear(
             print("SAVE FIGURES IN HOME")
             SAVE_DIR = os.environ["HOME"]
         if SAVE_NAME is None:
-            SAVE_NAME = "testfig"
+            SAVE_NAME = "plot"
         for name, fig in figs.items():
+            # Save as PNG (raster)
+            # Save as SVG (vectorial)
+            fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".svg")
             fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".png")
 
     if SHOW:
@@ -905,6 +1115,7 @@ def plot_mpc_endeff_linear(
 # Plot end-eff data
 def plot_mpc_endeff_angular(
     plot_data,
+    dump_dict,
     PLOT_PREDICTIONS=False,
     pred_plot_sampling=100,
     SAVE=False,
@@ -936,18 +1147,18 @@ def plot_mpc_endeff_angular(
     t_span_simu = np.linspace(0, T_sim, N_sim + 1)
     t_span_plan = np.linspace(0, T_sim, N_mpc + 1)
     fig, ax = plt.subplots(3, 2, figsize=(19.2, 10.8), sharex="col")
+    # Use colorblind-friendly colormap for all lines
+    color_map = plt.get_cmap("tab10")
+    line_colors = []
     # Plot endeff
     xyz = ["x", "y", "z"]
     for i in range(3):
         if PLOT_PREDICTIONS:
             ang_pos_ee_pred_i = plot_data["ang_pos_ee_pred"][:, :, i]
             ang_vel_ee_pred_i = plot_data["ang_vel_ee_pred"][:, :, i]
-            # For each planning step in the trajectory
             for j in range(0, N_mpc, pred_plot_sampling):
-                # Receding horizon = [j,j+N_h]
                 t0_horizon = j * dt_mpc
                 tspan_x_pred = np.linspace(t0_horizon, t0_horizon + T_h, N_h + 1)
-                # Set up lists of (x,y) points for predicted positions
                 points_p = (
                     np.array([tspan_x_pred, ang_pos_ee_pred_i[j, :]])
                     .transpose()
@@ -958,24 +1169,19 @@ def plot_mpc_endeff_angular(
                     .transpose()
                     .reshape(-1, 1, 2)
                 )
-                # Set up lists of segments
                 segs_p = np.concatenate([points_p[:-1], points_p[1:]], axis=1)
                 segs_v = np.concatenate([points_v[:-1], points_v[1:]], axis=1)
-                # Make collections segments
                 cm = plt.get_cmap("Greys_r")
                 lc_p = LineCollection(segs_p, cmap=cm, zorder=-1)
                 lc_v = LineCollection(segs_v, cmap=cm, zorder=-1)
                 lc_p.set_array(tspan_x_pred)
                 lc_v.set_array(tspan_x_pred)
-                # Customize
                 lc_p.set_linestyle("-")
                 lc_v.set_linestyle("-")
                 lc_p.set_linewidth(1)
                 lc_v.set_linewidth(1)
-                # Plot collections
                 ax[i, 0].add_collection(lc_p)
                 ax[i, 1].add_collection(lc_v)
-                # Scatter to highlight points
                 colors = np.r_[np.linspace(0.1, 1, N_h), 1]
                 my_colors = cm(colors)
                 ax[i, 0].scatter(
@@ -984,6 +1190,7 @@ def plot_mpc_endeff_angular(
                     s=10,
                     zorder=1,
                     c=my_colors,
+                    label="MPC prediction" if i == 0 and j == 0 else None,
                     cmap=matplotlib.cm.Greys,
                 )
                 ax[i, 1].scatter(
@@ -1002,31 +1209,29 @@ def plot_mpc_endeff_angular(
             color="b",
             linestyle="-",
             marker=".",
-            label="Predicted ",
+            label="MPC ",
             alpha=0.1,
         )
-        # ax[i,0].plot(t_span_simu, plot_data['ang_pos_ee_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
         ax[i, 0].plot(
             t_span_simu,
             plot_data["ang_pos_ee_mea"][:, i],
             "r-",
-            label="Measured (WITH noise)",
+            label="Measured (WITH noise) ",
             linewidth=1,
-            alpha=0.3,
+            alpha=0.9,
         )
-        # Plot reference
         if "rotation" in plot_data["active_costs"]:
             ax[i, 0].plot(
                 t_span_plan[:-1],
                 plot_data["ang_pos_ee_ref"][:, i],
                 "m-.",
                 linewidth=2.0,
-                label="Reference",
+                label="Reference ",
                 alpha=0.9,
             )
         ax[i, 0].set_ylabel("$RPY^{EE}_%s$  (m)" % xyz[i], fontsize=16)
         ax[i, 0].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax[i, 0].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax[i, 0].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax[i, 0].grid(True)
 
         # EE velocity
@@ -1036,33 +1241,35 @@ def plot_mpc_endeff_angular(
             color="b",
             linestyle="-",
             marker=".",
-            label="Predicted ",
+            label="MPC ",
             alpha=0.1,
         )
-        # ax[i,1].plot(t_span_simu, plot_data['ang_vel_ee_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
         ax[i, 1].plot(
             t_span_simu,
             plot_data["ang_vel_ee_mea"][:, i],
             "r-",
-            label="Measured (WITH noise)",
+            label="Measured (WITH noise) ",
             linewidth=1,
-            alpha=0.3,
+            alpha=0.9,
         )
-        # Plot reference
         if "velocity" in plot_data["active_costs"]:
             ax[i, 1].plot(
                 t_span_plan,
                 [0.0] * (N_mpc + 1),
                 "m-.",
                 linewidth=2.0,
-                label="Reference",
+                label="Reference ",
                 alpha=0.9,
             )
         ax[i, 1].set_ylabel("$W^{EE}_%s$  (m)" % xyz[i], fontsize=16)
         ax[i, 1].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax[i, 1].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax[i, 1].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax[i, 1].grid(True)
 
+    # Set xlim to 10 seconds
+    for k in range(3):
+        ax[k, 0].set_xlim(0, 10)
+        ax[k, 1].set_xlim(0, 10)
     # Align
     fig.align_ylabels(ax[:, 0])
     fig.align_ylabels(ax[:, 1])
@@ -1077,8 +1284,17 @@ def plot_mpc_endeff_angular(
             ax[i, 0].set_ylim(-ax_p_ylim, ax_p_ylim)
             ax[i, 1].set_ylim(-ax_v_ylim, ax_v_ylim)
 
+    # Assign colors explicitly and collect them for dumping
+    for i, axes in enumerate(ax):
+        for j, a in enumerate(axes):
+            for k, line in enumerate(a.get_lines()):
+                color = color_map(k % 10)
+                line.set_color(color)
+                if len(line_colors) <= k:
+                    line_colors.append(matplotlib.colors.to_hex(color))
     handles_p, labels_p = ax[0, 0].get_legend_handles_labels()
     fig.legend(handles_p, labels_p, loc="upper right", prop={"size": 16})
+    fig.subplots_adjust(wspace=0.4)
     # Titles
     fig.suptitle("End-effector frame orientation (RPY) and angular velocity", size=18)
     # Save figs
@@ -1088,8 +1304,11 @@ def plot_mpc_endeff_angular(
             print("SAVE FIGURES IN HOME")
             SAVE_DIR = os.environ["HOME"]
         if SAVE_NAME is None:
-            SAVE_NAME = "testfig"
+            SAVE_NAME = "plot"
         for name, fig in figs.items():
+            # Save as PNG (raster)
+            # Save as SVG (vectorial)
+            fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".svg")
             fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".png")
 
     if SHOW:
@@ -1170,6 +1389,7 @@ def plot_mpc_force(
                     zorder=1,
                     c=my_colors,
                     cmap=matplotlib.cm.Greys,
+                    label="MPC prediction" if i == 0 and j == 0 else None,
                 )
 
         # EE linear force
@@ -1179,7 +1399,7 @@ def plot_mpc_force(
             color="b",
             linestyle="-",
             marker=".",
-            label="Predicted ",
+            label="MPC ",
             alpha=0.1,
         )
         # ax[i,0].plot(t_span_simu, plot_data['f_ee_des_SIM_RATE'][:,i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
@@ -1204,7 +1424,7 @@ def plot_mpc_force(
             )
         ax[i, 0].set_ylabel("$\\lambda^{EE}_%s$  (N)" % xyz[i], fontsize=16)
         ax[i, 0].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax[i, 0].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax[i, 0].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax[i, 0].grid(True)
 
         # EE angular force
@@ -1214,7 +1434,7 @@ def plot_mpc_force(
             color="b",
             linestyle="-",
             marker=".",
-            label="Predicted ",
+            label="MPC ",
             alpha=0.1,
         )
         # ax[i,1].plot(t_span_simu, plot_data['f_ee_des_SIM_RATE'][:,3+i], color='y', linestyle='-', marker='.', label='Predicted (SIMU rate)', alpha=0.5)
@@ -1239,9 +1459,13 @@ def plot_mpc_force(
             )
         ax[i, 1].set_ylabel("$\\tau^{EE}_%s$  (Nm)" % xyz[i], fontsize=16)
         ax[i, 1].yaxis.set_major_locator(plt.MaxNLocator(2))
-        ax[i, 1].yaxis.set_major_formatter(plt.FormatStrFormatter("%.3e"))
+        ax[i, 1].yaxis.set_major_formatter(plt.FormatStrFormatter("%.2e"))
         ax[i, 1].grid(True)
 
+    # Set xlim to 10 seconds
+    for k in range(3):
+        ax[k, 0].set_xlim(0, 10)
+        ax[k, 1].set_xlim(0, 10)
     # Align
     fig.align_ylabels(ax[:, 0])
     fig.align_ylabels(ax[:, 1])
@@ -1268,8 +1492,9 @@ def plot_mpc_force(
             print("SAVE FIGURES IN HOME")
             SAVE_DIR = os.environ["HOME"]
         if SAVE_NAME is None:
-            SAVE_NAME = "testfig"
+            SAVE_NAME = "plot"
         for name, fig in figs.items():
+            fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".svg")
             fig.savefig(SAVE_DIR + "/" + str(name) + "_" + SAVE_NAME + ".png")
 
     if SHOW:

@@ -105,9 +105,11 @@ def plot_tails(
 
         sim_data["state_mea_SIM_RATE"][mpc_cycle + 1, :] = mpc_xs[mpc_cycle + 1, 0, :]
     plot_data = extract_plot_data_from_sim_data(sim_data)
-    plot_mpc_results(
+    dump_dict = plot_mpc_results(
         plot_data,
         which_plots=["x", "u", "ee"],
         PLOT_PREDICTIONS=True,
         pred_plot_sampling=int(sim_params["mpc_freq"] / 10),
+        SAVE=True,
     )
+    return dump_dict
