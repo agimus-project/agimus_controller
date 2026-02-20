@@ -17,20 +17,20 @@ This page exposes the API of the `ocp_croco_generic` module.
 Below are the main cost and residual classes implemented in this module. Click the class names above to open full API docs.
 
 ```{autosummary}
-ActivationModelWeightedQuad
-ActivationModelExp
-ActivationModelQuadExp
-ResidualModelState
-ResidualModelControl
-ResidualModelControlGrav
-ResidualModelFramePlacement
-ResidualModelFrameTranslation
-ResidualModelFrameRotation
-ResidualModelFrameVelocity
-ResidualDistanceCollision
-ResidualDistanceCollision2
-CostModelResidual
-CostModelSumItem
+agimus_controller.ocp.ocp_croco_generic.ActivationModelWeightedQuad
+agimus_controller.ocp.ocp_croco_generic.ActivationModelExp
+agimus_controller.ocp.ocp_croco_generic.ActivationModelQuadExp
+agimus_controller.ocp.ocp_croco_generic.ResidualModelState
+agimus_controller.ocp.ocp_croco_generic.ResidualModelControl
+agimus_controller.ocp.ocp_croco_generic.ResidualModelControlGrav
+agimus_controller.ocp.ocp_croco_generic.ResidualModelFramePlacement
+agimus_controller.ocp.ocp_croco_generic.ResidualModelFrameTranslation
+agimus_controller.ocp.ocp_croco_generic.ResidualModelFrameRotation
+agimus_controller.ocp.ocp_croco_generic.ResidualModelFrameVelocity
+agimus_controller.ocp.ocp_croco_generic.ResidualDistanceCollision
+agimus_controller.ocp.ocp_croco_generic.ResidualDistanceCollision2
+agimus_controller.ocp.ocp_croco_generic.CostModelResidual
+agimus_controller.ocp.ocp_croco_generic.CostModelSumItem
 ```
 
 ## Example usage
