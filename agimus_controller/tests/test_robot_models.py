@@ -453,5 +453,104 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             self.assertEqual(geom_obj_type, geom_obj_type_test)
 
 
+class TestRobotModelsAgainstTiagoProDescription(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        """
+        This method sets up the shared environment for all test cases in the class.
+        """
+        # Load the example robot model using example robot data to get the URDF path.
+        tiago_pro_description_path = Path(
+            get_package_share_directory("tiago_pro_description")
+        )
+        # srdf_path = tiago_pro_description_path / "robots" / "tiago_pro" / "tiago_pro.srdf"
+        # with open(srdf_path, "r") as srdf_file:
+        #     srdf_xml = srdf_file.read()
+        srdf_xml = ""
+        # robot_xacro_path = str(
+        #     tiago_pro_description_path
+        #     / "robots"
+        #     / "tiago_pro"
+        #     / "tiago_pro.urdf.xacro",
+        # )
+        env_xacro_path = Path(__file__).parent / "resources" / "environment.xacro"
+        params_path = str(
+            Path(__file__).parent / "resources" / "agimus_controller_params.yaml"
+        )
+        with open(params_path, "r") as file:
+            mpc_params = yaml.safe_load(file)["agimus_controller_node"][
+                "ros__parameters"
+            ]
+        # robot_urdf_xml = xacro.process_file(
+        #     robot_xacro_path,
+        #     mappings={
+        #         # no-laser, sick-571
+        #         "laser_model": "sick-571",
+        #         # tiago-pro, no-arm
+        #         "arm_type_left": "tiago-pro",
+        #         # tiago-pro, no-arm
+        #         "arm_type_right": "tiago-pro",
+        #         # straight-wrist, spherical-wrist
+        #         "wrist_model_left": "spherical-wrist",
+        #         # straight-wrist, spherical-wrist
+        #         "wrist_model_right": "spherical-wrist",
+        #         # False, True
+        #         "tool_changer_right": "True",
+        #         # False, True
+        #         "tool_changer_left": "True",
+        #         # pal-pro-gripper custom
+        #         "end_effector_left": "pal-pro-gripper",
+        #         # pal-pro-gripper, custom
+        #         "end_effector_right": "pal-pro-gripper",
+        #         # no-ft-sensor, rokubi
+        #         "ft_sensor_left": "no-ft-sensor",
+        #         # no-ft-sensor, rokubi
+        #         "ft_sensor_right": "no-ft-sensor",
+        #         # realsense-d435
+        #         "camera_model": "realsense-d435",
+        #     },
+        # ).toxml()
+        env_urdf_xml = xacro.process_file(env_xacro_path).toxml()
+        # Hack for the moving joint name
+        with open(
+            Path(__file__).parent / "resources" / "tiago_pro_atc.urdf", "r"
+        ) as urdf_file:
+            robot_urdf_xml = urdf_file.read()
+        model = pin.buildModelFromXML(robot_urdf_xml)
+        cls.locked_joint_names = [
+            jn
+            for jn in model.names
+            if jn not in ["universe"] + mpc_params["moving_joint_names"]
+        ]
+        cls.params = RobotModelParameters(
+            q0=np.zeros(model.nq),
+            free_flyer=False,
+            moving_joint_names=mpc_params["moving_joint_names"],
+            robot_urdf=robot_urdf_xml,
+            env_urdf=env_urdf_xml,
+            srdf=srdf_xml,
+            collision_as_capsule=True,
+            self_collision=True,
+            urdf_meshes_dir=tiago_pro_description_path,
+            armature=np.array(mpc_params["ocp"]["armature"]),
+        )
+
+    def setUp(self):
+        """
+        This method ensures that a fresh RobotModelParameters and RobotModels instance
+        are created for each test case.
+        """
+        self.params = deepcopy(self.params)
+        self.robot_models = RobotModels(self.params)
+
+    def test_rnea(self):
+        """Checking that the RNEA method works."""
+        q = np.zeros(self.robot_models.robot_model.nq)
+        v = np.zeros(self.robot_models.robot_model.nv)
+        a = np.zeros(self.robot_models.robot_model.nv)
+        robot_data = self.robot_models.robot_model.createData()
+        pin.rnea(self.robot_models.robot_model, robot_data, q, v, a)
+
+
 if __name__ == "__main__":
     unittest.main()
