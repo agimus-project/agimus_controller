@@ -3,6 +3,7 @@
   python3Packages,
   lib,
   fetchFromGitHub ? null,
+  agimus-controller,
   ...
 }:
 
@@ -17,6 +18,7 @@ stdenv.mkDerivation rec {
     sphinx-rtd-theme
     myst-parser
     sphinx-autodoc-typehints
+    agimus-controller
   ];
 
   buildPhase = ''

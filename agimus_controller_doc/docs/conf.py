@@ -11,11 +11,12 @@ sys.path.insert(0, ROOT)
 # have heavy C++-backed dependencies like `crocoddyl`, `pinocchio` or
 # `colmpc`. Mock them so Sphinx can import the Python modules and
 # autosummary/autodoc can generate API pages.
-autodoc_mock_imports = [
-    "crocoddyl",
-    "pinocchio",
-    "colmpc",
-]
+# Note: Now installed via nix, so no need to mock them anymore.
+# autodoc_mock_imports = [
+#     "crocoddyl",
+#     "pinocchio",
+#     "colmpc",
+# ]
 
 project = "agimus_controller"
 author = "agimus_controller contributors"

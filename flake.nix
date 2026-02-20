@@ -123,7 +123,9 @@
             default = self'.packages.agimus-controller;
             agimus-controller = pkgs.python3Packages.agimus-controller;
             agimus-controller-examples = pkgs.python3Packages.agimus-controller-examples;
-            agimus-controller-doc = pkgs.callPackage ./agimus_controller_doc/default.nix { };
+            agimus-controller-doc = pkgs.callPackage ./agimus_controller_doc/default.nix {
+              inherit (pkgs.python3Packages) agimus-controller;
+            };
           }
           // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             ros-humble-agimus-controller-ros = pkgs.rosPackages.humble.agimus-controller-ros;
