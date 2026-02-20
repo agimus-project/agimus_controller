@@ -11,6 +11,7 @@ sphinx = "^6.0"
 sphinx-rtd-theme = "*"
 myst-parser = "*"
 sphinx-autodoc-typehints = "*"
+agimus-controller = { path = "../agimus_controller" }
 
 [tool.poetry.scripts]
 agimus-docs-build = "agimus_controller_doc.cli:build"

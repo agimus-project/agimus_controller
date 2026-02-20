@@ -8,7 +8,7 @@ title: agimus_controller documentation
 :maxdepth: 2
 
 general/usage
-api/ocp_croco_generic
+api/index
 
 ```
 

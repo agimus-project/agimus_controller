@@ -40,6 +40,11 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 
+# MyST-Parser configuration to enable Sphinx directives in markdown
+myst_enable_extensions = [
+    "colon_fence",  # Enable ::: for directives
+]
+
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
@@ -47,7 +52,7 @@ html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
 
 # Intersphinx: link to Python and NumPy docs
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-}
+# Disable remote intersphinx inventory fetches in offline/CI builds to avoid
+# noisy network warnings. If you need cross-references to Python/NumPy docs
+# re-enable the mapping below.
+intersphinx_mapping = {}
