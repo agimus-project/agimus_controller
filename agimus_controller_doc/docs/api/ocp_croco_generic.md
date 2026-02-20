@@ -14,24 +14,22 @@ This page exposes the API of the `ocp_croco_generic` module.
 
 ## Costs — quick index
 
-Below are the main cost and residual classes implemented in this module. Click the class names above to open full API docs.
+Below are the main cost and residual classes implemented in this module. Click the class names to open full API docs.
 
-```{autosummary}
-agimus_controller.ocp.ocp_croco_generic.ActivationModelWeightedQuad
-agimus_controller.ocp.ocp_croco_generic.ActivationModelExp
-agimus_controller.ocp.ocp_croco_generic.ActivationModelQuadExp
-agimus_controller.ocp.ocp_croco_generic.ResidualModelState
-agimus_controller.ocp.ocp_croco_generic.ResidualModelControl
-agimus_controller.ocp.ocp_croco_generic.ResidualModelControlGrav
-agimus_controller.ocp.ocp_croco_generic.ResidualModelFramePlacement
-agimus_controller.ocp.ocp_croco_generic.ResidualModelFrameTranslation
-agimus_controller.ocp.ocp_croco_generic.ResidualModelFrameRotation
-agimus_controller.ocp.ocp_croco_generic.ResidualModelFrameVelocity
-agimus_controller.ocp.ocp_croco_generic.ResidualDistanceCollision
-agimus_controller.ocp.ocp_croco_generic.ResidualDistanceCollision2
-agimus_controller.ocp.ocp_croco_generic.CostModelResidual
-agimus_controller.ocp.ocp_croco_generic.CostModelSumItem
-```
+- [ActivationModelWeightedQuad](ActivationModelWeightedQuad.md)
+- [ActivationModelExp](ActivationModelExp.md)
+- [ActivationModelQuadExp](ActivationModelQuadExp.md)
+- [ResidualModelState](ResidualModelState.md)
+- [ResidualModelControl](ResidualModelControl.md)
+- [ResidualModelControlGrav](ResidualModelControlGrav.md)
+- [ResidualModelFramePlacement](ResidualModelFramePlacement.md)
+- [ResidualModelFrameTranslation](ResidualModelFrameTranslation.md)
+- [ResidualModelFrameRotation](ResidualModelFrameRotation.md)
+- [ResidualModelFrameVelocity](ResidualModelFrameVelocity.md)
+- [ResidualDistanceCollision](ResidualDistanceCollision.md)
+- [ResidualDistanceCollision2](ResidualDistanceCollision2.md)
+- [CostModelResidual](CostModelResidual.md)
+- [CostModelSumItem](CostModelSumItem.md)
 
 ## Example usage
 
