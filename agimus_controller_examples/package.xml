@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+
+<package format="3">
+  <name>agimus_controller_examples</name>
+  <version>0.0.0</version>
+  <description>Examples for agimus_controller</description>
+  <maintainer email="guilhem.saurel@laas.fr">Guilhem Saurel</maintainer>
+  <author email="tmartinezf@laas.fr">Théo Martinez</author>
+
+  <license>BSD-2-Clause</license>
+  <url type="website">https://github.com/agimus-project/agimus_controller</url>
+
+  <!-- ROS dependencies. -->
+  <depend>agimus_controller</depend>
+
+  <!-- Build dependencies -->
+
+  <!-- Run-time dependencies -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>pinocchio</exec_depend>
+
+  <!-- Test dependencies -->
+  <test_depend>python3-pytest</test_depend>
+
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
