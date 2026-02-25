@@ -16,15 +16,15 @@
   <depend>rclpy</depend>
   <depend>xacro</depend>
   <depend>std_msgs</depend>
-  <depend>agimus_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>builtin_interfaces</depend>
-  <depend>agimus_controller</depend>
 
   <!-- Build dependencies -->
   <build_depend>generate_parameter_library</build_depend>
 
   <!-- Run-time dependencies -->
+  <exec_depend>agimus_msgs</exec_depend>
+  <exec_depend>agimus_controller</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
