@@ -27,11 +27,6 @@
                     ./agimus_controller
                   ];
                 };
-                # nativeCheckInputs = [
-                #   final.python3Packages.pytest
-                #   final.python3Packages.pytestCheckHook
-                # ];
-                # doCheck = true;
               };
               agimus-controller-ros = _final: _ros-final: {
                 src = lib.fileset.toSource {
@@ -40,11 +35,6 @@
                     ./agimus_controller_ros
                   ];
                 };
-                # nativeCheckInputs = [
-                #   final.python3Packages.pytest
-                #   final.python3Packages.pytestCheckHook
-                # ];
-                # doCheck = true;
               };
             };
           }
