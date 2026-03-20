@@ -1,9 +1,10 @@
 import sys
 from pathlib import Path
 from sphinx.cmd.build import build_main
+from typing import List, Optional
 
 
-def build(argv: list | None = None) -> int:
+def build(argv: Optional[List[str]] = None) -> int:
     """Build the documentation.
 
     Usage (after `poetry install`):
