@@ -32,7 +32,7 @@ stdenv.mkDerivation rec {
 
   meta = with lib; {
     description = "Sphinx HTML documentation for agimus_controller";
-    license = licenses.unfree; # docs only
+    license = licenses.bsd3;
     platforms = platforms.unix;
   };
 }
