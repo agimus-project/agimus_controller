@@ -2,7 +2,6 @@
   stdenv,
   python3Packages,
   lib,
-  fetchFromGitHub ? null,
   agimus-controller,
   ...
 }:
