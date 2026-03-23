@@ -27,6 +27,8 @@ from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller_ros.ros_utils import (
     weighted_traj_point_to_mpc_msg,
     get_param_from_node,
+    get_params_from_node,
+    sensor_ff_to_planar_state,
 )
 from agimus_controller.trajectories.generic_visual_servoing_trajectory import (
     GenericVisualServoingTrajectory,
@@ -77,6 +79,15 @@ class TrajectoryPublisherBase(Node):
         self.moving_joint_names = get_param_from_node(
             self, "linear_feedback_controller", "moving_joint_names"
         ).string_array_value
+
+        # Fetch base configuration from agimus_controller_node during __init__,
+        # i.e. before rclpy.spin starts, so we can use get_params_from_node safely.
+        base_params = get_params_from_node(
+            self, "agimus_controller_node", ["free_flyer", "planar_base"]
+        )
+        self._free_flyer = base_params[0].bool_value
+        self._planar_base = base_params[1].bool_value
+
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
@@ -110,15 +121,24 @@ class TrajectoryPublisherBase(Node):
     def joint_states_callback(self, msg: Sensor) -> None:
         """Set joint state reference."""
         jpos = np.array(msg.joint_state.position)
-        # TODO fix this, temp hac to work from sim
+        jvel = np.array(msg.joint_state.velocity)
+        # TODO fix this, temp hack to work from sim
         joint_idxs = get_joint_idxs(self.moving_joint_names, msg.joint_state)
-        if self.q0 is None and np.linalg.norm(jpos) > 1e-2:
-            self.q0 = get_reduced_configuration(jpos, joint_idxs)
+        arm_q = get_reduced_configuration(jpos, joint_idxs)
+        arm_v = get_reduced_configuration(jvel, joint_idxs)
+        if self.q0 is None and np.linalg.norm(arm_q) > 1e-2:
+            self.q0 = arm_q.copy()
             self.get_logger().info(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
-        self.current_q = get_reduced_configuration(jpos, joint_idxs)
-        self.current_dq = get_reduced_configuration(
-            np.array(msg.joint_state.velocity), joint_idxs
-        )
+        # With a planar base, the LFC sends base data in base_pose/base_twist fields.
+        # Convert to planar representation; before _load_models, fall back to neutral.
+        if self._planar_base:
+            q_planar, v_planar = sensor_ff_to_planar_state(msg, arm_q, arm_v)
+            self.current_q = q_planar
+            self.current_dq = v_planar
+        else:
+            base_q = getattr(self, "_base_q0", np.array([]))
+            self.current_q = np.concatenate([base_q, arm_q])
+            self.current_dq = np.concatenate([np.zeros(len(base_q)), arm_v])
 
     def robot_description_callback(self, msg: String) -> None:
         """Create the models of the robot from the urdf string."""
@@ -131,12 +151,28 @@ class TrajectoryPublisherBase(Node):
         self.robot_models = RobotModels(
             param=RobotModelParameters(
                 robot_urdf=self.robot_description_msg.data,
-                free_flyer=False,
+                free_flyer=self._free_flyer,
+                planar_base=self._planar_base,
                 moving_joint_names=self.moving_joint_names,
             )
         )
+
+        # q0 and current_q from joint_states_callback contain arm joints only.
+        # With a floating base, prepend the neutral base configuration so that
+        # the full configuration matches robot_model.nq.
+        rmodel = self.robot_models.robot_model
+        nq_base = rmodel.nq - len(self.moving_joint_names)
+        if nq_base > 0:
+            import pinocchio as pin
+            base_q0 = pin.neutral(rmodel)[:nq_base]
+            self.q0 = np.concatenate([base_q0, self.q0])
+            self.current_q = np.concatenate([base_q0, self.current_q])
+            self._base_q0 = base_q0
+        else:
+            self._base_q0 = np.array([])
+
         self.get_logger().info(
-            f"Model loaded, pin_model.nq = {self.robot_models.robot_model.nq}"
+            f"Model loaded, pin_model.nq = {rmodel.nq}"
         )
         self.get_logger().info(f"Model loaded, reduced self.q0 = {self.q0}")
 

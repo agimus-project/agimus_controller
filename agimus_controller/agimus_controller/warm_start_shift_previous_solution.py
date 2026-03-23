@@ -46,9 +46,12 @@ class WarmStartShiftPreviousSolution(WarmStartBase):
         assert ocp_params.dt == self._timesteps[0]
         assert all(dt >= self._dt for dt in self._timesteps)
 
-        # Build the integrator
+        # Build the integrator — actuation model must match the OCP
         state = crocoddyl.StateMultibody(robot_models.robot_model)
-        actuation = crocoddyl.ActuationModelFull(state)
+        if robot_models.params.free_flyer:
+            actuation = crocoddyl.ActuationModelFloatingBase(state)
+        else:
+            actuation = crocoddyl.ActuationModelFull(state)
         cost_model = crocoddyl.CostModelSum(state)
         differential = crocoddyl.DifferentialActionModelFreeFwdDynamics(
             state,

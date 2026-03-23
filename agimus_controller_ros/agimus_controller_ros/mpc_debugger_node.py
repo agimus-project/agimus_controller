@@ -132,6 +132,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
     def _get_agimus_controller_node_params(self):
         names = [
             "free_flyer",
+            "planar_base",
             "ocp.dt_factor_n_seq.factors",
             "ocp.dt_factor_n_seq.n_steps",
             "collision_as_capsule",
@@ -149,13 +150,14 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self._agimus_controller_node_params = dict(zip(names, params))
 
         self._robot_has_free_flyer = params[0].bool_value
-        dt_factors = params[1].integer_array_value
-        dt_n_steps = params[2].integer_array_value
+        self._robot_has_planar_base = params[1].bool_value
+        dt_factors = params[2].integer_array_value
+        dt_n_steps = params[3].integer_array_value
         self._ocp_dt_factor_n_seq = DTFactorsNSeq(dt_factors, dt_n_steps)
 
-        self._collision_as_capsule = params[3].bool_value
-        self._self_collision = params[4].bool_value
-        self._ocp_armature = np.array(params[5].double_array_value)
+        self._collision_as_capsule = params[4].bool_value
+        self._self_collision = params[5].bool_value
+        self._ocp_armature = np.array(params[6].double_array_value)
 
         self._horizon_indices = np.cumsum(
             sum(
@@ -435,6 +437,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self.get_logger().info("create robot...")
         self.create_robot_models(
             free_flyer=self._robot_has_free_flyer,
+            planar_base=self._robot_has_planar_base,
             collision_as_capsule=self._collision_as_capsule,
             self_collision=self._self_collision,
             armature=self._ocp_armature,
