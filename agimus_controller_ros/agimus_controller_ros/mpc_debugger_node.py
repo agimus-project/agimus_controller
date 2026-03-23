@@ -274,7 +274,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         if self._ocp_update_requested.is_set():
             return
 
-        # Step 1: Update references
+        # Update references
         # Read transforms from TF. Note that doing do introduces a delay.
         now = self.get_clock().now()
         transforms = self._ocp.input_transforms
@@ -295,14 +295,14 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         references = [self._references[i] for i in self._horizon_indices]
         self._ocp.set_reference_weighted_trajectory(references)
 
-        # Step 2: Build state and control and evaluate the OCP
+        # Build state and control and evaluate the OCP
         x = [np.asarray(state) for state in states]
         u = [np.asarray(control) for control in controls]
         problem = self._ocp._problem
         problem.calc(x, u)
         problem.calcDiff(x, u)
 
-        # Step 3: retrieve the individual cost items.
+        # Retrieve the individual cost items.
         idof = 0
         with self._mpl_lock:
             for c, (cost_idx, model, data) in enumerate(
