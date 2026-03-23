@@ -14,6 +14,7 @@ import rclpy.time
 from std_msgs.msg import Int32, String
 from geometry_msgs.msg import Pose, Twist
 from agimus_msgs.msg import MpcInput, MpcDebug
+from rcl_interfaces.srv import GetParameters
 import builtin_interfaces
 
 from tf2_ros import TransformException
@@ -43,7 +44,6 @@ from agimus_controller_ros.ros_utils import (
     mpc_msg_to_weighted_traj_point,
     mpc_debug_data_to_msg,
     transform_msg_to_se3,
-    get_param_from_node,
     ros_pose_to_se3,
     sensor_ff_to_planar_state,
 )
@@ -60,10 +60,13 @@ class RobotModelsMixin:
         self.environment_msg = None
         self.robot_srdf_description_msg = None
 
-        # Get moving joint names from LFC
-        self.moving_joint_names = get_param_from_node(
-            self, "linear_feedback_controller", "moving_joint_names"
-        ).string_array_value
+        # moving_joint_names is fetched asynchronously in initialization_callback
+        # to avoid blocking __init__ when the LFC service is not yet available.
+        self.moving_joint_names = None
+        self._lfc_param_future = None
+        self._lfc_param_client = self.create_client(
+            GetParameters, "/linear_feedback_controller/get_parameters"
+        )
 
         self.subscriber_robot_description = self.create_subscription(
             String,
@@ -374,7 +377,9 @@ class AgimusController(Node, RobotModelsMixin):
         q_arm = np_sensor_msg.joint_state.position
         v_arm = np_sensor_msg.joint_state.velocity
         if self.params.planar_base:
-            q_sensor, v_sensor = sensor_ff_to_planar_state(self.sensor_msg, q_arm, v_arm)
+            q_sensor, v_sensor = sensor_ff_to_planar_state(
+                self.sensor_msg, q_arm, v_arm
+            )
         else:
             q_sensor, v_sensor = q_arm, v_arm
         initial_state = TrajectoryPoint(
@@ -457,7 +462,9 @@ class AgimusController(Node, RobotModelsMixin):
             K_lfc = np.zeros((nv_joints, 2 * nv_lfc))
             # q_diff: planar [vx,vy,wz] → FF [0,1,5] (vz=2,wx=3,wy=4 stay zero)
             K_lfc[:, [0, 1, 5]] = ricatti_gain[:, 0:nv_base]
-            K_lfc[:, nv_ff : nv_ff + nv_joints] = ricatti_gain[:, nv_base : nv_base + nv_joints]
+            K_lfc[:, nv_ff : nv_ff + nv_joints] = ricatti_gain[
+                :, nv_base : nv_base + nv_joints
+            ]
             # v_diff: same layout, offset by nv_lfc
             K_lfc[:, [nv_lfc + 0, nv_lfc + 1, nv_lfc + 5]] = ricatti_gain[
                 :, nv_base + nv_joints : 2 * nv_base + nv_joints
@@ -492,6 +499,32 @@ class AgimusController(Node, RobotModelsMixin):
 
         if not self.ros_robot_ready():
             return
+
+        # Fetch moving_joint_names from LFC asynchronously (non-blocking).
+        if self.moving_joint_names is None:
+            if self._lfc_param_future is None:
+                if not self._lfc_param_client.service_is_ready():
+                    self.get_logger().warn(
+                        "Waiting for LFC parameter service...",
+                        throttle_duration_sec=5.0,
+                    )
+                    return
+                req = GetParameters.Request()
+                req.names = ["moving_joint_names"]
+                self._lfc_param_future = self._lfc_param_client.call_async(req)
+            if not self._lfc_param_future.done():
+                return
+            result = self._lfc_param_future.result()
+            self._lfc_param_future = None
+            if result is None:
+                self.get_logger().error(
+                    "Failed to get moving_joint_names from LFC, retrying..."
+                )
+                return
+            self.moving_joint_names = result.values[0].string_array_value
+            self.get_logger().info(
+                f"Got moving_joint_names from LFC: {self.moving_joint_names}"
+            )
 
         if self.mpc is None:
             self.create_robot_models(
@@ -570,7 +603,9 @@ class AgimusController(Node, RobotModelsMixin):
         q_arm = self.np_sensor_msg.joint_state.position
         v_arm = self.np_sensor_msg.joint_state.velocity
         if self.params.planar_base:
-            q_sensor, v_sensor = sensor_ff_to_planar_state(self.sensor_msg, q_arm, v_arm)
+            q_sensor, v_sensor = sensor_ff_to_planar_state(
+                self.sensor_msg, q_arm, v_arm
+            )
         else:
             q_sensor, v_sensor = q_arm, v_arm
 

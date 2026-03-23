@@ -164,6 +164,7 @@ class TrajectoryPublisherBase(Node):
         nq_base = rmodel.nq - len(self.moving_joint_names)
         if nq_base > 0:
             import pinocchio as pin
+
             base_q0 = pin.neutral(rmodel)[:nq_base]
             self.q0 = np.concatenate([base_q0, self.q0])
             self.current_q = np.concatenate([base_q0, self.current_q])
@@ -171,9 +172,7 @@ class TrajectoryPublisherBase(Node):
         else:
             self._base_q0 = np.array([])
 
-        self.get_logger().info(
-            f"Model loaded, pin_model.nq = {rmodel.nq}"
-        )
+        self.get_logger().info(f"Model loaded, pin_model.nq = {rmodel.nq}")
         self.get_logger().info(f"Model loaded, reduced self.q0 = {self.q0}")
 
     def _initialize_q0(self):
