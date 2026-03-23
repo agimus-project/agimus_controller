@@ -16,9 +16,9 @@ from agimus_controller.trajectory import TrajectoryBuffer
 
 
 def get_panda_models(config_folder_path: Path, env_xacro_path=None) -> RobotModels:
-    franka_description_path = Path(get_package_share_directory("franka_description"))
-    robot_srdf_path = franka_description_path / "robots" / "fer" / "fer.srdf"
-    robot_xacro_path = franka_description_path / "robots" / "fer" / "fer.urdf.xacro"
+    agimus_franka_description_path = Path(get_package_share_directory("agimus_franka_description"))
+    robot_srdf_path = agimus_franka_description_path / "robots" / "fer" / "fer.srdf"
+    robot_xacro_path = agimus_franka_description_path / "robots" / "fer" / "fer.urdf.xacro"
     params_path = Path(config_folder_path) / "agimus_controller_params.yaml"
     robot_urdf = xacro.process_file(
         str(robot_xacro_path),

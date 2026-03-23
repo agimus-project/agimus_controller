@@ -10,7 +10,7 @@ from agimus_controller.factory.robot_model import RobotModelParameters, RobotMod
 import xacro
 from ament_index_python.packages import get_package_share_directory
 
-FRANKA_DESCRIPTION_PATH = Path(get_package_share_directory("franka_description"))
+FRANKA_DESCRIPTION_PATH = Path(get_package_share_directory("agimus_franka_description"))
 print(environ["AMENT_PREFIX_PATH"])
 print(FRANKA_DESCRIPTION_PATH)
 environ["AMENT_PREFIX_PATH"] += ":" + str(FRANKA_DESCRIPTION_PATH)

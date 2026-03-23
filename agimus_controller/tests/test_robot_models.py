@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError) as e:
     AMENT_AVAILABLE = False
 if AMENT_AVAILABLE:
     try:
-        FRANKA_DESCRIPTION_PATH = get_package_share_directory("franka_description")
+        FRANKA_DESCRIPTION_PATH = get_package_share_directory("agimus_franka_description")
         environ["AMENT_PREFIX_PATH"] += pathsep + FRANKA_DESCRIPTION_PATH
         FRANKA_DESCRIPTION_AVAILABLE = True
     except (OSError, PackageNotFoundError) as e:
@@ -235,7 +235,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
         robot_data = self.robot_models.robot_model.createData()
         pin.rnea(self.robot_models.robot_model, robot_data, q, v, a)
 
-    def test_franka_description_collision_models(self):
+    def test_agimus_franka_description_collision_models(self):
         geom_obj_names_test = [
             "panda_leftfinger_0",
             "panda_leftfinger_1",
@@ -275,7 +275,7 @@ class TestRobotModelsAgainstExampleRobotData(unittest.TestCase):
 @unittest.skipIf(
     (not XACRO_AVAILABLE or not AMENT_AVAILABLE or not FRANKA_DESCRIPTION_AVAILABLE),
     f"Some dependencies amongst xacro (available ? {XACRO_AVAILABLE}) / "
-    f"franka_description (available ? {FRANKA_DESCRIPTION_AVAILABLE}) / "
+    f"agimus_franka_description (available ? {FRANKA_DESCRIPTION_AVAILABLE}) / "
     f"ament_index_python (available ? {AMENT_AVAILABLE}) are not available",
 )
 class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
@@ -285,14 +285,14 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
         This method sets up the shared environment for all test cases in the class.
         """
         # Load the example robot model using example robot data to get the URDF path.
-        franka_description_path = Path(
-            get_package_share_directory("franka_description")
+        agimus_franka_description_path = Path(
+            get_package_share_directory("agimus_franka_description")
         )
-        srdf_path = franka_description_path / "robots" / "fer" / "fer.srdf"
+        srdf_path = agimus_franka_description_path / "robots" / "fer" / "fer.srdf"
         with open(srdf_path, "r") as srdf_file:
             srdf_xml = srdf_file.read()
         robot_xacro_path = str(
-            franka_description_path / "robots" / "fer" / "fer.urdf.xacro",
+            agimus_franka_description_path / "robots" / "fer" / "fer.urdf.xacro",
         )
         env_xacro_path = Path(__file__).parent / "resources" / "environment.xacro"
         params_path = str(
@@ -323,7 +323,7 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
             srdf=srdf_xml,
             collision_as_capsule=True,
             self_collision=True,
-            urdf_meshes_dir=franka_description_path,
+            urdf_meshes_dir=agimus_franka_description_path,
             armature=np.array(mpc_params["ocp"]["armature"]),
         )
 
@@ -387,7 +387,7 @@ class TestRobotModelsAgainstFrankaDescription(unittest.TestCase):
         robot_data = self.robot_models.robot_model.createData()
         pin.rnea(self.robot_models.robot_model, robot_data, q, v, a)
 
-    def test_franka_description_collision_models(self):
+    def test_agimus_franka_description_collision_models(self):
         geom_obj_names_test = [
             "fer_leftfinger_0",
             "fer_leftfinger_1",

@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="environment">
-    <xacro:include filename="$(find franka_description)/robots/common/utils.xacro" />
+    <xacro:include filename="$(find agimus_franka_description)/robots/common/utils.xacro" />
 
     <material name="grey">
         <color rgba=".5 .5 .5 1" />

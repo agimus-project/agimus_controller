@@ -29,7 +29,7 @@
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
 
-  <!-- Optional testing of the franka_description model. -->
+  <!-- Optional testing of the agimus_franka_description model. -->
   <test_depend>ament_index_python</test_depend>
   <test_depend>agimus_franka_description</test_depend>
   <test_depend>xacro</test_depend>
