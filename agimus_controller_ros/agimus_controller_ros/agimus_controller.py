@@ -410,8 +410,9 @@ class AgimusController(Node, RobotModelsMixin):
             msg, self.get_clock().now().nanoseconds
         )
         self.traj_buffer.append(w_traj_point)
-        self.params.ocp.effector_frame_name = msg.ee_inputs[0].frame_id
-        self.effector_frame_name = msg.ee_inputs[0].frame_id
+        if msg.ee_inputs:
+            self.params.ocp.effector_frame_name = msg.ee_inputs[0].frame_id
+            self.effector_frame_name = msg.ee_inputs[0].frame_id
 
     def update_geom_pose_callback(self, pose: Pose, geom_name: str):
         """Updates pose of a geometry with a given name."""
