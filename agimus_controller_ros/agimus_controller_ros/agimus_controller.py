@@ -592,7 +592,9 @@ class AgimusController(Node, RobotModelsMixin):
                     f"MPC is running but the buffer does not have enough data. Current size {len(self.traj_buffer)}",
                     throttle_duration_sec=1.0,
                 )
-                self.traj_buffer.append(self.traj_buffer[-1])
+                required = self.traj_buffer.horizon_indexes[-1] + 1
+                while len(self.traj_buffer) < required:
+                    self.traj_buffer.append(self.traj_buffer[-1])
         if self.params.publish_debug_data:
             # Do not use ROS time here because we want to measure the real computation time
             start_compute_time = time.perf_counter()
