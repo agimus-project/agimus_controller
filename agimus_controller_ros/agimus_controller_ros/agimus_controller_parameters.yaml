@@ -82,6 +82,10 @@ agimus_controller_params:
     type: bool
     default_value: False
     description: "Wether we add a free flyer to the robot base"
+  planar_base:
+    type: bool
+    default_value: False
+    description: "Whether to add a planar base joint (x, y, yaw — 3 DoF) to the robot"
   collision_as_capsule:
     type: bool
     default_value: True

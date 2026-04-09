@@ -39,7 +39,17 @@ class OCPBaseCroco(OCPBase):
             )
         else:
             self._state = crocoddyl.StateMultibody(self._robot_models.robot_model)
-        self._actuation = crocoddyl.ActuationModelFull(self._state)
+
+        # free_flyer: base is unactuated (6 DoF), only arm joints are controlled
+        #   → ActuationModelFloatingBase, nu = nv - 6
+        # planar_base: base velocity commands are part of the control vector
+        #   → ActuationModelFull, nu = nv (3 base + n_arm)
+        # none: fixed base, all joints actuated
+        #   → ActuationModelFull, nu = nv
+        if robot_models.params.free_flyer:
+            self._actuation = crocoddyl.ActuationModelFloatingBase(self._state)
+        else:
+            self._actuation = crocoddyl.ActuationModelFull(self._state)
 
         # Setting the OCP parameters
         self._ocp_params = ocp_params

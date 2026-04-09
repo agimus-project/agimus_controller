@@ -12,8 +12,9 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 import rclpy.time
 from std_msgs.msg import Int32, String
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Twist
 from agimus_msgs.msg import MpcInput, MpcDebug
+from rcl_interfaces.srv import GetParameters
 import builtin_interfaces
 
 from tf2_ros import TransformException
@@ -43,8 +44,8 @@ from agimus_controller_ros.ros_utils import (
     mpc_msg_to_weighted_traj_point,
     mpc_debug_data_to_msg,
     transform_msg_to_se3,
-    get_param_from_node,
     ros_pose_to_se3,
+    sensor_ff_to_planar_state,
 )
 
 
@@ -59,10 +60,13 @@ class RobotModelsMixin:
         self.environment_msg = None
         self.robot_srdf_description_msg = None
 
-        # Get moving joint names from LFC
-        self.moving_joint_names = get_param_from_node(
-            self, "linear_feedback_controller", "moving_joint_names"
-        ).string_array_value
+        # moving_joint_names is fetched asynchronously in initialization_callback
+        # to avoid blocking __init__ when the LFC service is not yet available.
+        self.moving_joint_names = None
+        self._lfc_param_future = None
+        self._lfc_param_client = self.create_client(
+            GetParameters, "/linear_feedback_controller/get_parameters"
+        )
 
         self.subscriber_robot_description = self.create_subscription(
             String,
@@ -261,6 +265,14 @@ class AgimusController(Node, RobotModelsMixin):
                 reliability=ReliabilityPolicy.BEST_EFFORT,
             ),
         )
+        self.base_cmd_vel_publisher = self.create_publisher(
+            Twist,
+            "base_cmd_vel",
+            qos_profile=QoSProfile(
+                depth=10,
+                reliability=ReliabilityPolicy.BEST_EFFORT,
+            ),
+        )
         if self.params.publish_buffer_size:
             self.ocp_buffer_size_pub = self.create_publisher(
                 Int32,
@@ -362,11 +374,19 @@ class AgimusController(Node, RobotModelsMixin):
         ws_ref.setup(self.robot_models._robot_model)
 
         np_sensor_msg: lfc_py_types.Sensor = sensor_msg_to_numpy(self.sensor_msg)
+        q_arm = np_sensor_msg.joint_state.position
+        v_arm = np_sensor_msg.joint_state.velocity
+        if self.params.planar_base:
+            q_sensor, v_sensor = sensor_ff_to_planar_state(
+                self.sensor_msg, q_arm, v_arm
+            )
+        else:
+            q_sensor, v_sensor = q_arm, v_arm
         initial_state = TrajectoryPoint(
             time_ns=self.get_clock().now().nanoseconds,
-            robot_configuration=np_sensor_msg.joint_state.position,
-            robot_velocity=np_sensor_msg.joint_state.velocity,
-            robot_acceleration=np.zeros_like(np_sensor_msg.joint_state.velocity),
+            robot_configuration=q_sensor,
+            robot_velocity=v_sensor,
+            robot_acceleration=np.zeros_like(v_sensor),
         )
         reference_trajectory = self.traj_buffer.horizon
         if len(self.ocp.input_transforms) > 0:
@@ -390,8 +410,9 @@ class AgimusController(Node, RobotModelsMixin):
             msg, self.get_clock().now().nanoseconds
         )
         self.traj_buffer.append(w_traj_point)
-        self.params.ocp.effector_frame_name = msg.ee_inputs[0].frame_id
-        self.effector_frame_name = msg.ee_inputs[0].frame_id
+        if msg.ee_inputs:
+            self.params.ocp.effector_frame_name = msg.ee_inputs[0].frame_id
+            self.effector_frame_name = msg.ee_inputs[0].frame_id
 
     def update_geom_pose_callback(self, pose: Pose, geom_name: str):
         """Updates pose of a geometry with a given name."""
@@ -418,12 +439,56 @@ class AgimusController(Node, RobotModelsMixin):
     def send_control_msg(self, ocp_res: OCPResults) -> None:
         """Get OCP control output and publish it."""
         assert self.np_sensor_msg is not None
+
+        # With a planar base (nu = 3 + n_arm), the feedforward and Ricatti gains
+        # include base DoFs that the LFC does not handle.
+        # Strip the base slice so the LFC receives arm-only commands (joint_nv).
+        # For free_flyer and fixed-base robots, base_nv = 0 or the actuation model
+        # already produces arm-only controls (ActuationModelFloatingBase), so no
+        # slicing is needed.
+        base_nv = 3 if self.params.planar_base else 0
+        feedforward = ocp_res.feed_forward_terms[0][base_nv:]
+        ricatti_gain = ocp_res.ricatti_gains[0][base_nv:, :]
+
+        if self.params.planar_base:
+            # MPC gain is (n_arm, ndx_planar), LFC expects (n_arm, ndx_ff).
+            # Map planar tangent cols to FF tangent cols, zero-padding vz/wx/wy.
+            # Planar ndx: [q_base_diff(nv_base), q_arm(n_arm), v_base(nv_base), v_arm(n_arm)]
+            # LFC FF ndx: [q_ff_diff(nv_ff),     q_arm(n_arm), v_ff(nv_ff),     v_arm(n_arm)]
+            nv_base = base_nv  # 3 for planar [vx, vy, wz]
+            nv_joints = feedforward.shape[0]
+            nv_ff = 6  # free-flyer nv, hardcoded in LFC (free_flyer_nv_ = 6)
+            nv_lfc = nv_ff + nv_joints
+
+            K_lfc = np.zeros((nv_joints, 2 * nv_lfc))
+            # q_diff: planar [vx,vy,wz] → FF [0,1,5] (vz=2,wx=3,wy=4 stay zero)
+            K_lfc[:, [0, 1, 5]] = ricatti_gain[:, 0:nv_base]
+            K_lfc[:, nv_ff : nv_ff + nv_joints] = ricatti_gain[
+                :, nv_base : nv_base + nv_joints
+            ]
+            # v_diff: same layout, offset by nv_lfc
+            K_lfc[:, [nv_lfc + 0, nv_lfc + 1, nv_lfc + 5]] = ricatti_gain[
+                :, nv_base + nv_joints : 2 * nv_base + nv_joints
+            ]
+            K_lfc[:, nv_lfc + nv_ff : nv_lfc + nv_ff + nv_joints] = ricatti_gain[
+                :, 2 * nv_base + nv_joints : 2 * nv_base + 2 * nv_joints
+            ]
+            ricatti_gain = K_lfc
+
         ctrl_msg = lfc_py_types.Control(
-            feedback_gain=ocp_res.ricatti_gains[0],
-            feedforward=ocp_res.feed_forward_terms[0].reshape(self.rmodel.nv, 1),
+            feedback_gain=ricatti_gain,
+            feedforward=feedforward.reshape(len(feedforward), 1),
             initial_state=self.np_sensor_msg,
         )
         self.control_publisher.publish(control_numpy_to_msg(ctrl_msg))
+
+        if self.params.planar_base:
+            base_u = ocp_res.feed_forward_terms[0][:3]
+            twist = Twist()
+            twist.linear.x = base_u[0]
+            twist.linear.y = base_u[1]
+            twist.angular.z = base_u[2]
+            self.base_cmd_vel_publisher.publish(twist)
 
     def initialization_callback(self) -> None:
         if self.sensor_msg is None:
@@ -436,9 +501,36 @@ class AgimusController(Node, RobotModelsMixin):
         if not self.ros_robot_ready():
             return
 
+        # Fetch moving_joint_names from LFC asynchronously (non-blocking).
+        if self.moving_joint_names is None:
+            if self._lfc_param_future is None:
+                if not self._lfc_param_client.service_is_ready():
+                    self.get_logger().warn(
+                        "Waiting for LFC parameter service...",
+                        throttle_duration_sec=5.0,
+                    )
+                    return
+                req = GetParameters.Request()
+                req.names = ["moving_joint_names"]
+                self._lfc_param_future = self._lfc_param_client.call_async(req)
+            if not self._lfc_param_future.done():
+                return
+            result = self._lfc_param_future.result()
+            self._lfc_param_future = None
+            if result is None:
+                self.get_logger().error(
+                    "Failed to get moving_joint_names from LFC, retrying..."
+                )
+                return
+            self.moving_joint_names = result.values[0].string_array_value
+            self.get_logger().info(
+                f"Got moving_joint_names from LFC: {self.moving_joint_names}"
+            )
+
         if self.mpc is None:
             self.create_robot_models(
                 free_flyer=self.params.free_flyer,
+                planar_base=self.params.planar_base,
                 collision_as_capsule=self.params.collision_as_capsule,
                 self_collision=self.params.self_collision,
                 armature=self.params.ocp.armature,
@@ -500,7 +592,9 @@ class AgimusController(Node, RobotModelsMixin):
                     f"MPC is running but the buffer does not have enough data. Current size {len(self.traj_buffer)}",
                     throttle_duration_sec=1.0,
                 )
-                self.traj_buffer.append(self.traj_buffer[-1])
+                required = self.traj_buffer.horizon_indexes[-1] + 1
+                while len(self.traj_buffer) < required:
+                    self.traj_buffer.append(self.traj_buffer[-1])
         if self.params.publish_debug_data:
             # Do not use ROS time here because we want to measure the real computation time
             start_compute_time = time.perf_counter()
@@ -509,11 +603,20 @@ class AgimusController(Node, RobotModelsMixin):
         # Update the input transforms required by the OCP, if any.
         self.update_transforms()
 
+        q_arm = self.np_sensor_msg.joint_state.position
+        v_arm = self.np_sensor_msg.joint_state.velocity
+        if self.params.planar_base:
+            q_sensor, v_sensor = sensor_ff_to_planar_state(
+                self.sensor_msg, q_arm, v_arm
+            )
+        else:
+            q_sensor, v_sensor = q_arm, v_arm
+
         x0_traj_point = TrajectoryPoint(
             time_ns=self.get_clock().now().nanoseconds,
-            robot_configuration=self.np_sensor_msg.joint_state.position,
-            robot_velocity=self.np_sensor_msg.joint_state.velocity,
-            robot_acceleration=np.zeros_like(self.np_sensor_msg.joint_state.velocity),
+            robot_configuration=q_sensor,
+            robot_velocity=v_sensor,
+            robot_acceleration=np.zeros_like(v_sensor),
         )
         if self.params.constant_delay and control is not None:
             # Compensate for delay by estimating the future state.

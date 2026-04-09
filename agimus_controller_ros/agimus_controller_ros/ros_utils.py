@@ -317,6 +317,37 @@ def mpc_debug_data_to_msg(mpc_debug_data: MPCDebugData) -> MpcDebug:
     return mpc_debug_msg
 
 
+def sensor_ff_to_planar_state(
+    sensor_msg,
+    arm_q: npt.NDArray[np.float64],
+    arm_v: npt.NDArray[np.float64],
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Build planar+arm state from an LFC Sensor message with robot_has_free_flyer=true.
+
+    The LFC sends base data in dedicated fields:
+      sensor_msg.base_pose  (geometry_msgs/Pose)  — position + orientation
+      sensor_msg.base_twist (geometry_msgs/Twist) — linear + angular velocity
+
+    The pinocchio planar model expects:
+      q_planar = [x, y, cos(yaw), sin(yaw), arm_1..n]  length 4 + n_arm
+      v_planar = [vx, vy, wz, arm_1..n]                length 3 + n_arm
+
+    Assumes flat floor (z ≈ 0, roll ≈ 0, pitch ≈ 0).
+    """
+    pos = sensor_msg.base_pose.position
+    ori = sensor_msg.base_pose.orientation
+    lin = sensor_msg.base_twist.linear
+    ang = sensor_msg.base_twist.angular
+
+    qx, qy, qz, qw = ori.x, ori.y, ori.z, ori.w
+    yaw = 2.0 * np.arctan2(qw * qz + qx * qy, 1.0 - 2.0 * (qy**2 + qz**2))
+
+    q_planar = np.concatenate([[pos.x, pos.y, np.cos(yaw), np.sin(yaw)], arm_q])
+    v_planar = np.concatenate([[lin.x, lin.y, ang.z], arm_v])
+
+    return q_planar, v_planar
+
+
 def get_params_from_node(
     requester_node: Node, target_node_name: str, target_params_name: list[str]
 ) -> list[ParameterValue]:
