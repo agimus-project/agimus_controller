@@ -1,3 +1,28 @@
+"""ocp_croco_generic
+
+High-level builder for Crocoddyl/CoLMPC optimal control problems used in
+agimus_controller.
+
+This module exposes dataclasses that describe residuals, activations, costs,
+constraints and action models in a data-driven way (YAML -> dataclasses ->
+Crocoddyl/CoLMPC objects). The resulting optimal control problem solved by
+the controller has the usual form::
+
+    minimize_{u_0..u_{N-1}}  sum_{k=0..N-1} L_k(x_k, u_k) + L_N(x_N)
+    subject to x_{k+1} = f(x_k, u_k)
+
+where each stage cost L_k is expressed using a residual r(x,u) and an
+activation phi(r):
+
+    L = phi(r(x,u))
+
+Many small helper dataclasses below wrap Crocoddyl residuals and activations
+and provide a `build()` method returning the corresponding Crocoddyl object.
+The YAML-based factory `create_croco_dataclasses` instantiates these dataclasses
+from a specification file and is used by `OCPCrocoGeneric` to assemble the
+ShootingProblem.
+"""
+
 import pathlib
 import crocoddyl
 import numpy as np
@@ -98,6 +123,14 @@ class ActivationModel:
 class ActivationModelWeightedQuad(ActivationModel):
     class_: T.ClassVar[str] = "ActivationModelWeightedQuad"
     weights: T.Union[None, float, npt.NDArray[np.float64]] = None
+    """Weighted quadratic activation.
+
+    The activation energy is a weighted quadratic form on the residual r:
+
+        phi(r) = 0.5 * r^T diag(weights) r
+
+    If `weights` is a scalar it will be broadcast to the residual size.
+    """
 
     def update(self, data, obj, weights):
         obj.weights = weights
@@ -119,6 +152,13 @@ class ActivationModelExp(ActivationModel):
     class_: T.ClassVar[str] = "ActivationModelExp"
     alpha: float = 1.0
     exponent: int = 1
+    """Exponential-like activation.
+
+    This activation uses the CoLMPC exponential activations. For `exponent`
+    equal to 1 it produces an activation similar to `exp(alpha * |r|)` and for
+    2 it uses a quadratic-exponential variant. The parameter `alpha` scales the
+    activation intensity.
+    """
 
     def build(self, data: BuildData, residual: crocoddyl.CostModelResidual):
         assert self.exponent in [1, 2]
@@ -145,6 +185,15 @@ class ActivationModelQuadExp(ActivationModelExp):
 
 @dataclasses.dataclass
 class ResidualModel:
+    """Base class for residual models.
+
+    A residual maps a state (and optionally control) to a vector r(x,u) of
+    dimension `nr`. Implementations must provide `build(data)` returning a
+    Crocoddyl residual object and `update(...)` to update references from a
+    `WeightedTrajectoryPoint`. The helper `needs_colmpc_freefwd_dynamics`
+    indicates whether the residual requires the `colmpc` state/dynamics types.
+    """
+
     @staticmethod
     def needs_colmpc_freefwd_dynamics() -> bool:
         return False
@@ -152,6 +201,19 @@ class ResidualModel:
 
 @dataclasses.dataclass
 class ResidualModelState(ResidualModel):
+    """State tracking residual.
+
+    Computes the state error residual:
+
+        r(x, u) = x - x_ref
+
+    where x ∈ ℝⁿ is the current state and x_ref is the reference state.
+    The residual dimension is nr = state.nx.
+
+    This residual is commonly used with a quadratic activation to penalize
+    deviations from a desired state trajectory.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelState"
     xref: T.Optional[npt.NDArray[np.float64]] = None
 
@@ -168,6 +230,19 @@ class ResidualModelState(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualModelControl(ResidualModel):
+    """Control regularization residual.
+
+    Computes the control input error:
+
+        r(x, u) = u - u_ref
+
+    where u ∈ ℝᵐ is the control input and u_ref is the reference control.
+    The residual dimension is nr = actuation.nu.
+
+    This residual is typically used with a quadratic activation to minimize
+    control effort and smooth control trajectories.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelControl"
     uref: T.Optional[npt.NDArray[np.float64]] = None
 
@@ -184,6 +259,19 @@ class ResidualModelControl(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualModelControlGrav(ResidualModel):
+    """Gravity-compensated control residual.
+
+    Computes the control residual with gravity compensation:
+
+        r(x, u) = u - g(q)
+
+    where g(q) ∈ ℝᵐ is the gravity torque vector computed from the robot
+    configuration q. The residual dimension is nr = actuation.nu.
+
+    This residual penalizes control inputs that deviate from gravity compensation,
+    encouraging energy-efficient motions that naturally follow gravity.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelControlGrav"
 
     def update(self, data, obj, pt: WeightedTrajectoryPoint):
@@ -196,6 +284,20 @@ class ResidualModelControlGrav(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualModelFramePlacement(ResidualModel):
+    """6D frame placement residual (SE(3)).
+
+    Computes the pose error between the current and reference frame placement:
+
+        r(x) = log(M_ref⁻¹ · M_current) ∈ ℝ⁶
+
+    where M ∈ SE(3) is the frame placement (position + orientation),
+    and log: SE(3) → se(3) ≃ ℝ⁶ is the SE(3) logarithm map.
+    The residual has dimension nr = 6 (3 translation + 3 rotation).
+
+    This residual is used for precise end-effector positioning tasks
+    that require both position and orientation control.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelFramePlacement"
     id: T.Union[str, int]
     pref: T.Optional[npt.NDArray[np.float64]] = None
@@ -250,6 +352,19 @@ class ResidualModelFramePlacementStatic(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualModelFrameTranslation(ResidualModel):
+    """3D frame translation residual.
+
+    Computes the position error in Cartesian space:
+
+        r(x) = p_current - p_ref ∈ ℝ³
+
+    where p ∈ ℝ³ is the frame position (translation component of SE(3)).
+    The residual dimension is nr = 3.
+
+    This residual is used for position-only tracking tasks where orientation
+    is free or controlled separately.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelFrameTranslation"
     id: T.Union[str, int]
     pref: T.Optional[npt.NDArray[np.float64]] = None
@@ -304,6 +419,19 @@ class ResidualModelFrameTranslationStatic(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualModelFrameRotation(ResidualModel):
+    """3D frame rotation residual (SO(3)).
+
+    Computes the orientation error in rotation space:
+
+        r(x) = log(R_ref^T · R_current) ∈ ℝ³
+
+    where R ∈ SO(3) is the rotation matrix, and log: SO(3) → so(3) ≃ ℝ³
+    is the SO(3) logarithm map. The residual dimension is nr = 3.
+
+    This residual is used for orientation-only tracking tasks where position
+    is free or controlled separately.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelFrameRotation"
     id: T.Union[str, int]
     pref: T.Optional[npt.NDArray[np.float64]] = None
@@ -358,6 +486,20 @@ class ResidualModelFrameRotationStatic(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualModelFrameVelocity(ResidualModel):
+    """6D frame velocity residual.
+
+    Computes the velocity tracking error:
+
+        r(x, v) = v_frame - v_ref ∈ ℝ⁶
+
+    where v_frame = (v_linear, ω_angular) is the spatial velocity of the frame,
+    expressed in the specified reference frame (WORLD, LOCAL, or LOCAL_WORLD_ALIGNED).
+    The residual dimension is nr = 6 (3 linear + 3 angular).
+
+    This residual is used for tasks requiring velocity tracking, such as
+    following moving targets or imposing velocity constraints.
+    """
+
     class_: T.ClassVar[str] = "ResidualModelFrameVelocity"
     id: T.Union[str, int]
     pref: T.Optional[npt.NDArray[np.float64]] = None
@@ -522,6 +664,20 @@ class ResidualDistanceCollisionBase(ResidualModel):
 
 @dataclasses.dataclass
 class ResidualDistanceCollision(ResidualDistanceCollisionBase):
+    """Collision avoidance residual (basic).
+
+    Computes the signed distance between a collision pair:
+
+        r(x) = d(q) - d_safe
+
+    where d(q) is the minimum distance between the two geometries at
+    configuration q, and d_safe is a safety margin. The residual is scalar (nr = 1).
+
+    When d < d_safe, the residual is negative, indicating potential collision.
+    This residual should be used with an exponential activation to create
+    a smooth repulsive barrier.
+    """
+
     class_: T.ClassVar[str] = "ResidualDistanceCollision"
 
     def build(self, data: BuildData):
@@ -535,6 +691,19 @@ class ResidualDistanceCollision(ResidualDistanceCollisionBase):
 
 @dataclasses.dataclass
 class ResidualDistanceCollision2(ResidualDistanceCollisionBase):
+    """Collision avoidance residual (advanced with derivatives).
+
+    Enhanced collision residual that provides accurate derivatives:
+
+        r(x) = d(q) - d_safe
+
+    Similar to ResidualDistanceCollision but requires ColMPC's StateMultibody
+    for improved Jacobian computation. The residual is scalar (nr = 1).
+
+    This variant provides more accurate gradient information, leading to
+    better optimization performance for collision avoidance.
+    """
+
     class_: T.ClassVar[str] = "ResidualDistanceCollision2"
 
     @staticmethod
@@ -558,6 +727,23 @@ class CostModel:
 
 @dataclasses.dataclass
 class CostModelResidual(CostModel):
+    """Compose a residual and activation into a cost.
+
+    The stage cost is computed as:
+
+        L(x, u) = φ(r(x, u))
+
+    where r: ℝⁿ × ℝᵐ → ℝⁿʳ is the residual and φ: ℝⁿʳ → ℝ is the activation.
+
+    Common activations:
+    - Quadratic: φ(r) = 0.5 * r^T W r (default if activation=None)
+    - Weighted Quadratic: φ(r) = 0.5 * r^T diag(w) r
+    - Exponential: φ(r) ≈ exp(α |r|) for smooth barrier functions
+
+    The `build()` method creates the Crocoddyl cost, and `update()` sets
+    the reference and weights from trajectory points.
+    """
+
     class_: T.ClassVar[str] = "CostModelResidual"
 
     def build(self, data: BuildData):
@@ -576,6 +762,23 @@ class CostModelResidual(CostModel):
 
 @dataclasses.dataclass
 class CostModelSumItem:
+    """Weighted cost term in the total stage cost.
+
+    Represents a single term in the cost sum:
+
+        L_total = Σᵢ weightᵢ * Lᵢ(x, u)
+
+    where Lᵢ is the cost defined by `cost` and weightᵢ scales its contribution.
+
+    Parameters:
+        name: Identifier for this cost term
+        cost: The cost model (residual + activation)
+        weight: Scalar multiplier for this cost term
+        active: Whether to include this cost in the optimization
+        update: Whether to update references from trajectory points
+        publish_residual: Whether to publish residual values for monitoring
+    """
+
     class_: T.ClassVar[str] = "CostModelSumItem"
     name: str
     cost: CostModel
@@ -657,6 +860,15 @@ class DifferentialActionModelFreeFwdDynamics(DifferentialActionModel):
     class_: T.ClassVar[str] = "DifferentialActionModelFreeFwdDynamics"
     costs: T.List[CostModelSumItem]
     constraints: T.List[ConstraintListItem] = dataclasses.field(default_factory=list)
+
+    """Differential action model using free forward dynamics.
+
+    This dataclass aggregates stage `costs` and `constraints` and builds a
+    Crocoddyl (or CoLMPC when required) `DifferentialActionModelFreeFwdDynamics`.
+    The choice between `crocoddyl` and `colmpc` implementations is automatic
+    and depends on whether any residuals require the specialized `colmpc`
+    state/dynamics types (see `needs_colmpc_freefwd_dynamics`).
+    """
 
     @classmethod
     def from_dict(cls, kwargs: T.Dict[str, T.Any]):
@@ -750,6 +962,15 @@ class ShootingProblem:
     running_model: IntegratedActionModelAbstract
     terminal_model: IntegratedActionModelAbstract
 
+    """Container describing the shooting problem structure.
+
+    - `running_model` describes the stage model (applied at k=0..N-1)
+    - `terminal_model` describes the terminal stage (k=N)
+
+    Both fields are YAML-deserialized into the dataclass tree and later used
+    to construct Crocoddyl models through `build()`.
+    """
+
     def needs_colmpc_state(self) -> bool:
         return (
             self.running_model.differential.needs_colmpc_freefwd_dynamics()
@@ -762,6 +983,23 @@ class ShootingProblem:
 
 
 class OCPCrocoGeneric(OCPBaseCroco):
+    """Generic OCP builder that reads a YAML specification.
+
+    `OCPCrocoGeneric` reads a YAML file describing the shooting problem
+    (residuals, activations, costs, and integration scheme) and constructs a
+    Crocoddyl `ShootingProblem` and solver via `OCPBaseCroco`.
+
+    Key responsibilities / API:
+    - parse the YAML and assemble `ShootingProblem` dataclasses
+    - create running and terminal Crocoddyl models (`create_running_model_list`,
+        `create_terminal_model`)
+    - expose `input_transforms`: a dict of transforms (frame pairs) that
+        must be provided externally (e.g. via TF2) before updating visual-servo
+        residuals
+    - `set_reference_weighted_trajectory(...)`: update references and
+        activation weights from a list of `WeightedTrajectoryPoint` instances.
+    """
+
     def __init__(
         self,
         robot_models: RobotModels,
@@ -855,7 +1093,19 @@ class OCPCrocoGeneric(OCPBaseCroco):
     def set_reference_weighted_trajectory(
         self, reference_weighted_trajectory: list[WeightedTrajectoryPoint]
     ):
-        """Set the reference trajectory for the OCP."""
+        """Set the reference trajectory for the OCP.
+
+        The method expects a list of `WeightedTrajectoryPoint` of length
+        `n_controls + 1` (running stages + terminal). For each stage it updates
+        the residual references and the activation weights. When
+        `expect_rolling_buffer` is True the function supports shifting the
+        running models in a circular buffer fashion used by MPC receding-horizon
+        updates: on the first call it fills the running models, on subsequent
+        calls it appends/rotates the models and updates only the last one.
+
+        Args:
+            reference_weighted_trajectory: list of `WeightedTrajectoryPoint`.
+        """
 
         assert len(reference_weighted_trajectory) == self.n_controls + 1
 

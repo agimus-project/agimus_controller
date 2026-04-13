@@ -32,6 +32,7 @@
   <!-- Optional testing of the franka_description model. -->
   <test_depend>ament_index_python</test_depend>
   <test_depend>franka_description</test_depend>
+  <test_depend>tiago_robot</test_depend>
   <test_depend>xacro</test_depend>
   <test_depend>python3-yaml</test_depend>
 

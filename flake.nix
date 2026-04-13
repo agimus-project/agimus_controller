@@ -33,6 +33,9 @@
                   ];
                 };
               };
+              agimus-controller-doc = _final.callPackage ./agimus_controller_doc/default.nix {
+                inherit (_final.python3Packages) agimus-controller;
+              };
             };
           }
         ];

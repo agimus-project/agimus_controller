@@ -1,3 +1,21 @@
+"""Force-feedback OCP extensions for agimus_controller.
+
+This module provides differential/integrated action model wrappers that
+augment Crocoddyl dynamics with soft-contact force variables used by the
+force-feedback MPC implementation. Two main building blocks are provided:
+
+- `DAMSoftContactAugmentedFwdDynamics`: a differential action model that
+    exposes contact forces as additional variables and builds the underlying
+    force-feedback DAM from `force_feedback_mpc`.
+- `IAMSoftContactAugmented`: an integrated action model wrapper that
+    integrates the augmented DAM over the timestep and adapts force bounds.
+
+The `OCPCrocoForceFeedbackGeneric` class assembles a full shooting problem
+and solver (CSQP via `mim_solvers`) from a YAML specification similarly to
+`OCPCrocoGeneric`, but adding the force variables to the state and exposing
+helpers to update desired contact forces from `WeightedTrajectoryPoint`.
+"""
+
 import dataclasses
 import typing as T
 import yaml
@@ -157,6 +175,17 @@ class DAMSoftContactAugmentedFwdDynamics(DifferentialActionModel):
         if dam.with_gravity_torque_reg:
             dam.tau_grav_weight = pt.weights.w_robot_effort[0]
 
+    """Differential action model that augments forward dynamics with soft-contact forces.
+
+    The model adds contact force variables to the state and exposes them to
+    costs/constraints. Internally it constructs the appropriate
+    `force_feedback_mpc.DAMSoftContact*AugmentedFwdDynamics` depending on the
+    configured dimension (1D or 3D). Update and build semantics mirror
+    Crocoddyl's action models: `build(data)` returns the DAM instance and
+    `update(data, dam, pt)` refreshes references and desired forces from the
+    provided `WeightedTrajectoryPoint`.
+    """
+
 
 @dataclasses.dataclass
 class IAMSoftContactAugmented(IntegratedActionModelAbstract):
@@ -214,8 +243,24 @@ class IAMSoftContactAugmented(IntegratedActionModelAbstract):
             self.force_lb = np.array(self.force_lb)
         return iam
 
+    """Integrated action model that wraps a soft-contact augmented DAM.
+
+    This wrapper integrates the augmented differential action model using the
+    chosen integrator (Euler by default). It also manages force bounds used
+    by the underlying solver: when no explicit bounds are provided it uses the
+    default ones produced by the underlying `force_feedback_mpc` object.
+    """
+
 
 class OCPCrocoForceFeedbackGeneric(OCPCrocoGeneric):
+    """Force-feedback variant of `OCPCrocoGeneric`.
+
+    This class builds a shooting problem that augments the robot state with
+    contact forces and uses `mim_solvers.SolverCSQP` as a solver. It supports
+    the same YAML-driven dataclass specification as `OCPCrocoGeneric` but
+    expects differential/integrated action models that manage contact forces.
+    """
+
     def __init__(
         self,
         robot_models: RobotModels,

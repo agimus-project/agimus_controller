@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "agimus-controller-doc"
+version = "0.1.0"
+description = "Documentation package for agimus_controller (Sphinx sources and helpers)"
+authors = ["agimus_controller contributors <devnull@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<4.0"
+sphinx = "^6.0"
+sphinx-rtd-theme = "*"
+myst-parser = "*"
+sphinx-autodoc-typehints = "*"
+agimus-controller = { path = "../agimus_controller" }
+
+[tool.poetry.scripts]
+agimus-docs-build = "agimus_controller_doc.cli:build"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
