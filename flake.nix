@@ -36,12 +36,22 @@
                   ];
                 };
               };
-              agimus-controller-doc = _final.callPackage ./agimus_controller_doc/default.nix {
-                inherit (_final.python3Packages) agimus-controller;
-              };
             };
           }
         ];
+        perSystem =
+          { config, pkgs, ... }:
+          {
+            packages = {
+              agimus-controller-doc = pkgs.callPackage ./agimus_controller_doc/default.nix {
+                inherit (pkgs.rosPackages.humble) agimus-controller;
+              };
+            };
+            checks = {
+              # Build packages during nix flake check
+              inherit (config.packages) agimus-controller-doc;
+            };
+          };
       }
     );
 }
