@@ -33,17 +33,23 @@ def get_files(dir: Path, pattern: str) -> List[str]:
 class build_py(_build_py):
     def run(self):
         # ensure target package dir in build output exists
-        target = Path(self.build_lib) / "agimus_controller_ros"
+        merge_install = Path(self.build_lib).name == package_name
+        if merge_install:
+            target = Path(self.build_lib) / package_name
+        else:
+            target = Path(self.build_lib)
         target.mkdir(parents=True, exist_ok=True)
         cwd = Path.cwd()
         try:
-            # run generator with cwd set to the build package dir so generated
-            # modules are written into the build output (and later installed
-            # under site-packages), not into the source tree.
             os.chdir(target)
             for module_name, yaml_file in parameter_modules:
                 yaml_path = project_source_dir / yaml_file
-                generate_parameter_module(module_name, str(yaml_path))
+                generate_parameter_module(
+                    module_name,
+                    str(yaml_path),
+                    install_base=target,
+                    merge_install=merge_install,
+                )
         finally:
             os.chdir(cwd)
         super().run()
@@ -54,7 +60,7 @@ class develop(_develop):
         # In editable/develop (used by symlink-install) generate the
         # parameter modules into the source package directory so the
         # symlinked install will expose them.
-        target = project_source_dir / "agimus_controller_ros"
+        target = project_source_dir / package_name
         target.mkdir(parents=True, exist_ok=True)
         for module_name, yaml_file in parameter_modules:
             yaml_path = project_source_dir / yaml_file
@@ -65,13 +71,13 @@ class develop(_develop):
 setup(
     name=package_name,
     version="0.0.0",
-    packages=["agimus_controller_ros"],
+    packages=[package_name],
     package_dir={},
     install_requires=["setuptools", "generate_parameter_library_py"],
     zip_safe=True,
     data_files=[
-        ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
-        ("share/" + package_name, ["package.xml"]),
+        ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
+        (f"share/{package_name}", ["package.xml"]),
     ],
     maintainer="Guilhem Saurel",
     maintainer_email="gsaurel@laas.fr",
