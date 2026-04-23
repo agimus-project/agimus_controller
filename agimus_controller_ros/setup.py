@@ -7,6 +7,9 @@ from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.develop import develop as _develop
 
 from generate_parameter_library_py.setup_helper import generate_parameter_module
+from generate_parameter_library_py.generate_python_module import (
+    run as generate_python_module,
+)
 
 package_name = "agimus_controller_ros"
 project_source_dir = Path(__file__).parent
@@ -33,23 +36,31 @@ def get_files(dir: Path, pattern: str) -> List[str]:
 class build_py(_build_py):
     def run(self):
         # ensure target package dir in build output exists
-        merge_install = Path(self.build_lib).name == package_name
-        if merge_install:
-            target = Path(self.build_lib) / package_name
-        else:
-            target = Path(self.build_lib)
+        # Generate the parameter modules into the package directory inside
+        # the build output. Compute the workspace `install` path from
+        # `self.build_lib` and pass it to the helper with `merge_install=True`
+        # so the generator only writes the merged `install/lib/.../site-packages`
+        # layout and not a per-package `install/<pkg>/...` layout.
+        target = Path(self.build_lib) / package_name
+        build_lib_path = Path(self.build_lib)
+        colcon_ws = None
+        for p in build_lib_path.parents:
+            if p.name == "build":
+                colcon_ws = p.parent
+                break
+        if colcon_ws is None:
+            colcon_ws = Path.cwd()
         target.mkdir(parents=True, exist_ok=True)
         cwd = Path.cwd()
         try:
             os.chdir(target)
             for module_name, yaml_file in parameter_modules:
                 yaml_path = project_source_dir / yaml_file
-                generate_parameter_module(
-                    module_name,
-                    str(yaml_path),
-                    install_base=target,
-                    merge_install=merge_install,
-                )
+                # Generate only the build/lib copy directly using the
+                # generator entrypoint to avoid the helper also writing
+                # into multiple install locations.
+                target_file = Path(target) / (module_name + ".py")
+                generate_python_module(str(target_file), str(yaml_path), "")
         finally:
             os.chdir(cwd)
         super().run()
@@ -58,13 +69,37 @@ class build_py(_build_py):
 class develop(_develop):
     def run(self):
         # In editable/develop (used by symlink-install) generate the
-        # parameter modules into the source package directory so the
-        # symlinked install will expose them.
-        target = project_source_dir / package_name
-        target.mkdir(parents=True, exist_ok=True)
+        # parameter modules into the workspace `install` directory so
+        # generated modules live in `install/.../site-packages` instead
+        # of polluting the source tree. Respect `--merge-install` if
+        # present on the command line.
+        # Determine the colcon workspace root by locating the ancestor
+        # directory that contains a `src` directory.
+        colcon_ws = None
+        for p in project_source_dir.parents:
+            if (p / "src").is_dir():
+                colcon_ws = p
+                break
+        if colcon_ws is None:
+            colcon_ws = Path.cwd()
+        install_base = str(colcon_ws / "install")
+        # Treat `--symlink-install` as a request to place generated
+        # modules in the merged install layout too, so generated files
+        # live under `install/lib/.../site-packages` rather than in src.
+        argv_str = " ".join(os.sys.argv)
+        merge_install = ("--merge-install" in argv_str) or (
+            "--symlink-install" in argv_str
+        )
         for module_name, yaml_file in parameter_modules:
             yaml_path = project_source_dir / yaml_file
-            generate_parameter_module(module_name, str(yaml_path))
+            # Use the helper so it writes the install copy in the
+            # requested install layout.
+            generate_parameter_module(
+                module_name,
+                str(yaml_path),
+                install_base=install_base,
+                merge_install=merge_install,
+            )
         super().run()
 
 
