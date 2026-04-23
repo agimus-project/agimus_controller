@@ -31,7 +31,7 @@ setup(
     version="0.0.0",
     packages=["agimus_controller_ros"],
     package_dir={},
-    install_requires=["setuptools"],
+    install_requires=["setuptools", "generate_parameter_library_py"],
     zip_safe=True,
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
@@ -44,7 +44,7 @@ setup(
     maintainer="Guilhem Saurel",
     maintainer_email="gsaurel@laas.fr",
     description="ROS2 agimus_controller package",
-    license="BSD",
+    license="BSD-2-Clause",
     entry_points={
         "console_scripts": [
             "simple_trajectory_publisher = agimus_controller_ros.simple_trajectory_publisher:main",
@@ -53,5 +53,4 @@ setup(
             "mpc_plot_node = agimus_controller_ros.mpc_plot_node:main",
         ],
     },
-    tests_require=["pytest"],
 )

@@ -8,7 +8,7 @@ setup(
     version="0.0.0",
     packages=find_packages(exclude=["tests"]),
     package_dir={"./agimus_controller": "agimus_controller"},
-    package_data={"agimus_controller": ["ocp/*.yaml"]},
+    package_data={"agimus_controller": ["ocp/*.yaml", "package.xml"]},
     python_requires=REQUIRES_PYTHON,
     install_requires=[
         "crocoddyl",
@@ -21,5 +21,4 @@ setup(
     maintainer_email="guilhem.saurel@laas.fr",
     description="Implements whole body MPC in python using the Croccodyl framework.",
     license="BSD-2-Clause",
-    tests_require=["pytest"],
 )
