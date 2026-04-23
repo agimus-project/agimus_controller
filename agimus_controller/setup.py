@@ -9,6 +9,10 @@ setup(
     packages=find_packages(exclude=["tests"]),
     package_dir={"./agimus_controller": "agimus_controller"},
     package_data={"agimus_controller": ["ocp/*.yaml", "package.xml"]},
+    data_files=[
+        ("share/ament_index/resource_index/packages", ["resource/" + PACKAGE_NAME]),
+        ("share/" + PACKAGE_NAME, ["ocp/*.yaml", "package.xml"]),
+    ],
     python_requires=REQUIRES_PYTHON,
     install_requires=[
         "crocoddyl",
