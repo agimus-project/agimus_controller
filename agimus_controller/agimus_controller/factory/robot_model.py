@@ -14,7 +14,8 @@ class RobotModelParameters:
     q0: npt.NDArray[np.float64] = field(
         default_factory=lambda: np.array([], dtype=np.float64)
     )  # Initial full configuration of the robot
-    free_flyer: bool = False  # True if the robot has a free flyer
+    free_flyer: bool = False  # True if the robot has a free flyer (SE3, 6 DoF)
+    planar_base: bool = False  # True if the robot has a planar base (x, y, yaw — 3 DoF)
     moving_joint_names: list[str] = field(default_factory=list)
     robot_urdf: Union[Path, str] = (
         ""  # Path to the URDF file or string containing URDF as an XML
@@ -46,19 +47,25 @@ class RobotModelParameters:
     )  # Red color for the collision model
 
     def __post_init__(self):
-        # Handle armature:
-        if self.armature.size == 0:
-            # Use a default armature filled with 0s,
-            # based on the size of moving_joint_names
-            self.armature = np.zeros(len(self.moving_joint_names), dtype=np.float64)
+        if self.free_flyer and self.planar_base:
+            raise ValueError("free_flyer and planar_base are mutually exclusive.")
 
-        # Ensure armature has the same shape as moving_joint_names
-        if (
-            len(self.armature) != len(self.moving_joint_names) and not self.free_flyer
-        ):  # ! TODO: Do the same for free flyer
+        # Number of base DoFs added to the model before arm joints:
+        #   free_flyer  → 6 (SE3 twist)
+        #   planar_base → 3 (vx, vy, omega)
+        #   none        → 0
+        base_nv = 6 if self.free_flyer else (3 if self.planar_base else 0)
+        expected_nv = base_nv + len(self.moving_joint_names)
+
+        # Handle armature: default to zeros sized to the full nv.
+        if self.armature.size == 0:
+            self.armature = np.zeros(expected_nv, dtype=np.float64)
+
+        if len(self.armature) != expected_nv:
             raise ValueError(
-                f"Armature must have the same shape as moving_joint_names. "
-                f"Got {self.armature.shape} and {len(self.moving_joint_names)}."
+                f"Armature size mismatch. Expected {expected_nv} "
+                f"({base_nv} base DoF + {len(self.moving_joint_names)} arm joints), "
+                f"got {len(self.armature)}."
             )
 
         # Ensure URDF and SRDF are valid
@@ -148,6 +155,7 @@ class RobotModels:
         self,
         urdf: Path | str,
         use_free_flyer: bool,
+        use_planar_base: bool,
         geometry_types: list[pin.GeometryType],
     ) -> tuple[pin.Model, pin.CollisionGeometry]:
         """Build pinocchio's models from URDF."""
@@ -162,6 +170,8 @@ class RobotModels:
                 print("Loaded URDF from XML.")
             if use_free_flyer:
                 robot_model = pin.buildModelFromXML(urdf, pin.JointModelFreeFlyer())
+            elif use_planar_base:
+                robot_model = pin.buildModelFromXML(urdf, pin.JointModelPlanar())
             else:
                 robot_model = pin.buildModelFromXML(urdf)
             package_dirs = (
@@ -192,14 +202,18 @@ class RobotModels:
         ]
         self._full_robot_model, self._collision_model, self._visual_model = (
             self._load_urdf(
-                self._params.robot_urdf, self._params.free_flyer, geometry_types
+                self._params.robot_urdf,
+                self._params.free_flyer,
+                self._params.planar_base,
+                geometry_types,
             )
         )
         if self._params.env_urdf is not None:
             env_model, env_collision_model, env_visual_model = self._load_urdf(
                 self._params.env_urdf,
-                use_free_flyer=False,
-                geometry_types=geometry_types,
+                False,
+                False,
+                geometry_types,
             )
 
             # make robot models append environment models
@@ -237,12 +251,20 @@ class RobotModels:
                     jn + " not in the model. Model is:" + str(self._full_robot_model)
                 )
         # Find the joints to lock.
+        # When a floating base (free_flyer) or planar base is used, the root
+        # joint (index 1, typically named "root_joint") must NOT be locked so
+        # that the base DoFs survive the reduction.
+        has_base_joint = self._params.free_flyer or self._params.planar_base
+        root_joint_id = 1 if has_base_joint else None
         joints_to_lock = []
         for jn in self._full_robot_model.names:
             if jn == "universe":
                 continue
+            jid = self._full_robot_model.getJointId(jn)
+            if has_base_joint and jid == root_joint_id:
+                continue
             if jn not in self._params.moving_joint_names:
-                joints_to_lock.append(self._full_robot_model.getJointId(jn))
+                joints_to_lock.append(jid)
         if len(self._q0) == 0:
             self._q0 = pin.neutral(self._full_robot_model)
         (

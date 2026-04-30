@@ -216,10 +216,11 @@ class TrajectoryBuffer(object):
 
     @property
     def horizon(self):
-        assert self.horizon_indexes[-1] < len(self._buffer), (
-            "Size of buffer must be at least horizon_indexes[-1]."
-        )
-        return [self._buffer[i] for i in self.horizon_indexes]
+        last = self._buffer[-1]
+        return [
+            self._buffer[i] if i < len(self._buffer) else last
+            for i in self.horizon_indexes
+        ]
 
     def __len__(self):
         return len(self._buffer)

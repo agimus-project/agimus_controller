@@ -1,4 +1,5 @@
 from typing import List
+import time
 import numpy as np
 
 from agimus_msgs.msg import MpcInput
@@ -9,6 +10,7 @@ from rclpy.task import Future
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from linear_feedback_controller_msgs.msg import Sensor
+from rcl_interfaces.srv import GetParameters
 
 from agimus_controller.trajectories.sine_wave_params import SinWaveParams
 from agimus_controller.factory.robot_model import RobotModelParameters, RobotModels
@@ -27,6 +29,7 @@ from agimus_controller.trajectories.generic_trajectory import GenericTrajectory
 from agimus_controller_ros.ros_utils import (
     weighted_traj_point_to_mpc_msg,
     get_param_from_node,
+    sensor_ff_to_planar_state,
 )
 from agimus_controller.trajectories.generic_visual_servoing_trajectory import (
     GenericVisualServoingTrajectory,
@@ -69,14 +72,26 @@ class TrajectoryPublisherBase(Node):
 
         self.q0 = None
         self.current_q = None
+        self.current_dq = None
         self.robot_description_msg = None
 
-        # Obtained by checking "QoS profile" values in out of:
-        # ros2 topic info -v /robot_description
-        # ros2 topic info -v /sensor
-        self.moving_joint_names = get_param_from_node(
-            self, "linear_feedback_controller", "moving_joint_names"
-        ).string_array_value
+        # Fetched asynchronously in _initialize_q0 to avoid blocking __init__.
+        self.moving_joint_names = None
+        self._free_flyer = None
+        self._planar_base = None
+        self._agimus_params_fetched = False  # True only after _on_agimus_params succeeds
+
+        self._lfc_param_client = self.create_client(
+            GetParameters, "/linear_feedback_controller/get_parameters"
+        )
+        self._agimus_param_client = self.create_client(
+            GetParameters, "/agimus_controller_node/get_parameters"
+        )
+        self._lfc_param_future = None
+        self._lfc_param_future_deadline = None  # wall-clock timeout for the future
+        self._agimus_param_future = None
+        self._agimus_param_future_deadline = None
+
         self.subscriber_robot_description_ = self.create_subscription(
             String,
             "/robot_description",
@@ -109,16 +124,27 @@ class TrajectoryPublisherBase(Node):
 
     def joint_states_callback(self, msg: Sensor) -> None:
         """Set joint state reference."""
+        if self.moving_joint_names is None or self._planar_base is None:
+            return
         jpos = np.array(msg.joint_state.position)
-        # TODO fix this, temp hac to work from sim
+        jvel = np.array(msg.joint_state.velocity)
+        # TODO fix this, temp hack to work from sim
         joint_idxs = get_joint_idxs(self.moving_joint_names, msg.joint_state)
-        if self.q0 is None and np.linalg.norm(jpos) > 1e-2:
-            self.q0 = get_reduced_configuration(jpos, joint_idxs)
+        arm_q = get_reduced_configuration(jpos, joint_idxs)
+        arm_v = get_reduced_configuration(jvel, joint_idxs)
+        if self.q0 is None and np.linalg.norm(arm_q) > 1e-2:
+            self.q0 = arm_q.copy()
             self.get_logger().info(f"Received q0 = {[round(el, 2) for el in self.q0]}.")
-        self.current_q = get_reduced_configuration(jpos, joint_idxs)
-        self.current_dq = get_reduced_configuration(
-            np.array(msg.joint_state.velocity), joint_idxs
-        )
+        # With a planar base, the LFC sends base data in base_pose/base_twist fields.
+        # Convert to planar representation; before _load_models, fall back to neutral.
+        if self._planar_base:
+            q_planar, v_planar = sensor_ff_to_planar_state(msg, arm_q, arm_v)
+            self.current_q = q_planar
+            self.current_dq = v_planar
+        else:
+            base_q = getattr(self, "_base_q0", np.array([]))
+            self.current_q = np.concatenate([base_q, arm_q])
+            self.current_dq = np.concatenate([np.zeros(len(base_q)), arm_v])
 
     def robot_description_callback(self, msg: String) -> None:
         """Create the models of the robot from the urdf string."""
@@ -131,22 +157,137 @@ class TrajectoryPublisherBase(Node):
         self.robot_models = RobotModels(
             param=RobotModelParameters(
                 robot_urdf=self.robot_description_msg.data,
-                free_flyer=False,
+                free_flyer=self._free_flyer,
+                planar_base=self._planar_base,
                 moving_joint_names=self.moving_joint_names,
             )
         )
-        self.get_logger().info(
-            f"Model loaded, pin_model.nq = {self.robot_models.robot_model.nq}"
-        )
+
+        # q0 and current_q from joint_states_callback contain arm joints only.
+        # With a floating base, prepend the neutral base configuration so that
+        # the full configuration matches robot_model.nq.
+        rmodel = self.robot_models.robot_model
+        nq_base = rmodel.nq - len(self.moving_joint_names)
+        if nq_base > 0:
+            import pinocchio as pin
+
+            base_q0 = pin.neutral(rmodel)[:nq_base]
+            self.q0 = np.concatenate([base_q0, self.q0])
+            self.current_q = np.concatenate([base_q0, self.current_q])
+            self._base_q0 = base_q0
+        else:
+            self._base_q0 = np.array([])
+
+        self.get_logger().info(f"Model loaded, pin_model.nq = {rmodel.nq}")
         self.get_logger().info(f"Model loaded, reduced self.q0 = {self.q0}")
 
+    def _agimus_params_to_fetch(self) -> list:
+        """Names of parameters to fetch from agimus_controller_node.
+
+        Subclasses can override to request additional parameters.
+        The first two entries must always be 'free_flyer' and 'planar_base'.
+        """
+        return ["free_flyer", "planar_base"]
+
+    def _on_agimus_params(self, values) -> None:
+        """Called with the fetched agimus_controller_node parameter values.
+
+        Subclasses that override _agimus_params_to_fetch must also override
+        this method to handle the extra values (indices 2+).
+        """
+        self._free_flyer = values[0].bool_value
+        self._planar_base = values[1].bool_value
+
     def _initialize_q0(self):
+        self.get_logger().debug("_initialize_q0 tick")
+
+        # Step 1: fetch moving_joint_names from LFC (non-blocking).
+        if self.moving_joint_names is None:
+            if self._lfc_param_future is None:
+                if not self._lfc_param_client.service_is_ready():
+                    self.get_logger().info(
+                        "Waiting for LFC parameter service...",
+                        throttle_duration_sec=5.0,
+                    )
+                    return
+                req = GetParameters.Request()
+                req.names = ["moving_joint_names"]
+                self._lfc_param_future = self._lfc_param_client.call_async(req)
+                self._lfc_param_future_deadline = time.monotonic() + 5.0
+                self.get_logger().info("Sent GetParameters request to LFC.")
+            if not self._lfc_param_future.done():
+                if time.monotonic() > self._lfc_param_future_deadline:
+                    self.get_logger().warn(
+                        "GetParameters request to LFC timed out (service busy during init?), retrying..."
+                    )
+                    self._lfc_param_future = None
+                    self._lfc_param_future_deadline = None
+                return
+            result = self._lfc_param_future.result()
+            self._lfc_param_future = None
+            if result is None:
+                self.get_logger().error(
+                    "Failed to get moving_joint_names from LFC, retrying..."
+                )
+                return
+            self.moving_joint_names = result.values[0].string_array_value
+            self.get_logger().info(
+                f"[Step 1 done] moving_joint_names from LFC: {self.moving_joint_names}"
+            )
+
+        # Step 2: fetch free_flyer / planar_base (+ subclass extras) from
+        #         agimus_controller_node (non-blocking).
+        if not self._agimus_params_fetched:
+            if self._agimus_param_future is None:
+                if not self._agimus_param_client.service_is_ready():
+                    self.get_logger().info(
+                        "Waiting for agimus_controller_node parameter service...",
+                        throttle_duration_sec=5.0,
+                    )
+                    return
+                req = GetParameters.Request()
+                names = self._agimus_params_to_fetch()
+                req.names = names
+                self._agimus_param_future = self._agimus_param_client.call_async(req)
+                self._agimus_param_future_deadline = time.monotonic() + 5.0
+                self.get_logger().info(
+                    f"Sent GetParameters request to agimus_controller_node: {names}"
+                )
+            if not self._agimus_param_future.done():
+                if time.monotonic() > self._agimus_param_future_deadline:
+                    self.get_logger().warn(
+                        "GetParameters request to agimus_controller_node timed out, retrying..."
+                    )
+                    self._agimus_param_future = None
+                    self._agimus_param_future_deadline = None
+                return
+            result = self._agimus_param_future.result()
+            self._agimus_param_future = None
+            if result is None:
+                self.get_logger().error(
+                    "Failed to get params from agimus_controller_node, retrying..."
+                )
+                return
+            try:
+                self._on_agimus_params(result.values)
+            except Exception as e:
+                self.get_logger().error(
+                    f"_on_agimus_params raised {type(e).__name__}: {e}. "
+                    f"Parameter values: {[(v.type, v.bool_value, v.double_value) for v in result.values]}. "
+                    "Retrying..."
+                )
+                return
+            self._agimus_params_fetched = True
+            self.get_logger().info("[Step 2 done] agimus_controller_node params fetched.")
+
+        # Step 3: wait for robot description and first joint state.
         if self.robot_description_msg is None or self.q0 is None:
             self.get_logger().info(
                 "Wait for robot model and q0", throttle_duration_sec=1.0
             )
             return
 
+        self.get_logger().info("[Step 3 done] robot model and q0 ready. Loading models...")
         self._load_models()
         self.destroy_timer(self.timer)
         self.ready_callback()

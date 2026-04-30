@@ -132,6 +132,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
     def _get_agimus_controller_node_params(self):
         names = [
             "free_flyer",
+            "planar_base",
             "ocp.dt_factor_n_seq.factors",
             "ocp.dt_factor_n_seq.n_steps",
             "collision_as_capsule",
@@ -149,13 +150,14 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self._agimus_controller_node_params = dict(zip(names, params))
 
         self._robot_has_free_flyer = params[0].bool_value
-        dt_factors = params[1].integer_array_value
-        dt_n_steps = params[2].integer_array_value
+        self._robot_has_planar_base = params[1].bool_value
+        dt_factors = params[2].integer_array_value
+        dt_n_steps = params[3].integer_array_value
         self._ocp_dt_factor_n_seq = DTFactorsNSeq(dt_factors, dt_n_steps)
 
-        self._collision_as_capsule = params[3].bool_value
-        self._self_collision = params[4].bool_value
-        self._ocp_armature = np.array(params[5].double_array_value)
+        self._collision_as_capsule = params[4].bool_value
+        self._self_collision = params[5].bool_value
+        self._ocp_armature = np.array(params[6].double_array_value)
 
         self._horizon_indices = np.cumsum(
             sum(
@@ -272,7 +274,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         if self._ocp_update_requested.is_set():
             return
 
-        # Step 1: Update references
+        # Update references
         # Read transforms from TF. Note that doing do introduces a delay.
         now = self.get_clock().now()
         transforms = self._ocp.input_transforms
@@ -293,14 +295,14 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         references = [self._references[i] for i in self._horizon_indices]
         self._ocp.set_reference_weighted_trajectory(references)
 
-        # Step 2: Build state and control and evaluate the OCP
+        # Build state and control and evaluate the OCP
         x = [np.asarray(state) for state in states]
         u = [np.asarray(control) for control in controls]
         problem = self._ocp._problem
         problem.calc(x, u)
         problem.calcDiff(x, u)
 
-        # Step 3: retrieve the individual cost items.
+        # Retrieve the individual cost items.
         idof = 0
         with self._mpl_lock:
             for c, (cost_idx, model, data) in enumerate(
@@ -435,6 +437,7 @@ class MPCDebuggerNode(Node, RobotModelsMixin):
         self.get_logger().info("create robot...")
         self.create_robot_models(
             free_flyer=self._robot_has_free_flyer,
+            planar_base=self._robot_has_planar_base,
             collision_as_capsule=self._collision_as_capsule,
             self_collision=self._self_collision,
             armature=self._ocp_armature,
