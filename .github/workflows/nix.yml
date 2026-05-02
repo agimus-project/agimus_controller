@@ -2,11 +2,13 @@ name: "CI - Nix"
 on:
   push:
     branches:
-      - humble-devel
+      - devel
+      - master
       - main
   pull_request:
     branches:
-      - humble-devel
+      - devel
+      - master
       - main
 jobs:
   distros:

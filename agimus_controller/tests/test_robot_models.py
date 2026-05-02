@@ -28,7 +28,9 @@ except (ModuleNotFoundError, ImportError) as e:
     AMENT_AVAILABLE = False
 if AMENT_AVAILABLE:
     try:
-        FRANKA_DESCRIPTION_PATH = get_package_share_directory("agimus_franka_description")
+        FRANKA_DESCRIPTION_PATH = get_package_share_directory(
+            "agimus_franka_description"
+        )
         environ["AMENT_PREFIX_PATH"] += pathsep + FRANKA_DESCRIPTION_PATH
         FRANKA_DESCRIPTION_AVAILABLE = True
     except (OSError, PackageNotFoundError) as e:
